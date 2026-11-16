@@ -1,0 +1,17 @@
+{
+  "name": "@dfend/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts src/replayWorker.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist --entry-names=[name] --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && node -e \"require('fs').renameSync('dist/index.js','dist/server.js')\""
+  },
+  "dependencies": {
+    "@dfend/shared": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.24.0"
+  }
+}

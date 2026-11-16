@@ -1,0 +1,22 @@
+{
+  "name": "d-fend",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm --filter @dfend/client build && pnpm --filter @dfend/server build",
+    "start": "node packages/server/dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/server && pnpm --filter @dfend/client check",
+    "balance": "tsx tools/balance.ts",
+    "bench": "node tools/bench.mjs",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
