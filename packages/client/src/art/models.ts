@@ -16,6 +16,8 @@ export interface ModelMeta {
   muzzleY?: number;
   /** triangles après cuisson (information) */
   tris?: number;
+  /** texture à transparence découpée (feuillages, herbes) */
+  cutout?: boolean;
 }
 
 export interface LoadedModel {
@@ -81,6 +83,7 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
   if (map) {
     map.colorSpace = THREE.SRGBColorSpace;
     map.anisotropy = 2;
+    map.userData.cutout = !!meta.cutout;
     map.needsUpdate = true;
   }
   mat?.dispose();

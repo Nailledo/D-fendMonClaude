@@ -28,8 +28,8 @@ const NAT = 'quaternius-nature/glTF';
 /**
  * FREE_SOURCES : fichier attendu par le catalogue -> chemin de la source dans _packs/, ou recette.
  *
- * Sans équivalent gratuit (ils gardent l'art construit en code) : le loup, le ver, la vasière, le crâne, et les végétaux à feuillage
- * transparent que la cuisson ne gère pas (buisson, fleurs, herbes, saule, roseaux, champignon).
+ * Sans équivalent gratuit (ils gardent l'art construit en code) : le loup, le ver, la vasière, le crâne,
+ * le champignon et le saule (les arbres feuillus du pack nature mêlent deux textures, ce que la cuisson ne garde pas).
  */
 /** Source composée : pièces empilées de bas en haut, teinte multipliée sur les matériaux, étirement (x, y, z). */
 export interface Recipe { parts: string[]; tint?: [number, number, number]; scale?: [number, number, number] }
@@ -112,6 +112,12 @@ export const FREE_SOURCES: Record<string, string | Recipe> = {
   'decor-cendre-cristal-0.glb': one(`${RTS}/Resource_Gold_2.gltf`, [1, 0.45, 0.3]),
   'decor-cendre-rocher-0.glb': one(`${RTS}/Rock.gltf`, [0.42, 0.36, 0.36]),
   'decor-cendre-pic-0.glb': one(`${RTS}/Mountain_Single.gltf`, [0.45, 0.38, 0.38]),
+  // végétaux à feuillage découpé (texture transparente)
+  'decor-vallee-buisson-0.glb': one(`${NAT}/Bush.gltf`, [0.55, 0.7, 0.45]),
+  'decor-vallee-fleurs-0.glb': `${NAT}/Flower_3_Clump.gltf`,
+  'decor-vallee-herbe-0.glb': `${NAT}/Grass_Large.gltf`,
+  'decor-marais-herbe-0.glb': one(`${NAT}/Grass_Small.gltf`, [0.75, 0.8, 0.5]),
+  'decor-marais-roseaux-0.glb': one(`${NAT}/Grass_Large_Extruded.gltf`, [0.85, 0.75, 0.45], [1, 2, 1]),
   // (le reste garde l'art construit en code : les feuillages du pack nature sont des textures
   // transparentes, que la cuisson ne gère pas)
   'decor-vallee-sapin-0.glb': `${RTS}/Resource_PineTree.gltf`,

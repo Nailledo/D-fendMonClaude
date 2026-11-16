@@ -88,19 +88,26 @@ function sample(img: Img, u: number, v: number): [number, number, number] {
   const o = (y * img.w + x) * 4;
   return [img.data[o] / 255, img.data[o + 1] / 255, img.data[o + 2] / 255];
 }
+/** Texture découpée (feuillage, herbe) : une part notable de pixels transparents. */
+function isCutout(img: Img): boolean {
+  let t = 0;
+  for (let i = 3; i < img.data.length; i += 4) if (img.data[i] < 128) t++;
+  return t > (img.data.length / 4) * 0.02;
+}
 function resize(img: Img, max: number): Img {
   const k = Math.max(1, Math.ceil(Math.max(img.w, img.h) / max));
   if (k === 1) return img;
   const w = Math.floor(img.w / k), h = Math.floor(img.h / k);
   const out = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    let r = 0, g = 0, b = 0;
+    // moyenne pondérée par l'alpha : les pixels transparents ne salissent pas les bords des feuillages
+    let r = 0, g = 0, b = 0, a = 0;
     for (let dy = 0; dy < k; dy++) for (let dx = 0; dx < k; dx++) {
-      const o = ((y * k + dy) * img.w + x * k + dx) * 4;
-      r += img.data[o]; g += img.data[o + 1]; b += img.data[o + 2];
+      const o = ((y * k + dy) * img.w + x * k + dx) * 4, al = img.data[o + 3];
+      r += img.data[o] * al; g += img.data[o + 1] * al; b += img.data[o + 2] * al; a += al;
     }
-    const n = k * k, o = (y * w + x) * 4;
-    out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n; out[o + 3] = 255;
+    const o = (y * w + x) * 4, d = a || 1;
+    out[o] = r / d; out[o + 1] = g / d; out[o + 2] = b / d; out[o + 3] = a / (k * k);
   }
   return { w, h, data: out };
 }
@@ -498,7 +505,7 @@ function paintAO(r: RawMesh, height: number) {
 }
 
 // ------------------------------------------------------------------ écriture
-function write(r: RawMesh, e: CatalogEntry, img: Img | null, io: NodeIO) {
+function write(r: RawMesh, e: CatalogEntry, img: Img | null, io: NodeIO, cutout = false) {
   const doc = new Document();
   const buffer = doc.createBuffer();
   const n = r.pos.length / 3;
@@ -519,8 +526,17 @@ function write(r: RawMesh, e: CatalogEntry, img: Img | null, io: NodeIO) {
   const mat = doc.createMaterial('mat').setRoughnessFactor(1).setMetallicFactor(0);
   if (r.uv && img) {
     const small = resize(img, e.tex);
-    const j = jpeg.encode({ data: Buffer.from(small.data), width: small.w, height: small.h }, 85);
-    const tex = doc.createTexture('base').setImage(new Uint8Array(j.data)).setMimeType('image/jpeg');
+    const tex = doc.createTexture('base');
+    if (cutout) {
+      // la transparence impose le PNG ; le client découpe au seuil alpha 0,5
+      const png = new PNG({ width: small.w, height: small.h });
+      png.data = Buffer.from(small.data);
+      tex.setImage(new Uint8Array(PNG.sync.write(png))).setMimeType('image/png');
+      mat.setAlphaMode('MASK').setAlphaCutoff(0.5).setDoubleSided(true);
+    } else {
+      const j = jpeg.encode({ data: Buffer.from(small.data), width: small.w, height: small.h }, 85);
+      tex.setImage(new Uint8Array(j.data)).setMimeType('image/jpeg');
+    }
     mat.setBaseColorTexture(tex);
   }
   prim.setMaterial(mat);
@@ -539,7 +555,7 @@ async function main() {
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
   mkdirSync(OUT, { recursive: true });
   const manifestPath = join(OUT, 'manifest.json');
-  const manifest: { version: number; models: Record<string, { file: string; height: number; muzzleY?: number; tris: number }> } =
+  const manifest: { version: number; models: Record<string, { file: string; height: number; muzzleY?: number; tris: number; cutout?: boolean }> } =
     existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : { version: 1, models: {} };
   let done = 0, missing = 0;
   for (const e of CATALOG) {
@@ -573,10 +589,11 @@ async function main() {
       }
       paintAO(r, e.height);
       const img = single ? images.get([...textures][0])! : null;
-      const out = await write(r, e, img, io);
+      const cutout = !!img && e.group === 'decor' && isCutout(img);
+      const out = await write(r, e, img, io, cutout);
       const tris = r.idx.length / 3;
-      manifest.models[e.key] = { file: out.file, height: e.height, ...(e.muzzleY !== undefined ? { muzzleY: e.muzzleY } : {}), tris };
-      console.log(`${String(srcTris).padStart(7)} → ${String(tris).padStart(5)} tris  ${(out.bytes / 1024).toFixed(0).padStart(5)} Ko  ${single ? 'texture ' + e.tex : 'couleurs cuites'}${rigged ? '  rig' : ''}`);
+      manifest.models[e.key] = { file: out.file, height: e.height, ...(e.muzzleY !== undefined ? { muzzleY: e.muzzleY } : {}), tris, ...(cutout ? { cutout: true } : {}) };
+      console.log(`${String(srcTris).padStart(7)} → ${String(tris).padStart(5)} tris  ${(out.bytes / 1024).toFixed(0).padStart(5)} Ko  ${single ? 'texture ' + e.tex + (cutout ? ' découpée' : '') : 'couleurs cuites'}${rigged ? '  rig' : ''}`);
       done++;
     } catch (err) {
       console.log(`ÉCHEC : ${(err as Error).message}`);

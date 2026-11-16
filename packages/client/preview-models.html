@@ -45,7 +45,7 @@ await Promise.all(keys.map(async (key, i) => {
   gltf.scene.traverse((o) => {
     if (o.isMesh) {
       const map = o.material.map ?? null;
-      o.material = new THREE.MeshLambertMaterial({ vertexColors: !!o.geometry.attributes.color, map });
+      o.material = new THREE.MeshLambertMaterial({ vertexColors: !!o.geometry.attributes.color, map, ...(manifest[key].cutout ? { alphaTest: 0.5, side: THREE.DoubleSide } : {}) });
     }
   });
   scene.add(gltf.scene);

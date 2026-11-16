@@ -89,7 +89,10 @@ export function animMaterial(map: THREE.Texture | null = null): THREE.MeshToonMa
     shader.uniforms.uTime = uniforms.uTime;
     shader.vertexShader = ANIM_HEAD + shader.vertexShader.replace('#include <begin_vertex>', ANIM_BEGIN).replace('#include <color_vertex>', COLOR_PATCH);
   };
-  m.customProgramCacheKey = () => (map ? 'anim-toon-map' : 'anim-toon');
+  // feuillages et herbes importés : plans texturés découpés au seuil alpha, visibles des deux côtés
+  const cutout = !!map?.userData.cutout;
+  if (cutout) { m.alphaTest = 0.5; m.side = THREE.DoubleSide; }
+  m.customProgramCacheKey = () => (map ? (cutout ? 'anim-toon-map-cutout' : 'anim-toon-map') : 'anim-toon');
   return m;
 }
 

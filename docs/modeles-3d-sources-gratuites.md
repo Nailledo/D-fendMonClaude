@@ -4,7 +4,7 @@ Correspondance entre les 81 entrées de `tools/models/catalog.ts` et des modèle
 (domaine public : usage libre, y compris commercial, sans attribution).
 
 > **État réel** : la table qui fait foi est `FREE_SOURCES` dans `tools/models/import-free.ts`.
-> 70 modèles sur 81 sont importés. Les tableaux ci-dessous sont le plan initial, établi avant téléchargement.
+> 75 modèles sur 81 sont importés. Les tableaux ci-dessous sont le plan initial, établi avant téléchargement.
 >
 > - Modèles directs : héros, soldats, tours d'archers, casernes, la plupart des ennemis, sapin, rochers, arbres morts.
 > - Tours de mages, d'artillerie et Nécropole : assemblées à partir des pièces du Tower Defense Kit de Kenney
@@ -12,8 +12,8 @@ Correspondance entre les 81 entrées de `tools/models/catalog.ts` et des modèle
 > - Approximations par teinte d'un modèle voisin : Brom (Barbarian élargi), Chevalier et Garde royal (Knight),
 >   chevalier infernal, noyé et sorcière (squelettes KayKit), corbeau, golem (Yeti), Kessin ×3 (démons et dragon),
 >   portes, entrées (mine), décor des Cendres.
-> - 11 restent en art construit en code, faute d'équivalent gratuit correct : loup, ver, vasière, crâne, champignon,
->   et les végétaux à feuillage transparent que la cuisson ne gère pas (buisson, fleurs, herbes ×2, saule, roseaux).
+> - Buisson et fleurs : textures à transparence découpée (PNG, `cutout` dans le manifeste, seuil alpha 0,5 côté jeu).
+> - 6 restent en art construit en code, faute d'équivalent gratuit correct : loup, ver, vasière, crâne, champignon, saule.
 >
 > Contrôle visuel : ouvrir `http://localhost:5173/preview-models.html?g=enemy` pendant `pnpm dev`
 > (groupes : hero, soldier, enemy, tower, decor, gate, spawn).
