@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PATH_HALF_WIDTH, Rng, type RuntimeMap, type SampledPath } from '@dfend/shared';
 import { DECOR, THEMES, decorGeometry, gateGeometry, spawnGeometry, type BiomeTheme } from '../art/decor';
+import { K, geoFor, model } from '../art/models';
 import { slotGeometry } from '../art/towers';
 import { settings } from '../settings';
 import { InstPool, staticInstances } from './InstPool';
@@ -66,20 +67,29 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   };
 
   // ------------------------------------------------ terrain
-  const W = 112, H = 84, SX = 100, SZ = 76;
+  const W = 112, H = 84, SX = 112, SZ = 84;
   const plane = new THREE.PlaneGeometry(W, H, SX, SZ);
   plane.rotateX(-Math.PI / 2);
   const pos = plane.attributes.position as THREE.BufferAttribute;
   const heights = new Float32Array(pos.count);
   const dists = new Float32Array(pos.count);
+  const distSlot = (x: number, z: number) => {
+    let best = Infinity;
+    for (const s of map.slots) best = Math.min(best, (x - s.x) ** 2 + (z - s.z) ** 2);
+    return Math.sqrt(best);
+  };
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
     const dp = distPath(x, z);
     dists[i] = dp;
     const outside = Math.max(Math.abs(x) - def.hw, Math.abs(z) - def.hh, 0);
-    let h = smooth(0, 10, outside) * (3.5 + noise(x * 0.12, z * 0.12) * 4);
-    h += (noise(x * 0.35, z * 0.35) - 0.5) * 0.35;
+    // collines extérieures : deux octaves de bruit, crêtes arrondies
+    const n1 = noise(x * 0.11, z * 0.11), n2 = noise(x * 0.27 + 7, z * 0.27 + 3);
+    let h = smooth(0, 11, outside) * (3 + n1 * 4.5 + (n2 - 0.5) * 1.6);
+    // ondulations douces de la plaine jouable
+    h += (noise(x * 0.3, z * 0.3) - 0.5) * 0.3 + (noise(x * 0.9 + 2, z * 0.9) - 0.5) * 0.08;
     h *= smooth(PATH_HALF_WIDTH + 0.3, PATH_HALF_WIDTH + 4, dp);
+    h *= 0.35 + 0.65 * smooth(1.6, 3.2, distSlot(x, z));
     const dpool = distPool(x, z);
     if (dpool < 1.2) h = Math.min(h, -0.55 * smooth(1.2, -0.6, dpool));
     // plaine plus basse au sud (vers la caméra) pour ne pas masquer la vue
@@ -90,20 +100,30 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   const geo = plane.toNonIndexed();
   const gp = geo.attributes.position as THREE.BufferAttribute;
   const colors = new Float32Array(gp.count * 3);
+  const hill = new THREE.Color(theme.hill), rock = new THREE.Color(theme.hill).lerp(new THREE.Color(theme.dirtEdge), 0.55).multiplyScalar(0.9);
+  const edgeDark = new THREE.Color(theme.fog).multiplyScalar(0.9);
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _n = new THREE.Vector3();
   for (let i = 0; i < gp.count; i += 3) {
-    // couleur par face (aspect facetté)
+    // couleur par face (aspect facetté), teintée par la hauteur, la pente et la distance au chemin
     const cx = (gp.getX(i) + gp.getX(i + 1) + gp.getX(i + 2)) / 3;
     const cz = (gp.getZ(i) + gp.getZ(i + 1) + gp.getZ(i + 2)) / 3;
     const cy = (gp.getY(i) + gp.getY(i + 1) + gp.getY(i + 2)) / 3;
-    const n = noise(cx * 0.25, cz * 0.25);
+    _a.set(gp.getX(i + 1) - gp.getX(i), gp.getY(i + 1) - gp.getY(i), gp.getZ(i + 1) - gp.getZ(i));
+    _b.set(gp.getX(i + 2) - gp.getX(i), gp.getY(i + 2) - gp.getY(i), gp.getZ(i + 2) - gp.getZ(i));
+    const slope = 1 - Math.abs(_n.crossVectors(_a, _b).normalize().y);
+    const n = noise(cx * 0.22, cz * 0.22) * 0.7 + noise(cx * 0.6 + 5, cz * 0.6) * 0.3;
     _c.set(theme.grass[Math.floor(n * theme.grass.length * 0.999)]);
     _c2.set(theme.grass[Math.floor(hash(cx, cz) * theme.grass.length)]);
-    _c.lerp(_c2, 0.25);
-    if (cy > 0.8) _c.lerp(_c2.set(theme.hill), smooth(0.8, 4, cy));
+    _c.lerp(_c2, 0.18);
+    if (cy > 0.8) _c.lerp(hill, smooth(0.8, 4, cy));
+    if (slope > 0.3) _c.lerp(rock, smooth(0.3, 0.7, slope));
     const dp = distPath(cx, cz);
-    if (dp < PATH_HALF_WIDTH + 1.4) _c.lerp(_c2.set(theme.dirtEdge), 0.55 * smooth(PATH_HALF_WIDTH + 1.4, PATH_HALF_WIDTH, dp));
+    if (dp < PATH_HALF_WIDTH + 1.6) _c.lerp(_c2.set(theme.dirtEdge), 0.5 * smooth(PATH_HALF_WIDTH + 1.6, PATH_HALF_WIDTH, dp));
     if (cy < -0.1) _c.lerp(_c2.set(theme.dirtEdge), 0.6);
-    const k = 0.94 + hash(cz, cx) * 0.1;
+    // vignette : les bords de la carte se fondent dans la brume
+    const edge = Math.max(Math.abs(cx) / (W / 2), Math.abs(cz) / (H / 2));
+    _c.lerp(edgeDark, smooth(0.62, 1, edge) * 0.55);
+    const k = 0.96 + hash(cz, cx) * 0.07;
     for (let v = 0; v < 3; v++) {
       colors[(i + v) * 3] = _c.r * k;
       colors[(i + v) * 3 + 1] = _c.g * k;
@@ -212,23 +232,46 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
     if (z > def.hh + 3) continue; // dégager le bas de l'écran
     tryPlace(x, z, false);
   }
+  // bordures de chemin : petites pierres, herbes et fleurs juste à côté de la terre battue
+  const edgeSet = (DECOR[def.biome].inner.map(([n]) => n) as string[]).filter((n) => /herbe|fleurs|rocher|roseaux|champignon|crane|cristal/.test(n));
+  if (edgeSet.length) for (const p of paths) {
+    for (let d = 1; d < p.length; d += 1.1) {
+      if (rng.next() > 0.55 * dens) continue;
+      const i = Math.min(p.count - 1, Math.floor(d / 0.25));
+      const side = rng.next() < 0.5 ? -1 : 1;
+      const off = PATH_HALF_WIDTH + rng.range(0.35, 0.95);
+      const x = p.xs[i] + p.nx[i] * side * off, z = p.zs[i] + p.nz[i] * side * off;
+      if (!(Math.abs(x) < def.hw && Math.abs(z) < def.hh)) continue;
+      if (distPool(x, z) < 0.4) continue;
+      let blocked = false;
+      for (const [ox, oz, r] of occupied) if ((x - ox) ** 2 + (z - oz) ** 2 < (r - 0.6) ** 2) { blocked = true; break; }
+      if (blocked) continue;
+      const name = edgeSet[rng.int(0, edgeSet.length - 1)];
+      const key = name + '|' + rng.int(0, 2);
+      if (!items.has(key)) items.set(key, []);
+      items.get(key)!.push({ x, y: 0.02, z, yaw: rng.next() * Math.PI * 2, s: rng.range(0.3, 0.55) });
+    }
+  }
   for (const [key, list] of items) {
     const [name, v] = key.split('|');
     const big = /chene|sapin|saule|basalte|pic|arbre/.test(name);
-    staticInstances(decorGeometry(def.biome, name, +v), list, group, big && settings.shadows);
+    // GLB importé (variante demandée, sinon variante 0), sinon art en code
+    const g = model(K.decor(def.biome, name, +v)) ?? model(K.decor(def.biome, name, 0));
+    staticInstances(g ? g.geo : decorGeometry(def.biome, name, +v), list, group, big && settings.shadows, g ? g.map : null);
   }
 
   // ------------------------------------------------ porte et entrées
   const gi = ex.i;
   const p0 = paths[0];
   const gj = Math.min(p0.count - 1, gi + 8);
-  const gatePool = new InstPool(gateGeometry(def.biome), 1, group, settings.shadows);
+  const gateG = geoFor(K.gate(def.biome), () => gateGeometry(def.biome));
+  const gatePool = new InstPool(gateG.geo, 1, group, settings.shadows, gateG.map);
   gatePool.begin();
   const gidx = gatePool.push(p0.xs[gj], 0, p0.zs[gj], Math.atan2(p0.nx[gi], p0.nz[gi]) + Math.PI / 2, 0.85);
   gatePool.setTeam(gidx, 0x1e3a8a);
   gatePool.end();
-  const spawnGeo = spawnGeometry(def.biome);
-  const spawnPool = new InstPool(spawnGeo, entries.length, group, false);
+  const spawnG = geoFor(K.spawn(def.biome), () => spawnGeometry(def.biome));
+  const spawnPool = new InstPool(spawnG.geo, entries.length, group, false, spawnG.map);
   spawnPool.begin();
   for (const e of entries) {
     const p = paths[e.path];

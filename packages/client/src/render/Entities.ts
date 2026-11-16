@@ -4,6 +4,7 @@ import {
   PLAYER_COLORS, UF_BUFF, UF_DEAD, UF_FIGHTING, UF_SHIELD, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { enemyGeometry } from '../art/enemies';
+import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry, soldierGeometry } from '../art/units';
 import type { Frame } from '../game/Interp';
@@ -43,9 +44,14 @@ export class Entities {
 
   constructor(scene: THREE.Scene, private map: RuntimeMap) {
     scene.add(this.group);
-    ENEMIES.forEach((d) => this.enemyPools.push(new InstPool(enemyGeometry(d.id), d.boss ? 2 : 48, this.group, settings.shadows)));
-    for (let k = 0; k < 8; k++) this.soldierPools.push(new InstPool(soldierGeometry(k), 24, this.group, settings.shadows));
-    for (const h of HERO_IDS) this.heroPools.push(new InstPool(heroGeometry(h), 4, this.group, settings.shadows));
+    // modèles importés (GLB cuits) quand ils existent, sinon art construit en code
+    const pool = (key: string, fb: () => THREE.BufferGeometry, cap: number) => {
+      const g = geoFor(key, fb);
+      return new InstPool(g.geo, cap, this.group, settings.shadows, g.map);
+    };
+    ENEMIES.forEach((d) => this.enemyPools.push(pool(K.enemy(d.id), () => enemyGeometry(d.id), d.boss ? 2 : 48)));
+    for (let k = 0; k < 8; k++) this.soldierPools.push(pool(K.soldier(k), () => soldierGeometry(k), 24));
+    for (const h of HERO_IDS) this.heroPools.push(pool(K.hero(h), () => heroGeometry(h), 4));
     const g = new THREE.PlaneGeometry(1, 1);
     this.hp = new THREE.InstancedMesh(g, hpBarMaterial(), 1024);
     this.hpAttr = new THREE.InstancedBufferAttribute(new Float32Array(1024 * 2), 2).setUsage(THREE.DynamicDrawUsage);
@@ -56,13 +62,30 @@ export class Entities {
     this.group.add(this.hp);
   }
 
-  private towerPool(map: Map<number, InstPool>, key: number, geo: THREE.BufferGeometry) {
+  private towerPool(map: Map<number, InstPool>, key: number, geo: THREE.BufferGeometry, tex: THREE.Texture | null = null) {
     let p = map.get(key);
     if (!p) {
-      p = new InstPool(geo, 8, this.group, settings.shadows);
+      p = new InstPool(geo, 8, this.group, settings.shadows, tex);
       map.set(key, p);
     }
     return p;
+  }
+
+  private towerViews = new Map<number, { base: THREE.BufferGeometry; map: THREE.Texture | null; turret: THREE.BufferGeometry | null; turretY: number; muzzleY: number }>();
+  /** Modèle d'une tour : GLB importé (statique, sans tourelle) ou art en code (socle + tourelle orientable). */
+  private towerView(fam: number, level: number) {
+    const key = fam * 10 + level;
+    let v = this.towerViews.get(key);
+    if (!v) {
+      const m = model(K.tower(fam, level));
+      if (m) v = { base: m.geo, map: m.map, turret: null, turretY: 0, muzzleY: m.meta.muzzleY ?? m.meta.height * 0.8 };
+      else {
+        const t = towerModel(fam, level);
+        v = { base: t.base, map: null, turret: t.turret, turretY: t.turretY, muzzleY: t.muzzleY };
+      }
+      this.towerViews.set(key, v);
+    }
+    return v;
   }
 
   private hpBar(x: number, y: number, z: number, frac: number, width: number) {
@@ -157,7 +180,7 @@ export class Entities {
       const slot = this.map.slots[snap.tSlot[i]];
       if (!slot) continue;
       const fam = snap.tFam[i], level = snap.tLevel[i];
-      const model = towerModel(fam, level);
+      const model = this.towerView(fam, level);
       const key = fam * 10 + level;
       let born = this.tBorn.get(id);
       if (born === undefined) { born = time; this.tBorn.set(id, born); }
@@ -165,7 +188,7 @@ export class Entities {
       const pop = age < 0.35 ? 0.6 + 0.4 * Math.sin((age / 0.35) * Math.PI * 0.5) + Math.sin((age / 0.35) * Math.PI) * 0.12 : 1;
       const team = PLAYER_COLORS[snap.tOwner[i]] ?? 0xffffff;
       const stunned = snap.tStun[i] > 0;
-      const base = this.towerPool(this.towerBase, key, model.base);
+      const base = this.towerPool(this.towerBase, key, model.base, model.map);
       const b = base.push(slot.x, 0, slot.z, 0, pop, id * 0.9, 0, id === selectedTower ? 0.18 : 0, 0);
       base.setTeam(b, team);
       if (stunned) base.setTint(b, 0.55, 0.7, 0.55, 0.45);

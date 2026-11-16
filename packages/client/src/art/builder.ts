@@ -158,6 +158,7 @@ export class GB {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.setAttribute('aAnim', new THREE.Float32BufferAttribute(this.anim, 4));
+    g.setAttribute('aWeight', new THREE.Float32BufferAttribute(new Float32Array(this.pos.length / 3).fill(1), 1));
     g.computeVertexNormals();
     g.computeBoundingSphere();
     g.computeBoundingBox();

@@ -27,6 +27,7 @@ export function worldMaterial(): THREE.MeshToonMaterial {
 
 const ANIM_HEAD = /* glsl */ `
 attribute vec4 aAnim;
+attribute float aWeight;
 attribute vec4 iAnim;
 attribute vec4 iTint;
 attribute vec3 iTeam;
@@ -46,23 +47,26 @@ vec3 transformed = vec3(position);
   float mode = iAnim.w;
   float walk = spd > 0.0 ? 1.0 : 0.0;
   if (mode > 0.5 && mode < 1.5) walk = 0.25;
+  vec3 moved = transformed;
   if (part > 0.5 && part < 2.5) {
     float s = (part < 1.5 ? 1.0 : -1.0) * sin(t) * 0.6 * walk;
-    transformed = rotX(transformed - pivot, s) + pivot;
+    moved = rotX(transformed - pivot, s) + pivot;
   } else if (part > 2.5 && part < 4.5) {
     float s = (part < 3.5 ? -1.0 : 1.0) * sin(t) * 0.45 * walk;
     if (mode > 0.5 && mode < 1.5) s = part < 3.5 ? -0.3 : -1.5 + 1.5 * abs(sin(uTime * 4.0 + iAnim.x));
-    transformed = rotX(transformed - pivot, s) + pivot;
+    moved = rotX(transformed - pivot, s) + pivot;
   } else if (part > 4.5 && part < 6.5) {
     float s = (part < 5.5 ? 1.0 : -1.0) * (0.25 + sin(uTime * 9.0 + iAnim.x) * 0.55);
-    transformed = rotZ(transformed - pivot, s) + pivot;
+    moved = rotZ(transformed - pivot, s) + pivot;
   } else if (part > 7.5 && part < 8.5) {
-    transformed.x += sin(uTime * 1.7 + iAnim.x + position.x) * 0.07 * max(position.y, 0.0);
-    transformed.z += cos(uTime * 1.3 + iAnim.x) * 0.04 * max(position.y, 0.0);
+    moved.x += sin(uTime * 1.7 + iAnim.x + position.x) * 0.07 * max(position.y, 0.0);
+    moved.z += cos(uTime * 1.3 + iAnim.x) * 0.04 * max(position.y, 0.0);
   } else if (part > 8.5 && part < 9.5) {
-    transformed = rotY(transformed - pivot, uTime * 1.5 + iAnim.x) + pivot;
-    transformed.y += sin(uTime * 2.0 + iAnim.x) * 0.12;
+    moved = rotY(transformed - pivot, uTime * 1.5 + iAnim.x) + pivot;
+    moved.y += sin(uTime * 2.0 + iAnim.x) * 0.12;
   }
+  // fondu aux articulations (modèles importés : aWeight < 1 près des jointures)
+  transformed = mix(transformed, moved, aWeight);
   if (walk > 0.5 && part < 7.5) transformed.y += abs(sin(t)) * 0.07;
 }
 `;
@@ -74,14 +78,18 @@ vColor.rgb = mix(vColor.rgb, iTint.rgb, iTint.a);
 vColor.rgb = mix(vColor.rgb, vec3(1.6, 1.5, 1.4), iAnim.z);
 `;
 
-/** Matériau des entités instanciées : animation procédurale dans le vertex shader. */
-export function animMaterial(): THREE.MeshToonMaterial {
-  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
+/**
+ * Matériau des entités instanciées : animation procédurale dans le vertex shader.
+ * Avec `map` (modèles importés), la texture est multipliée par les couleurs de sommets
+ * (occlusion cuite, teinte, flash) ; sans, les couleurs de sommets font tout.
+ */
+export function animMaterial(map: THREE.Texture | null = null): THREE.MeshToonMaterial {
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), map: map ?? undefined });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
     shader.vertexShader = ANIM_HEAD + shader.vertexShader.replace('#include <begin_vertex>', ANIM_BEGIN).replace('#include <color_vertex>', COLOR_PATCH);
   };
-  m.customProgramCacheKey = () => 'anim-toon';
+  m.customProgramCacheKey = () => (map ? 'anim-toon-map' : 'anim-toon');
   return m;
 }
 

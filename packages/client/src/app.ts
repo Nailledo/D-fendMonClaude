@@ -4,6 +4,7 @@ import {
 } from '@dfend/shared';
 import { audio } from './audio/Audio';
 import { enemyGeometry } from './art/enemies';
+import { K, ensureModels, gameModelKeys, geoFor, loadManifest } from './art/models';
 import { heroGeometry } from './art/units';
 import { GameClient } from './game/GameClient';
 import { LocalHost } from './net/host';
@@ -23,16 +24,19 @@ class TitleScene {
     const w = buildWorld(map);
     this.group.add(w.group);
     r.applyTheme(w.theme);
-    const heroes = new InstPool(heroGeometry('samuel'), 1, this.group, settings.shadows);
+    const hg = geoFor(K.hero('samuel'), () => heroGeometry('samuel'));
+    const heroes = new InstPool(hg.geo, 1, this.group, settings.shadows, hg.map);
     heroes.begin();
     const h = heroes.push(9, 0, 3, -0.6, 1.6);
     heroes.setTeam(h, 0x3b82f6);
     heroes.end();
-    const k = new InstPool(enemyGeometry('kessin2'), 1, this.group, settings.shadows);
+    const kg = geoFor(K.enemy('kessin2'), () => enemyGeometry('kessin2'));
+    const k = new InstPool(kg.geo, 1, this.group, settings.shadows, kg.map);
     k.begin();
     k.push(-20, 5, -34, 0.5, 2.6, 0, 1.2, 0, 2);
     k.end();
-    const gob = new InstPool(enemyGeometry('gobelin'), 8, this.group, settings.shadows);
+    const gg = geoFor(K.enemy('gobelin'), () => enemyGeometry('gobelin'));
+    const gob = new InstPool(gg.geo, 8, this.group, settings.shadows, gg.map);
     gob.begin();
     for (let i = 0; i < 6; i++) gob.push(-6 + i * 1.3, 0, -3 + (i % 2), 0.9, 0.8, i, 6, 0, 0);
     gob.end();
@@ -64,6 +68,13 @@ class App {
     this.renderer = new Renderer(canvas);
     autoDetect(this.renderer.gl.getContext());
     this.showTitle();
+    // modèles importés de l'écran titre : on reconstruit le diorama une fois chargés
+    void loadManifest().then(() => ensureModels([K.hero('samuel'), K.enemy('kessin2'), K.enemy('gobelin'), ...gameModelKeys('vallee', [], [])])).then(() => {
+      if (this.title && !this.game) {
+        this.title.dispose();
+        this.title = new TitleScene(this.renderer);
+      }
+    });
     net.onStatus = (s) => (ui.netStatus = s);
     net.on((m) => this.onServer(m));
     document.addEventListener('visibilitychange', () => {
@@ -121,10 +132,23 @@ class App {
     ui.sel = null;
     ui.submitted = false;
     ui.screen = 'game';
-    this.game = new GameClient(this.renderer, cfg, host, you, () => this.leaveGame());
+    ui.loading = true;
+    const gen = ++this.launchGen;
+    const biome = buildRuntimeMap(cfg.mapId, cfg.players.length).def.biome;
+    // charge les modèles importés nécessaires (manifeste vide : aucune attente)
+    loadManifest()
+      .then(() => ensureModels(gameModelKeys(biome, ENEMIES.map((e) => e.id), [...HERO_IDS])))
+      .catch(() => undefined)
+      .then(() => {
+        if (gen !== this.launchGen) return;
+        ui.loading = false;
+        this.game = new GameClient(this.renderer, cfg, host, you, () => this.leaveGame());
+      });
   }
+  private launchGen = 0;
 
   leaveGame(toMenu = true) {
+    this.launchGen++;
     if (this.game) {
       this.game.dispose();
       this.game = null;

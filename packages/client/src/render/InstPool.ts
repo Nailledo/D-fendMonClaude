@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 import { animDepthMaterial, animMaterial } from './materials';
 
-let sharedMat: THREE.MeshToonMaterial | null = null;
 let sharedDepth: THREE.MeshDepthMaterial | null = null;
-export function sharedAnimMaterial() {
-  return (sharedMat ??= animMaterial());
+const matByMap = new Map<THREE.Texture | null, THREE.MeshToonMaterial>();
+/** Matériau animé partagé : un par texture (null = couleurs de sommets seules). */
+export function sharedAnimMaterial(map: THREE.Texture | null = null) {
+  let m = matByMap.get(map);
+  if (!m) {
+    m = animMaterial(map);
+    matByMap.set(map, m);
+  }
+  return m;
 }
 function sharedDepthMat() {
   return (sharedDepth ??= animDepthMaterial());
@@ -27,7 +33,7 @@ export class InstPool {
   count = 0;
   cap = 0;
 
-  constructor(private src: THREE.BufferGeometry, cap: number, private parent: THREE.Object3D, private shadow = true) {
+  constructor(private src: THREE.BufferGeometry, cap: number, private parent: THREE.Object3D, private shadow = true, private map: THREE.Texture | null = null) {
     this.alloc(cap);
   }
 
@@ -36,6 +42,7 @@ export class InstPool {
     this.cap = cap;
     this.geo = new THREE.BufferGeometry();
     for (const k of Object.keys(this.src.attributes)) this.geo.setAttribute(k, this.src.attributes[k]);
+    if (this.src.index) this.geo.setIndex(this.src.index);
     this.geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
     this.anim = new Float32Array(cap * 4);
     this.tint = new Float32Array(cap * 4);
@@ -46,7 +53,7 @@ export class InstPool {
     this.geo.setAttribute('iAnim', this.aAnim);
     this.geo.setAttribute('iTint', this.aTint);
     this.geo.setAttribute('iTeam', this.aTeam);
-    this.mesh = new THREE.InstancedMesh(this.geo, sharedAnimMaterial(), cap);
+    this.mesh = new THREE.InstancedMesh(this.geo, sharedAnimMaterial(this.map), cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = this.shadow;
@@ -122,8 +129,8 @@ export class InstPool {
 }
 
 /** Instances statiques (décor) : écrites une seule fois. */
-export function staticInstances(geo: THREE.BufferGeometry, items: { x: number; y: number; z: number; yaw: number; s: number }[], parent: THREE.Object3D, shadow: boolean) {
-  const p = new InstPool(geo, Math.max(1, items.length), parent, shadow);
+export function staticInstances(geo: THREE.BufferGeometry, items: { x: number; y: number; z: number; yaw: number; s: number }[], parent: THREE.Object3D, shadow: boolean, map: THREE.Texture | null = null) {
+  const p = new InstPool(geo, Math.max(1, items.length), parent, shadow, map);
   p.begin();
   for (const it of items) p.push(it.x, it.y, it.z, it.yaw, it.s, it.x * 1.3 + it.z * 0.7, 0, 0, 0);
   p.end();

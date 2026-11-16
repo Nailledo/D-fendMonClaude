@@ -13,11 +13,20 @@
     "bench": "node tools/bench.cjs",
     "smoke": "node tools/smoke.cjs",
     "tune": "tsx tools/tune.ts && tsx tools/tune-players.ts && tsx tools/tune-multi.ts",
-    "hf:example": "node --env-file=.env.local --import tsx tools/higgsfield/index.ts"
+    "hf:example": "node --env-file=.env.local --import tsx tools/higgsfield/index.ts",
+    "models:bake": "tsx tools/models/bake.ts",
+    "models:prompts": "tsx tools/models/prompts.ts"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@higgsfield/client": "0.2.6",
     "@types/node": "^22.10.0",
+    "@types/pngjs": "^6.0.5",
+    "jpeg-js": "^0.4.4",
+    "meshoptimizer": "^1.3.0",
+    "pngjs": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

@@ -6,7 +6,7 @@ La princesse Ethan a été enlevée par le démon Kessin : Samuel, le dernier ch
 - **Mode histoire** : 8 niveaux sur 3 biomes (Vallée d’Aubeclair, Marais de Brumenoire, Terres de Cendre), 3 boss dont Kessin en 3 phases, dialogues et carte de campagne. Solo ou coop.
 - **Mode survie** : vagues infinies générées procéduralement, une mutation toutes les 5 vagues, un boss toutes les 10, classement par carte et par nombre de joueurs.
 - **4 familles de tours** (archers, caserne, mages, artillerie), 3 niveaux puis 2 spécialisations avec compétences, **4 héros** (Samuel, Lyra, Brom, Nox), 2 sorts.
-- **Tout l’art est fait en code** : modèles low-poly assemblés à partir de primitives, toon shading, sons et musique synthétisés (Web Audio). Aucune image, aucun modèle, aucun son externe.
+- **Art hybride** : modèles low-poly construits en code (primitives, toon shading) qui servent de repli, remplacés un à un par des **modèles 3D générés dans Higgsfield (Meshy 7)** et cuits au format du jeu (voir [docs/modeles-3d.md](docs/modeles-3d.md)). Sons et musique synthétisés (Web Audio).
 
 ## Démarrage rapide
 
@@ -37,6 +37,9 @@ pnpm start        # http://localhost:3000
 | `pnpm tune` | Recalibre automatiquement les niveaux (long) |
 | `pnpm bench` | Benchmark de rendu sur une scène de stress (~400 ennemis) ; `-- --gpu` pour utiliser la carte graphique |
 | `pnpm smoke` | Test de fumée multijoueur dans un vrai navigateur (2 joueurs, construction, une vague) |
+| `pnpm models:prompts` | Régénère `docs/modeles-3d.md` (liste des modèles à produire dans Higgsfield, prompts et réglages) |
+| `pnpm models:bake` | Cuit les GLB de `assets/models-src/` vers `packages/client/public/models/` (décimation, textures, animation) |
+| `pnpm hf:example` | Exemple d'appel de l'API Higgsfield (Seedance 2.5) via le SDK officiel ; lit `HF_CREDENTIALS` dans `.env.local` (facturable) |
 
 `bench` et `smoke` utilisent Playwright et un serveur lancé sur `http://localhost:3000` (ou `BENCH_URL` / `SMOKE_URL`).
 
@@ -55,6 +58,17 @@ deploy/     Dockerfile, docker-compose, Caddyfile
   Le client reçoit des snapshots binaires (~10 octets par ennemi) et les interpole avec ~100 ms de retard.
 - **Déterminisme** : RNG à graine, aucune fonction transcendante dans la simulation. Les scores de survie solo sont validés en rejouant la partie côté serveur à partir de la graine et du journal des commandes.
 - **Rendu** : un `InstancedMesh` par modèle (ennemis, soldats, tours, décor, projectiles, particules), animations procédurales dans le vertex shader, zéro allocation par frame. ~60 draw calls avec 400 ennemis.
+
+### Modèles 3D importés (Higgsfield)
+
+Le pipeline est dans `tools/models/` :
+
+- `catalog.ts` : les 81 modèles (clé, fichier source, hauteur en jeu, budget de triangles, taille de texture, mode d'animation, prompt).
+- `pnpm models:prompts` écrit `docs/modeles-3d.md` : la liste à suivre pour générer chaque modèle dans Higgsfield (Meshy 7, lowpoly, rig A-pose pour les personnages) et l'enregistrer dans `assets/models-src/` (ignoré par git).
+- `pnpm models:bake` lit ces GLB et produit des GLB compacts dans `packages/client/public/models/` + `manifest.json` :
+  fusion en un seul maillage, pose de repos, **parties animées par sommet** (jambes/bras depuis le squelette Meshy, ou découpe automatique pour quadrupèdes, volants, végétation) avec poids de fondu aux articulations,
+  décimation meshoptimizer au budget, normalisation (pieds à y = 0, hauteur du catalogue, regard vers +Z), texture unique réduite en JPEG, occlusion ambiante cuite dans les couleurs de sommets.
+- Au lancement d'une partie, le client charge les modèles du manifeste nécessaires au biome ; toute clé absente garde l'art construit en code. Les modèles importés passent par le **même** `InstancedMesh` + vertex shader que l'art en code (un draw call par modèle, pas de squelette à l'exécution), donc le budget de performance ne change pas.
 
 ### Équilibrage
 
