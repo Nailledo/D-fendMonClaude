@@ -3,14 +3,20 @@
 Correspondance entre les 81 entrées de `tools/models/catalog.ts` et des modèles gratuits sous licence CC0
 (domaine public : usage libre, y compris commercial, sans attribution).
 
-> **État réel** : la table qui fait foi est `FREE_SOURCES` dans `tools/models/import-free.ts`
-> (36 modèles retenus après contrôle visuel ; les 45 autres gardent l'art construit en code).
-> Les tableaux ci-dessous sont le plan initial, établi avant téléchargement :
-> le pack Ultimate Monsters ne contient ni gobelin, ni loup, ni zombie, ni sorcière, ni ver, ni chauve-souris,
-> et les feuillages du pack nature (textures transparentes) ne passent pas la cuisson.
+> **État réel** : la table qui fait foi est `FREE_SOURCES` dans `tools/models/import-free.ts`.
+> 70 modèles sur 81 sont importés. Les tableaux ci-dessous sont le plan initial, établi avant téléchargement.
+>
+> - Modèles directs : héros, soldats, tours d'archers, casernes, la plupart des ennemis, sapin, rochers, arbres morts.
+> - Tours de mages, d'artillerie et Nécropole : assemblées à partir des pièces du Tower Defense Kit de Kenney
+>   (étages empilés + arme ou cristaux), avec une teinte par famille.
+> - Approximations par teinte d'un modèle voisin : Brom (Barbarian élargi), Chevalier et Garde royal (Knight),
+>   chevalier infernal, noyé et sorcière (squelettes KayKit), corbeau, golem (Yeti), Kessin ×3 (démons et dragon),
+>   portes, entrées (mine), décor des Cendres.
+> - 11 restent en art construit en code, faute d'équivalent gratuit correct : loup, ver, vasière, crâne, champignon,
+>   et les végétaux à feuillage transparent que la cuisson ne gère pas (buisson, fleurs, herbes ×2, saule, roseaux).
 >
 > Contrôle visuel : ouvrir `http://localhost:5173/preview-models.html?g=enemy` pendant `pnpm dev`
-> (groupes : hero, soldier, enemy, tower, decor, gate).
+> (groupes : hero, soldier, enemy, tower, decor, gate, spawn).
 >
 > Pour refaire l'import : extraire les packs dans `assets/models-src/_packs/`, puis
 > `pnpm tsx tools/models/import-free.ts` et `pnpm models:bake`.

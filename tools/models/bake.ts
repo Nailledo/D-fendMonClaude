@@ -315,13 +315,14 @@ function merge(parts: RawMesh[], keepTexture: boolean, images: Map<GTexture, Img
 }
 
 // ------------------------------------------------------------------ soudure / décimation
-function weld(r: RawMesh, eps: number): RawMesh {
+/** hardEdges : garde les arêtes vives (normales distinctes) — pour les modèles qui ne seront pas décimés */
+function weld(r: RawMesh, eps: number, hardEdges = false): RawMesh {
   const n = r.pos.length / 3;
   const map = new Map<string, number>();
   const remap = new Int32Array(n);
   const keep: number[] = [];
   for (let i = 0; i < n; i++) {
-    const key = `${Math.round(r.pos[i * 3] / eps)},${Math.round(r.pos[i * 3 + 1] / eps)},${Math.round(r.pos[i * 3 + 2] / eps)}|${r.uv ? Math.round(r.uv[i * 2] * 2048) + ',' + Math.round(r.uv[i * 2 + 1] * 2048) : ''}|${r.part[i]}|${Math.round(r.col[i * 3] * 64)},${Math.round(r.col[i * 3 + 1] * 64)},${Math.round(r.col[i * 3 + 2] * 64)}`;
+    const key = `${Math.round(r.pos[i * 3] / eps)},${Math.round(r.pos[i * 3 + 1] / eps)},${Math.round(r.pos[i * 3 + 2] / eps)}|${r.uv ? Math.round(r.uv[i * 2] * 2048) + ',' + Math.round(r.uv[i * 2 + 1] * 2048) : ''}|${r.part[i]}|${Math.round(r.col[i * 3] * 64)},${Math.round(r.col[i * 3 + 1] * 64)},${Math.round(r.col[i * 3 + 2] * 64)}${hardEdges && r.nrm ? `|${Math.round(r.nrm[i * 3] * 8)},${Math.round(r.nrm[i * 3 + 1] * 8)},${Math.round(r.nrm[i * 3 + 2] * 8)}` : ''}`;
     let j = map.get(key);
     if (j === undefined) { j = keep.length; map.set(key, j); keep.push(i); }
     remap[i] = j;
@@ -559,12 +560,17 @@ async function main() {
       let r = merge(parts, single, images);
       const srcTris = r.idx.length / 3;
       const b0 = bounds(r);
-      r = weld(r, Math.max(b0.maxY - b0.minY, b0.maxX - b0.minX) * 2e-4);
+      r = weld(r, Math.max(b0.maxY - b0.minY, b0.maxX - b0.minX) * 2e-4, srcTris <= e.tris && !rigged);
       r = simplify(r, e.tris);
       if (rigged && e.anim === 'rig') dropArms(r);
       normalize(r, e);
       assignParts(r, e.anim, rigged && e.anim === 'rig');
-      smoothNormals(r);
+      // un modèle statique non décimé garde ses normales d'origine (arêtes vives des modèles à facettes)
+      if (rigged || srcTris > e.tris || !r.nrm) smoothNormals(r);
+      else for (let i = 0; i < r.nrm.length; i += 3) {
+        const l = Math.hypot(r.nrm[i], r.nrm[i + 1], r.nrm[i + 2]) || 1;
+        r.nrm[i] /= l; r.nrm[i + 1] /= l; r.nrm[i + 2] /= l;
+      }
       paintAO(r, e.height);
       const img = single ? images.get([...textures][0])! : null;
       const out = await write(r, e, img, io);

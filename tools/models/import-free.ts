@@ -9,7 +9,8 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NodeIO } from '@gltf-transform/core';
+import { NodeIO, getBounds, type Document } from '@gltf-transform/core';
+import { dedup, mergeDocuments, unpartition } from '@gltf-transform/functions';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 
@@ -25,13 +26,18 @@ const MON = 'quaternius-monsters/Ultimate Monsters';
 const NAT = 'quaternius-nature/glTF';
 
 /**
- * fichier attendu par le catalogue -> chemin de la source dans _packs/
+ * FREE_SOURCES : fichier attendu par le catalogue -> chemin de la source dans _packs/, ou recette.
  *
- * Écartés après contrôle visuel (ils gardent l'art construit en code) : Kessin (démons trop génériques pour
- * le boss), corbeau, noyé, golem, vasière, tours de mages (temples en bois), artillerie (armes Kenney sans
- * socle), chênes, cristal et rocher des Cendres (mauvaises teintes), portes (simples palissades).
+ * Sans équivalent gratuit (ils gardent l'art construit en code) : le loup, le ver, la vasière, le crâne, et les végétaux à feuillage
+ * transparent que la cuisson ne gère pas (buisson, fleurs, herbes, saule, roseaux, champignon).
  */
-export const FREE_SOURCES: Record<string, string> = {
+/** Source composée : pièces empilées de bas en haut, teinte multipliée sur les matériaux, étirement (x, y, z). */
+export interface Recipe { parts: string[]; tint?: [number, number, number]; scale?: [number, number, number] }
+const KR = (...n: string[]) => n.map((p) => `${KEN}/tower-round-${p}.glb`);
+const KS = (...n: string[]) => n.map((p) => `${KEN}/tower-square-${p}.glb`);
+const one = (path: string, tint?: Recipe['tint'], scale?: Recipe['scale']): Recipe => ({ parts: [path], tint, scale });
+
+export const FREE_SOURCES: Record<string, string | Recipe> = {
   // héros
   'hero-samuel.glb': `${KK_ADV}/Knight.glb`,
   'hero-lyra.glb': `${KK_ADV}/Rogue.glb`,
@@ -67,7 +73,46 @@ export const FREE_SOURCES: Record<string, string> = {
   'enemy-cornu.glb': `${MON}/Big/glTF/Demon.gltf`,
   'enemy-invocateur.glb': `${MON}/Blob/glTF/Wizard.gltf`,
   'enemy-gargouille.glb': `${MON}/Flying/glTF/Dragon.gltf`,
-  // décor (le reste garde l'art construit en code : les feuillages du pack nature sont des textures
+  // ennemis approchés par une teinte ou un modèle voisin
+  'enemy-corbeau.glb': one(`${MON}/Flying/glTF/Pigeon.gltf`, [0.25, 0.25, 0.32]),
+  'enemy-noye.glb': one(`${KK_SKE}/Skeleton_Minion.glb`, [0.5, 0.85, 0.8]),
+  'enemy-sorciere.glb': one(`${KK_SKE}/Skeleton_Mage.glb`, [0.65, 0.9, 0.55]),
+  'enemy-golem.glb': one(`${MON}/Big/glTF/Yeti.gltf`, [0.5, 0.4, 0.38]),
+  'enemy-chevalierinf.glb': one(`${KK_ADV}/Knight.glb`, [0.8, 0.3, 0.3]),
+  'enemy-kessin1.glb': one(`${MON}/Big/glTF/Demon.gltf`, [0.7, 0.45, 0.95]),
+  'enemy-kessin2.glb': one(`${MON}/Big/glTF/BlueDemon.gltf`, [1, 0.4, 0.4]),
+  'enemy-kessin3.glb': one(`${MON}/Flying/glTF/Dragon_Evolved.gltf`, [0.75, 0.4, 0.6]),
+  // héros et soldats approchés
+  'hero-brom.glb': one(`${KK_ADV}/Barbarian.glb`, [1, 0.8, 0.7], [1.35, 1, 1.35]),
+  'soldier-2.glb': one(`${KK_ADV}/Knight.glb`, [0.7, 0.78, 1]),
+  'soldier-3.glb': one(`${KK_ADV}/Knight.glb`, [1, 0.82, 0.4]),
+  // tours assemblées à partir des pièces du Tower Defense Kit de Kenney
+  'tower-1-4.glb': { parts: KS('bottom-b', 'middle-b', 'roof-b'), tint: [0.55, 0.5, 0.72] },
+  'tower-2-0.glb': { parts: KR('bottom-a', 'roof-a'), tint: [0.72, 0.62, 1] },
+  'tower-2-1.glb': { parts: KR('bottom-a', 'middle-a', 'roof-b'), tint: [0.72, 0.62, 1] },
+  'tower-2-2.glb': { parts: KR('bottom-b', 'middle-b', 'top-b', 'roof-c'), tint: [0.72, 0.62, 1] },
+  'tower-2-3.glb': { parts: KR('bottom-c', 'middle-c', 'top-c', 'crystals'), tint: [1, 0.95, 0.6] },
+  'tower-2-4.glb': { parts: KR('bottom-c', 'middle-c', 'top-c', 'crystals'), tint: [0.6, 0.85, 1] },
+  'tower-3-0.glb': { parts: [...KS('bottom-a'), `${KEN}/weapon-catapult.glb`] },
+  'tower-3-1.glb': { parts: [...KS('bottom-a', 'middle-a'), `${KEN}/weapon-cannon.glb`] },
+  'tower-3-2.glb': { parts: [...KS('bottom-b', 'middle-b', 'top-b'), `${KEN}/weapon-cannon.glb`] },
+  'tower-3-3.glb': { parts: [...KS('bottom-c', 'middle-c', 'top-c'), `${KEN}/weapon-turret.glb`], tint: [0.7, 0.8, 1] },
+  'tower-3-4.glb': { parts: [...KS('bottom-c', 'middle-c'), `${KEN}/weapon-ballista.glb`], tint: [1, 0.55, 0.4] },
+  // bâtiments
+  'gate-vallee.glb': `${RTS}/WallTowers_DoorClosed_SecondAge.gltf`,
+  'gate-marais.glb': one(`${RTS}/WallTowers_DoorClosed_FirstAge.gltf`, [0.7, 0.8, 0.65]),
+  'gate-cendre.glb': one(`${RTS}/WallTowers_DoorClosed_SecondAge.gltf`, [0.55, 0.35, 0.35]),
+  'spawn-vallee.glb': `${RTS}/Mine.gltf`,
+  'spawn-marais.glb': one(`${RTS}/Mine.gltf`, [0.6, 0.75, 0.55]),
+  'spawn-cendre.glb': one(`${RTS}/Mine.gltf`, [0.5, 0.3, 0.3]),
+  // décor
+  'decor-vallee-chene-0.glb': `${RTS}/Resource_Tree1.gltf`,
+  'decor-vallee-chene-1.glb': `${RTS}/Resource_Tree2.gltf`,
+  'decor-cendre-basalte-0.glb': one(`${RTS}/Resource_Rock_3.gltf`, [0.35, 0.33, 0.38], [1, 2.4, 1]),
+  'decor-cendre-cristal-0.glb': one(`${RTS}/Resource_Gold_2.gltf`, [1, 0.45, 0.3]),
+  'decor-cendre-rocher-0.glb': one(`${RTS}/Rock.gltf`, [0.42, 0.36, 0.36]),
+  'decor-cendre-pic-0.glb': one(`${RTS}/Mountain_Single.gltf`, [0.45, 0.38, 0.38]),
+  // (le reste garde l'art construit en code : les feuillages du pack nature sont des textures
   // transparentes, que la cuisson ne gère pas)
   'decor-vallee-sapin-0.glb': `${RTS}/Resource_PineTree.gltf`,
   'decor-vallee-rocher-0.glb': `${RTS}/Rock.gltf`,
@@ -76,6 +121,33 @@ export const FREE_SOURCES: Record<string, string> = {
   'decor-cendre-arbrecalcine-0.glb': `${NAT}/DeadTree_5.gltf`,
 };
 
+/** Lit une source simple ou assemble une recette en un seul document. */
+async function load(io: NodeIO, src: string | Recipe): Promise<Document> {
+  const r: Recipe = typeof src === 'string' ? { parts: [src] } : src;
+  let doc: Document | null = null;
+  let y = 0;
+  for (const rel of r.parts) {
+    const part = await io.read(join(PACKS, rel));
+    const b = getBounds(part.getRoot().listScenes()[0]);
+    const holder = part.createNode('part').setTranslation([0, y, 0]);
+    if (r.scale) holder.setScale(r.scale);
+    const scene = part.getRoot().listScenes()[0];
+    for (const c of scene.listChildren()) holder.addChild(c);
+    scene.addChild(holder);
+    y += b.max[1];
+    if (!doc) { doc = part; continue; }
+    mergeDocuments(doc, part);
+    const [main, ...extra] = doc.getRoot().listScenes();
+    for (const s of extra) { for (const c of s.listChildren()) main.addChild(c); s.dispose(); }
+  }
+  if (r.tint) for (const m of doc!.getRoot().listMaterials()) {
+    const f = m.getBaseColorFactor();
+    m.setBaseColorFactor([f[0] * r.tint[0], f[1] * r.tint[1], f[2] * r.tint[2], f[3]]);
+  }
+  if (r.parts.length > 1) await doc!.transform(dedup(), unpartition());
+  return doc!;
+}
+
 async function main() {
   await MeshoptDecoder.ready;
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
@@ -83,11 +155,12 @@ async function main() {
   // les GLB déjà présents à la racine de models-src ne sont pas touchés : pour retirer un modèle,
   // supprimer son fichier là-bas, son GLB cuit et son entrée dans public/models/manifest.json
   let done = 0, missing = 0, failed = 0;
-  for (const [dst, rel] of Object.entries(FREE_SOURCES)) {
-    const from = join(PACKS, rel);
-    if (!existsSync(from)) { console.log(`absent   ${dst.padEnd(30)} ${rel}`); missing++; continue; }
+  for (const [dst, src] of Object.entries(FREE_SOURCES)) {
+    const parts = typeof src === 'string' ? [src] : src.parts;
+    const rel = parts.map((p) => p.split('/').pop()).join(' + ');
+    if (!parts.every((p) => existsSync(join(PACKS, p)))) { console.log(`absent   ${dst.padEnd(30)} ${rel}`); missing++; continue; }
     try {
-      const doc = await io.read(from);
+      const doc = await load(io, src);
       await io.write(join(SRC, dst), doc);
       console.log(`importé  ${dst.padEnd(30)} ${rel}`);
       done++;
