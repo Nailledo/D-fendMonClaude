@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app } from '../app';
+  import { net } from '../net/Net';
   import { ui } from '../state.svelte';
 
   const local = $derived(!!app.game?.host.local);
@@ -17,7 +18,7 @@
     {#if local}<button class="btn" onclick={() => app.restart()}>Recommencer</button>{/if}
     <button class="btn" onclick={() => (ui.overlay = 'settings')}>Paramètres</button>
     <button class="btn" onclick={() => (ui.overlay = 'help')}>Comment jouer</button>
-    <button class="btn red" onclick={() => { if (!local) { import('../net/Net').then(({ net }) => net.send({ t: 'leave' })); ui.room = null; } app.leaveGame(); if (!local) ui.screen = 'multi'; }}>
+    <button class="btn red" onclick={() => { if (!local) { net.send({ t: 'leave' }); ui.room = null; } app.leaveGame(); if (!local) ui.screen = 'multi'; }}>
       {local ? 'Quitter la partie' : 'Quitter le salon'}
     </button>
   </div>

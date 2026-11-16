@@ -2,6 +2,7 @@
 import { GameState, Sim, encodeSnapshot, type Command, type GameConfig, type LoggedCmd } from '@dfend/shared';
 
 let sim: Sim | null = null;
+let bench = false;
 let paused = false;
 const pending: Command[] = [];
 const log: LoggedCmd[] = [];
@@ -17,6 +18,7 @@ function loop() {
   if (acc > 500) acc = 500;
   const events: number[][] = [];
   let stepped = false;
+  if (bench) benchStep(sim);
   while (acc >= 50) {
     acc -= 50;
     const steps = sim.speed;
@@ -46,10 +48,33 @@ function loop() {
   }
 }
 
+/** Mode benchmark : or illimité, tours au maximum, vagues appelées en continu. */
+function benchStep(s: Sim) {
+  const p = s.players[0];
+  p.gold = 1e7;
+  s.lives = 20;
+  if (s.tick % 20 !== 0) return;
+  s.map.slots.forEach((sl, i) => {
+    if (sl.locked) return;
+    const t = s.towerBySlot[i];
+    if (!t) s.apply(0, { k: 'build', slot: i, fam: i % 4 });
+    else if (t.level < 2) s.apply(0, { k: 'up', tower: t.id });
+    else if (t.level === 2) s.apply(0, { k: 'spec', tower: t.id, s: ((i >> 2) % 2) + 1 as 1 | 2 });
+    else { s.apply(0, { k: 'skill', tower: t.id, i: 0 }); s.apply(0, { k: 'skill', tower: t.id, i: 1 }); }
+  });
+  if (s.tick % 60 === 0) s.apply(0, { k: 'wave' });
+  s.lives = 20;
+  // renforts d'ennemis très résistants pour atteindre ~400 ennemis à l'écran
+  const spawn = (s as unknown as { spawnEnemy(t: number, p: number, hp: number, lane: number, d?: number): void }).spawnEnemy.bind(s);
+  for (let k = 0; k < 24 && s.enemies.length < 400; k++) spawn((k * 7) % 18, k % s.map.paths.length, 60, ((k % 5) - 2) * 0.3, (k * 3.7) % 40);
+  s.lives = 20;
+}
+
 self.onmessage = (e: MessageEvent) => {
-  const m = e.data as { t: string; cfg?: GameConfig; c?: Command; v?: boolean };
+  const m = e.data as { t: string; cfg?: GameConfig; c?: Command; v?: boolean; bench?: boolean };
   if (m.t === 'init' && m.cfg) {
     sim = new Sim(m.cfg);
+    bench = !!m.bench;
     last = performance.now();
     // premier snapshot immédiat
     const buf = encodeSnapshot(sim, []);

@@ -105,6 +105,15 @@ class App {
     this.launch(cfg, 0, new LocalHost(cfg));
   }
 
+  /** Scène de stress pour le benchmark (?bench). */
+  startBench() {
+    this.leaveGame(false);
+    const cfg: GameConfig = { mode: 'survival', mapId: 'fournaise', difficulty: 1, seed: 1234, players: [{ id: 0, name: 'Bench', hero: 'samuel' }] };
+    ui.game = { mode: 'survival', mapId: 'fournaise', difficulty: 1, you: 0, multi: false, level: -1 };
+    this.launch(cfg, 0, new LocalHost(cfg, true));
+    ui.debug.on = true;
+  }
+
   private launch(cfg: GameConfig, you: number, host: LocalHost | RemoteHost) {
     this.hideTitle();
     ui.end = null;

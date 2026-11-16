@@ -34,7 +34,7 @@
   };
 </script>
 
-<div class="radial ui" onpointerleave={() => { tip = null; if (app.game) app.game.hoverFam = -1; }}>
+<div class="radial ui" role="menu" tabindex="-1" onpointerleave={() => { tip = null; if (app.game) app.game.hoverFam = -1; }}>
   <div class="ring"></div>
   {#if sel.kind === 'build'}
     {#each FAMILIES as f, i}

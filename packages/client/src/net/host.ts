@@ -18,14 +18,14 @@ export class LocalHost implements Host {
   private worker: Worker;
   private logResolve: ((l: LoggedCmd[]) => void) | null = null;
 
-  constructor(cfg: GameConfig) {
+  constructor(cfg: GameConfig, bench = false) {
     this.worker = new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e) => {
       if (e.data instanceof ArrayBuffer) this.onSnapshot(e.data);
       else if (e.data.t === 'end') this.onEnd(e.data);
       else if (e.data.t === 'log' && this.logResolve) this.logResolve(e.data.log);
     };
-    this.worker.postMessage({ t: 'init', cfg });
+    this.worker.postMessage({ t: 'init', cfg, bench });
   }
   send(c: Command) {
     this.worker.postMessage({ t: 'cmd', c });

@@ -81,8 +81,10 @@ async function handleScore(req: IncomingMessage, res: ServerResponse) {
   const r = await validator.run(clean, log);
   if (!r.ok || r.wave === undefined) return json(res, 400, { ok: false, error: r.error ?? 'rejeu impossible' });
   if (r.wave < Number(body.claimed)) return json(res, 400, { ok: false, error: 'score non confirmé par le rejeu' });
-  if (r.wave > 0) scores?.add(clean.mapId, 1, clean.difficulty, r.wave, [clean.players[0].name]);
-  return json(res, 200, { ok: true, wave: r.wave });
+  // le rejeu peut aller plus loin que la partie réelle (il continue après la dernière commande) : on garde le score annoncé
+  const wave = Math.max(0, Math.min(r.wave, Math.floor(Number(body.claimed)) || 0));
+  if (wave > 0) scores?.add(clean.mapId, 1, clean.difficulty, wave, [clean.players[0].name]);
+  return json(res, 200, { ok: true, wave });
 }
 
 function serveStatic(req: IncomingMessage, res: ServerResponse, path: string) {

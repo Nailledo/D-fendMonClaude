@@ -12,6 +12,7 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 app.init(canvas);
 ui.portraits = renderPortraits();
 void detectLayout();
+if (new URLSearchParams(location.search).has('bench')) app.startBench();
 // reconnexion automatique à une partie en cours (jeton conservé)
 if (loadRaw('token', '')) app.connect();
 mount(App, { target: document.getElementById('app')! });

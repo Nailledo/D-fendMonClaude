@@ -1,0 +1,17 @@
+{$DOMAIN:defend.sayk.fr} {
+	encode zstd gzip
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	header /index.html Cache-Control "no-cache"
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Le WebSocket (/ws) est relayé automatiquement par reverse_proxy.
+	reverse_proxy game:3000
+}
