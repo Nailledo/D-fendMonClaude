@@ -2,6 +2,7 @@
   import { ENEMIES, FAMILIES, HEROES, HERO_IDS, TOWERS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
   import { FAMILY_NAME, ICON } from './icons';
+  import { PASSIVE_ICON, SKILL_ICON, UPGRADE_ICON } from './skillIcons';
 
   let tab = $state<'towers' | 'enemies' | 'heroes'>('towers');
   const enemies = ENEMIES.filter((e) => !e.spawnOnly || e.boss);
@@ -29,7 +30,7 @@
                 <b>{t.name}</b>
                 <span class="small">{t.desc}</span>
                 <span class="cost">{@html ICON.coin} {t.cost}</span>
-                {#if t.skills}<span class="small"><i>Compétences : {t.skills.map((s) => s.name).join(', ')}</i></span>{/if}
+                {#if t.skills}{#each t.skills as s}<span class="small">{@html UPGRADE_ICON[s.id] ?? ''} <b>{s.name}</b> : {s.desc}</span>{/each}{/if}
               </div>
             {/each}
           </div>
@@ -56,8 +57,8 @@
               {#if ui.portraits['full_' + h]}<img src={ui.portraits['full_' + h]} alt="" />{/if}
               <b>{d.name}</b><span class="small"><i>{d.title}</i></span>
               <span class="small">{d.desc}</span>
-              <span class="small"><b>{d.passive.name}</b> : {d.passive.desc}</span>
-              {#each d.skills as s}<span class="small"><b>{s.name}</b> : {s.desc}</span>{/each}
+              <span class="small">{@html PASSIVE_ICON[h] ?? ''} <b>{d.passive.name}</b> : {d.passive.desc}</span>
+              {#each d.skills as s, i}<span class="small">{@html SKILL_ICON[h]?.[i] ?? ''} <b>{s.name}</b> : {s.desc}</span>{/each}
             </div>
           {/each}
         </div>
@@ -77,5 +78,6 @@
   .card img { width: 96px; height: 96px; }
   .card.unknown img { filter: brightness(0) opacity(0.45); }
   .small { font-size: 0.8em; color: #5b4128; }
+  .small :global(svg.icon) { width: 1.7em; height: 1.7em; vertical-align: -0.55em; }
   .cost { font-weight: 800; }
 </style>
