@@ -10,6 +10,7 @@
   import PauseMenu from './PauseMenu.svelte';
   import Radial from './Radial.svelte';
   import { FAMILY_NAME, ICON } from './icons';
+  import { SKILL_ICON } from './skillIcons';
 
   const h = $derived(ui.hud);
   const hero = $derived(HEROES[HERO_IDS[h.hero.type]]);
@@ -96,7 +97,7 @@
           {@const cd = h.hero.cds[i]}
           <button class="skill" class:ult={i === 2} disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
             title="{s.name} — {s.desc} (recharge {s.cd} s){locked ? ` — niveau ${s.unlock} requis` : ''}">
-            <span class="sn">{s.name.split(' ')[0]}</span>
+            <span class="si">{@html SKILL_ICON[hero.id]?.[i] ?? ''}</span>
             {#if locked}<span class="cd">{@html ICON.lock}</span>{:else if cd > 0}<span class="cd">{cd}</span>{/if}
             <span class="kbd">{keyLabel(i === 0 ? keys.skill1 : i === 1 ? keys.skill2 : keys.ult)}</span>
           </button>
@@ -209,6 +210,7 @@
   .bar.xp i { background: #60a5fa; }
   .skills { display: flex; gap: 5px; margin-top: 2px; }
   .skill { position: relative; width: 60px; height: 46px; border-radius: 9px; border: 2px solid var(--wood-dark); background: linear-gradient(180deg, #4a6fa5, #243b63); color: #fff; cursor: pointer; font-size: 10px; font-weight: 800; padding: 2px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.05; }
+  .skill .si :global(svg.icon) { width: 30px; height: 30px; vertical-align: middle; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
   .skill.ult { background: linear-gradient(180deg, #c58b16, #7a4d06); }
   .skill:disabled { filter: grayscale(0.7) brightness(0.75); cursor: default; }
   .skill .kbd, .spell .kbd { position: absolute; top: -7px; right: -6px; font-size: 11px; line-height: 16px; }

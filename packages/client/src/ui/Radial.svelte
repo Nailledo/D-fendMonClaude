@@ -4,6 +4,7 @@
   import { ui } from '../state.svelte';
   import { keyLabel, keys } from '../settings';
   import { FAMILY_ICON, FAMILY_NAME, ICON } from './icons';
+  import { UPGRADE_ICON } from './skillIcons';
 
   const sel = $derived(ui.sel!);
   const gold = $derived(ui.hud.gold);
@@ -72,7 +73,7 @@
         <button class="opt skill" class:poor={rank < 3 && gold < cost} class:max={rank >= 3} style={at(i === 0 ? -130 : -50)}
           onpointerenter={() => (tip = { title: `${s.name} (rang ${rank}/3)`, text: s.desc, cost: rank < 3 ? cost : undefined })}
           onclick={() => rank < 3 && g()?.skill(i as 0 | 1)}>
-          <span class="sname">{s.name}</span>
+          {#if UPGRADE_ICON[s.id]}<span class="sicon">{@html UPGRADE_ICON[s.id]}</span>{:else}<span class="sname">{s.name}</span>{/if}
           <span class="pips">{#each [0, 1, 2] as k}<i class:on={k < rank}></i>{/each}</span>
           {#if rank < 3}<span class="cost">{cost}</span>{/if}
         </button>
@@ -113,6 +114,7 @@
   .opt.skill { width: 74px; height: 74px; font-size: 10px; font-weight: 800; background: radial-gradient(circle at 35% 30%, #e0e7ff, #6366f1); color: #fff; text-shadow: 0 1px 2px #000; line-height: 1.05; text-align: center; padding: 6px; }
   .opt.skill.max { background: radial-gradient(circle at 35% 30%, #fff7d1, #c98a14); }
   .sname { display: block; }
+  .sicon :global(svg.icon) { width: 38px; height: 38px; margin-top: -8px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
   .pips { position: absolute; bottom: 8px; display: flex; gap: 3px; }
   .pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0, 0, 0, 0.4); }
   .pips i.on { background: #fde047; }
