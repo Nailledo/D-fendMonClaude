@@ -5,3 +5,4 @@ dist
 *.db
 tools/out
 tools/out-bench.png
+/data/
