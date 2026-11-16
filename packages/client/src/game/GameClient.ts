@@ -1,0 +1,1068 @@
+import * as THREE from 'three';
+import {
+  ENEMIES, Ev, FAMILIES, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
+  LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD,
+  buildRuntimeMap, type Command, type GameConfig, type RuntimeMap,
+} from '@dfend/shared';
+import { audio } from '../audio/Audio';
+import { Entities } from '../render/Entities';
+import { Fx } from '../render/Fx';
+import type { Renderer } from '../render/Renderer';
+import { buildWorld, type WorldInfo } from '../render/World';
+import type { Host } from '../net/host';
+import { ACTION_LABELS, keys, settings, type Action } from '../settings';
+import { banner, progress, saveProgress, toast, ui } from '../state.svelte';
+import { PROLOGUE, STORY } from '../story/dialogs';
+import { Interp } from './Interp';
+
+/** Éléments DOM positionnés à chaque frame (sans passer par la réactivité). */
+export const dom: { radial: HTMLElement | null; waves: (HTMLElement | null)[]; dmg: HTMLElement | null; pings: HTMLElement | null } = {
+  radial: null, waves: [], dmg: null, pings: null,
+};
+
+type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'hskill'; i: 0 | 1 | 2 } | { kind: 'rally'; tower: number } | { kind: 'hmove' };
+
+const FAM_ACTIONS: Action[] = ['buildArcher', 'buildBarracks', 'buildMage', 'buildArtillery'];
+const DEATH_COLORS: Record<string, number> = { vallee: 0x7cb342, marais: 0x6f9a8a, cendre: 0xd84315 };
+
+export class GameClient {
+  readonly map: RuntimeMap;
+  readonly world: WorldInfo;
+  readonly ents: Entities;
+  readonly fx: Fx;
+  readonly interp: Interp;
+  private scratch: { tick: number; ev: number[] }[] = [];
+  private targeting: Targeting = null;
+  private mouse = { x: 0, y: 0, down: false, button: -1, sx: 0, sy: 0, moved: false, inside: true };
+  private keysDown = new Set<string>();
+  private hoverSlot = -1;
+  private time = 0;
+  private hudT = 0;
+  private rangeRing: THREE.Mesh;
+  private hoverRing: THREE.Mesh;
+  private rallyFlag: THREE.Mesh;
+  private aimRing: THREE.Mesh;
+  private disposers: (() => void)[] = [];
+  private proj = { x: 0, y: 0, visible: false };
+  private seenTypes = new Set<string>(progress.seen);
+  private dialogPaused = false;
+  private lastWave = 0;
+  private ended = false;
+  private dmgIdx = 0;
+  private fpsAcc = 0;
+  private fpsN = 0;
+  private tpos = { x: 0, y: 0, z: 0 };
+  snapshotBytes = 0;
+
+  constructor(
+    private r: Renderer,
+    readonly cfg: GameConfig,
+    readonly host: Host,
+    readonly you: number,
+    private onLeaveRequest: () => void,
+  ) {
+    this.map = buildRuntimeMap(cfg.mapId, cfg.players.length);
+    this.world = buildWorld(this.map);
+    r.scene.add(this.world.group);
+    r.applyTheme(this.world.theme);
+    r.setBounds(this.map.def.hw, this.map.def.hh);
+    this.ents = new Entities(r.scene, this.map);
+    this.fx = new Fx(r.scene);
+    this.interp = new Interp(this.map, host.local);
+    host.onSnapshot = (b) => {
+      this.snapshotBytes += b.byteLength;
+      this.interp.push(b);
+    };
+    // anneaux de sélection
+    const ringMat = (c: number, o: number) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
+    const rg = new THREE.RingGeometry(0.97, 1, 64);
+    rg.rotateX(-Math.PI / 2);
+    this.rangeRing = new THREE.Mesh(rg, ringMat(0xffffff, 0.75));
+    const disc = new THREE.CircleGeometry(1, 48);
+    disc.rotateX(-Math.PI / 2);
+    const fill = new THREE.Mesh(disc, ringMat(0xffffff, 0.08));
+    this.rangeRing.add(fill);
+    this.rangeRing.position.y = 0.09;
+    this.rangeRing.visible = false;
+    this.hoverRing = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.35, 32).rotateX(-Math.PI / 2), ringMat(0xfff3b0, 0.8));
+    this.hoverRing.position.y = 0.1;
+    this.hoverRing.visible = false;
+    this.aimRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), ringMat(0xffd54f, 0.9));
+    this.aimRing.position.y = 0.1;
+    this.aimRing.visible = false;
+    const flag = new THREE.Group();
+    this.rallyFlag = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 4), new THREE.MeshBasicMaterial({ color: 0x5d4037 }));
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshBasicMaterial({ color: 0xffd54f, side: THREE.DoubleSide }));
+    cloth.position.set(0.3, 0.45, 0);
+    this.rallyFlag.add(cloth);
+    this.rallyFlag.visible = false;
+    void flag;
+    for (const m of [this.rangeRing, this.hoverRing, this.aimRing, this.rallyFlag]) r.scene.add(m);
+    this.bindInput();
+    audio.setBiome(this.map.def.biome);
+    audio.intensity = 0;
+    ui.hud.players = cfg.players.map((p) => ({ id: p.id, name: p.name, gold: 0, connected: true, active: true, hero: p.hero, speed2: false, ping: 0 }));
+    host.onEnd = (info) => this.handleEnd({ ...info, mode: cfg.mode, mapId: cfg.mapId, difficulty: cfg.difficulty });
+    this.startStory();
+  }
+
+  // ------------------------------------------------------------ histoire
+
+  private startStory() {
+    if (this.cfg.mode !== 'story' || !ui.game) return;
+    const lv = ui.game.level;
+    const story = STORY[lv];
+    if (!story) return;
+    const lines = [...story.intro];
+    if (lv === 0 && !progress.seenPrologue) {
+      progress.seenPrologue = true;
+      saveProgress();
+      lines.unshift(...PROLOGUE);
+    }
+    this.showDialog(lines);
+  }
+
+  showDialog(lines: { who: string; text: string }[]) {
+    if (!lines.length) return;
+    ui.dialog = { lines: lines as never, i: 0 };
+    if (this.host.local) {
+      this.dialogPaused = true;
+      this.host.pause(true);
+    }
+  }
+
+  dialogDone() {
+    ui.dialog = null;
+    if (this.dialogPaused) {
+      this.dialogPaused = false;
+      if (!ui.paused) this.host.pause(false);
+    }
+  }
+
+  setPaused(v: boolean) {
+    if (!this.host.local) return;
+    ui.paused = v;
+    this.host.pause(v || this.dialogPaused);
+  }
+
+  // ------------------------------------------------------------ commandes
+
+  send(c: Command) {
+    this.host.send(c);
+  }
+
+  build(fam: number) {
+    const s = ui.sel;
+    if (!s || s.kind !== 'build' || s.slot === undefined) return;
+    const cost = TOWERS[FAMILIES[fam]][0].cost;
+    if (ui.hud.gold < cost) { audio.play('deny'); toast('Pas assez d’or', 'warn', 1500); return; }
+    this.send({ k: 'build', slot: s.slot, fam });
+    ui.sel = null;
+  }
+
+  upgrade(spec?: 1 | 2) {
+    const s = ui.sel;
+    if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
+    if (spec) this.send({ k: 'spec', tower: s.tower, s: spec });
+    else if ((s.level ?? 0) < 2) this.send({ k: 'up', tower: s.tower });
+    ui.sel = null;
+  }
+
+  skill(i: 0 | 1) {
+    const s = ui.sel;
+    if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
+    this.send({ k: 'skill', tower: s.tower, i });
+  }
+
+  sell() {
+    const s = ui.sel;
+    if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
+    this.send({ k: 'sell', tower: s.tower });
+    ui.sel = null;
+  }
+
+  startRally() {
+    const s = ui.sel;
+    if (!s || s.kind !== 'tower' || !s.mine || s.fam !== 1 || s.tower === undefined) return;
+    this.targeting = { kind: 'rally', tower: s.tower };
+    ui.hud.targeting = 'Choisissez le point de ralliement';
+  }
+
+  castSpell(s: 0 | 1) {
+    if (ui.hud.spells[s] > 0) { audio.play('deny'); return; }
+    this.targeting = { kind: 'spell', s };
+    ui.sel = null;
+    ui.hud.targeting = SPELLS[s].name + ' : cliquez sur la carte';
+  }
+
+  heroSkill(i: 0 | 1 | 2) {
+    const h = ui.hud.hero;
+    const def = HEROES[HERO_IDS[h.type]];
+    const sk = def.skills[i];
+    if (h.dead || h.level < sk.unlock || h.cds[i] > 0) { audio.play('deny'); return; }
+    if (!sk.targeted) {
+      const hp = this.heroPos();
+      if (hp) this.send({ k: 'hskill', i, x: hp.x, z: hp.z });
+      return;
+    }
+    this.targeting = { kind: 'hskill', i };
+    ui.hud.targeting = sk.name + ' : cliquez sur la carte';
+  }
+
+  selectHero() {
+    const hp = this.heroPos();
+    if (!hp) return;
+    ui.sel = { kind: 'hero' };
+    this.targeting = { kind: 'hmove' };
+    ui.hud.targeting = 'Cliquez pour déplacer votre héros';
+  }
+
+  focusHero() {
+    const hp = this.heroPos();
+    if (hp) this.r.focus(hp.x, hp.z);
+  }
+
+  callWave() {
+    this.send({ k: 'wave' });
+  }
+
+  toggleSpeed() {
+    const me = ui.hud.players.find((p) => p.id === this.you);
+    this.send({ k: 'speed', v: me?.speed2 ? 1 : 2 });
+  }
+
+  gift(to: number) {
+    this.send({ k: 'gift', to, amt: 50 });
+  }
+
+  cancel() {
+    this.targeting = null;
+    ui.hud.targeting = '';
+    ui.sel = null;
+  }
+
+  private heroPos(): { x: number; z: number } | null {
+    const s = this.interp.latest;
+    if (!s) return null;
+    const hi = s.heroIndex(this.you);
+    if (hi < 0) return null;
+    const ui_ = this.interp.frame.unitIdx(s.hUnit[hi]);
+    if (ui_ < 0) return null;
+    return { x: this.interp.frame.uX[ui_], z: this.interp.frame.uZ[ui_] };
+  }
+
+  // ------------------------------------------------------------ entrées
+
+  private bindInput() {
+    const c = this.r.gl.domElement;
+    const on = <K extends keyof WindowEventMap>(t: EventTarget, type: K, fn: (e: WindowEventMap[K]) => void, opts?: AddEventListenerOptions) => {
+      t.addEventListener(type, fn as EventListener, opts);
+      this.disposers.push(() => t.removeEventListener(type, fn as EventListener));
+    };
+    on(c, 'contextmenu', (e) => e.preventDefault());
+    on(c, 'pointerdown', (e) => {
+      audio.unlock();
+      this.mouse.down = true;
+      this.mouse.button = e.button;
+      this.mouse.sx = e.clientX;
+      this.mouse.sy = e.clientY;
+      this.mouse.moved = false;
+    });
+    on(window, 'pointermove', (e) => {
+      const dx = e.clientX - this.mouse.x, dy = e.clientY - this.mouse.y;
+      this.mouse.x = e.clientX;
+      this.mouse.y = e.clientY;
+      if (this.mouse.down && (Math.abs(e.clientX - this.mouse.sx) + Math.abs(e.clientY - this.mouse.sy) > 6)) this.mouse.moved = true;
+      if (this.mouse.down && this.mouse.moved && (this.mouse.button === 1 || this.mouse.button === 2 || (this.mouse.button === 0 && !this.targeting))) {
+        const k = this.r.cam.dist / this.r.height * 1.25;
+        this.r.cam.tx -= dx * k;
+        this.r.cam.tz -= dy * k * 1.2;
+      }
+    });
+    on(window, 'pointerup', (e) => {
+      if (!this.mouse.down) return;
+      this.mouse.down = false;
+      if (this.mouse.moved || e.target !== c) return;
+      if (e.button === 0) this.click(e.clientX, e.clientY, e.altKey);
+      else if (e.button === 2) this.rightClick(e.clientX, e.clientY);
+    });
+    on(c, 'wheel', (e) => {
+      e.preventDefault();
+      this.r.zoom(Math.sign(e.deltaY) * 0.12);
+    }, { passive: false });
+    on(document, 'mouseleave' as keyof WindowEventMap, () => (this.mouse.inside = false));
+    on(document, 'mouseenter' as keyof WindowEventMap, () => (this.mouse.inside = true));
+    on(window, 'keydown', (e) => this.key(e));
+    on(window, 'keyup', (e) => this.keysDown.delete(e.code));
+    on(window, 'blur', () => this.keysDown.clear());
+  }
+
+  private action(code: string): Action | null {
+    for (const a of Object.keys(keys) as Action[]) if (keys[a] === code) return a;
+    return null;
+  }
+
+  private key(e: KeyboardEvent) {
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (ui.overlay === 'settings' && document.querySelector('[data-capturing]')) return;
+    const a = this.action(e.code);
+    if (!a) return;
+    if (a.startsWith('cam')) { this.keysDown.add(e.code); e.preventDefault(); return; }
+    if (e.repeat) return;
+    if (ui.dialog && (a === 'wave' || a === 'menu')) {
+      e.preventDefault();
+      if (a === 'menu') this.dialogDone();
+      else this.nextDialog();
+      return;
+    }
+    e.preventDefault();
+    audio.unlock();
+    switch (a) {
+      case 'menu':
+        if (this.targeting || ui.sel) this.cancel();
+        else if (ui.overlay) ui.overlay = null;
+        else if (this.host.local) this.setPaused(!ui.paused);
+        else ui.paused = !ui.paused;
+        break;
+      case 'hero': this.selectHero(); this.focusHero(); break;
+      case 'skill1': this.heroSkill(0); break;
+      case 'skill2': this.heroSkill(1); break;
+      case 'ult': this.heroSkill(2); break;
+      case 'spell1': this.castSpell(0); break;
+      case 'spell2': this.castSpell(1); break;
+      case 'buildArcher': case 'buildBarracks': case 'buildMage': case 'buildArtillery': {
+        const fam = FAM_ACTIONS.indexOf(a);
+        if (this.hoverSlot >= 0 && !this.towerAtSlot(this.hoverSlot)) ui.sel = { kind: 'build', slot: this.hoverSlot };
+        this.build(fam);
+        break;
+      }
+      case 'upgrade': {
+        this.selectHoveredTower();
+        const s = ui.sel;
+        if (s?.kind === 'tower' && (s.level ?? 0) < 2) this.upgrade();
+        break;
+      }
+      case 'sell': this.selectHoveredTower(); this.sell(); break;
+      case 'rally': this.selectHoveredTower(); this.startRally(); break;
+      case 'wave': this.callWave(); break;
+      case 'speed': this.toggleSpeed(); break;
+      case 'chat': if (!this.host.local) ui.chatOpen = true; break;
+      case 'debug': ui.debug.on = !ui.debug.on; break;
+    }
+    void ACTION_LABELS;
+  }
+
+  private selectHoveredTower() {
+    if (this.hoverSlot < 0) return;
+    const t = this.towerAtSlot(this.hoverSlot);
+    if (t >= 0) this.selectTowerIndex(t);
+  }
+
+  private towerAtSlot(slot: number): number {
+    const s = this.interp.latest;
+    if (!s) return -1;
+    for (let i = 0; i < s.tCount; i++) if (s.tSlot[i] === slot) return i;
+    return -1;
+  }
+
+  private selectTowerIndex(i: number) {
+    const s = this.interp.latest!;
+    ui.sel = {
+      kind: 'tower', slot: s.tSlot[i], tower: s.tId[i], fam: s.tFam[i], level: s.tLevel[i],
+      sk: [s.tSk[i] & 15, s.tSk[i] >> 4], owner: s.tOwner[i], mine: s.tOwner[i] === this.you,
+    };
+  }
+
+  private slotAt(x: number, z: number): number {
+    let best = -1, bd = 1.5 * 1.5;
+    this.map.slots.forEach((s, i) => {
+      const d = (s.x - x) ** 2 + (s.z - z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+
+  private click(sx: number, sy: number, alt: boolean) {
+    const p = this.r.pick(sx, sy);
+    if (!p) return;
+    if (alt && !this.host.local) {
+      (window as unknown as { __ping?: (x: number, z: number) => void }).__ping?.(p.x, p.z);
+      return;
+    }
+    const t = this.targeting;
+    if (t) {
+      this.targeting = null;
+      ui.hud.targeting = '';
+      if (t.kind === 'spell') { this.send({ k: 'spell', s: t.s, x: p.x, z: p.z }); return; }
+      if (t.kind === 'hskill') { this.send({ k: 'hskill', i: t.i, x: p.x, z: p.z }); return; }
+      if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; return; }
+      if (t.kind === 'hmove') {
+        // un clic sur un emplacement reste prioritaire
+        if (this.slotAt(p.x, p.z) < 0) {
+          this.send({ k: 'hmove', x: p.x, z: p.z });
+          this.fx.ring(p.x, p.z, 0.8, 0x93c5fd, 0.5);
+          ui.sel = null;
+          return;
+        }
+      }
+    }
+    // héros
+    const hp = this.heroPos();
+    if (hp && (hp.x - p.x) ** 2 + (hp.z - p.z) ** 2 < 1.3) { this.selectHero(); audio.play('click'); return; }
+    // emplacement / tour
+    const slot = this.slotAt(p.x, p.z);
+    if (slot >= 0) {
+      audio.play('click');
+      const ti = this.towerAtSlot(slot);
+      if (ti >= 0) this.selectTowerIndex(ti);
+      else if (this.map.slots[slot].locked) { toast('Emplacement en ruines : il s’ouvre avec plus de joueurs.', 'info', 2000); ui.sel = null; }
+      else ui.sel = { kind: 'build', slot };
+      return;
+    }
+    // ennemi
+    const f = this.interp.frame;
+    let best = -1, bd = 1.6;
+    for (let i = 0; i < f.eN; i++) {
+      const d = (f.eX[i] - p.x) ** 2 + (f.eZ[i] - p.z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best >= 0) {
+      ui.sel = { kind: 'enemy', enemyType: f.eType[best], hp: f.eHp[best] };
+      return;
+    }
+    ui.sel = null;
+  }
+
+  private rightClick(sx: number, sy: number) {
+    const p = this.r.pick(sx, sy);
+    if (!p) return;
+    if (this.targeting && this.targeting.kind !== 'hmove') { this.cancel(); return; }
+    this.targeting = null;
+    ui.hud.targeting = '';
+    this.send({ k: 'hmove', x: p.x, z: p.z });
+    this.fx.ring(p.x, p.z, 0.8, 0x93c5fd, 0.5);
+  }
+
+  // ------------------------------------------------------------ boucle
+
+  update(dt: number) {
+    this.time += dt;
+    const r = this.r;
+    // caméra clavier / bords
+    const pan = 22 * dt;
+    if (this.keysDown.has(keys.camLeft)) r.pan(-pan, 0);
+    if (this.keysDown.has(keys.camRight)) r.pan(pan, 0);
+    if (this.keysDown.has(keys.camUp)) r.pan(0, -pan);
+    if (this.keysDown.has(keys.camDown)) r.pan(0, pan);
+    if (settings.edgeScroll && this.mouse.inside && !this.mouse.down) {
+      const m = 12;
+      if (this.mouse.x < m) r.pan(-pan, 0);
+      if (this.mouse.x > r.width - m) r.pan(pan, 0);
+      if (this.mouse.y < m) r.pan(0, -pan);
+      if (this.mouse.y > r.height - m) r.pan(0, pan);
+    }
+    r.update(dt, this.time);
+
+    const paused = ui.paused && this.host.local;
+    const f = this.interp.update(dt, paused || this.dialogPaused);
+    const snap = this.interp.latest;
+    if (!f || !snap) return;
+
+    // héros : type par unité
+    for (let i = 0; i < snap.hCount; i++) this.ents.heroTypeByUnit.set(snap.hUnit[i], snap.hType[i]);
+
+    // événements
+    for (const e of this.interp.dueEvents(this.scratch)) this.handleEvent(e.tick, e.ev);
+
+    const selTower = ui.sel?.kind === 'tower' ? ui.sel.tower ?? -1 : -1;
+    this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
+    this.fx.update(dt, this.interp.renderTick, (id, out) => {
+      const i = f.enemyIdx(id);
+      if (i < 0) return false;
+      out.x = f.eX[i]; out.y = f.eY[i] + 0.7; out.z = f.eZ[i];
+      return true;
+    });
+
+    // emplacements libres
+    const wp = this.world.slotPool, lp = this.world.lockedPool;
+    wp.begin();
+    lp.begin();
+    const used = new Uint8Array(this.map.slots.length);
+    for (let i = 0; i < snap.tCount; i++) used[snap.tSlot[i]] = 1;
+    this.map.slots.forEach((s, i) => {
+      if (used[i]) return;
+      if (s.locked) lp.push(s.x, 0, s.z, i, 1);
+      else {
+        const j = wp.push(s.x, 0, s.z, i * 0.7, 1, 0, 0, i === this.hoverSlot || ui.sel?.slot === i ? 0.25 : 0);
+        void j;
+      }
+    });
+    wp.end();
+    lp.end();
+
+    this.updateHover();
+    this.updateSelectionVisuals(snap);
+    this.positionDom(snap);
+
+    // ennemis rencontrés pour la première fois
+    for (let i = 0; i < f.eN; i++) {
+      const d = ENEMIES[f.eType[i]];
+      if (d && !this.seenTypes.has(d.id)) {
+        this.seenTypes.add(d.id);
+        progress.seen.push(d.id);
+        saveProgress();
+        toast(`Nouvel ennemi : ${d.name}. ${d.desc}`, 'enemy', 6000);
+      }
+    }
+
+    // HUD
+    this.hudT -= dt;
+    if (this.hudT <= 0) {
+      this.hudT = 0.1;
+      this.syncHud();
+    }
+    this.fpsAcc += dt;
+    this.fpsN++;
+    if (this.fpsAcc >= 0.5) {
+      ui.debug.fps = Math.round(this.fpsN / this.fpsAcc);
+      ui.debug.calls = r.gl.info.render.calls;
+      ui.debug.tris = r.gl.info.render.triangles;
+      ui.debug.ents = f.eN + f.uN;
+      ui.debug.kb = Math.round((this.snapshotBytes / this.fpsAcc / 1024) * 10) / 10;
+      this.snapshotBytes = 0;
+      this.fpsAcc = 0;
+      this.fpsN = 0;
+    }
+  }
+
+  private updateHover() {
+    const p = this.r.pick(this.mouse.x, this.mouse.y);
+    this.hoverSlot = p ? this.slotAt(p.x, p.z) : -1;
+    const t = this.targeting;
+    this.aimRing.visible = false;
+    if (p && t && (t.kind === 'spell' || t.kind === 'hskill')) {
+      let r = 2;
+      if (t.kind === 'spell') r = t.s === 0 ? 2.6 : 1;
+      else {
+        const id = HERO_IDS[ui.hud.hero.type];
+        r = id === 'lyra' && t.i === 1 ? 2.3 : id === 'brom' && t.i === 2 ? 3 : 1.2;
+      }
+      this.aimRing.visible = true;
+      this.aimRing.position.set(p.x, 0.1, p.z);
+      this.aimRing.scale.setScalar(r);
+    }
+    if (p && t && t.kind === 'rally') {
+      this.aimRing.visible = true;
+      this.aimRing.position.set(p.x, 0.1, p.z);
+      this.aimRing.scale.setScalar(1);
+    }
+  }
+
+  private updateSelectionVisuals(snap: NonNullable<Interp['latest']>) {
+    const s = ui.sel;
+    this.rangeRing.visible = false;
+    this.rallyFlag.visible = false;
+    this.hoverRing.visible = false;
+    if (this.hoverSlot >= 0 && !this.targeting) {
+      const sl = this.map.slots[this.hoverSlot];
+      this.hoverRing.visible = true;
+      this.hoverRing.position.set(sl.x, 0.1, sl.z);
+    }
+    if (s?.kind === 'tower' && s.tower !== undefined) {
+      let ti = -1;
+      for (let i = 0; i < snap.tCount; i++) if (snap.tId[i] === s.tower) ti = i;
+      if (ti < 0) { ui.sel = null; return; }
+      // garder la sélection à jour (amélioration effectuée)
+      if (snap.tLevel[ti] !== s.level || (snap.tSk[ti] & 15) !== s.sk?.[0] || snap.tSk[ti] >> 4 !== s.sk?.[1] || snap.tOwner[ti] !== s.owner) this.selectTowerIndex(ti);
+      const fam = FAMILIES[snap.tFam[ti]];
+      const lvl = TOWERS[fam][snap.tLevel[ti]];
+      let range = lvl.range;
+      if (fam === 'archer' && snap.tLevel[ti] === LEVEL_SPEC_A && snap.tSk[ti] >> 4) range += lvl.skills![1].values[(snap.tSk[ti] >> 4) - 1];
+      const sl = this.map.slots[snap.tSlot[ti]];
+      this.rangeRing.visible = true;
+      this.rangeRing.position.set(sl.x, 0.09, sl.z);
+      this.rangeRing.scale.setScalar(range);
+      if (fam === 'barracks') {
+        this.rallyFlag.visible = true;
+        this.rallyFlag.position.set(snap.tRallyX[ti], 0.7, snap.tRallyZ[ti]);
+      }
+    } else if (s?.kind === 'build' && s.slot !== undefined && this.hoverFam >= 0) {
+      const sl = this.map.slots[s.slot];
+      this.rangeRing.visible = true;
+      this.rangeRing.position.set(sl.x, 0.09, sl.z);
+      this.rangeRing.scale.setScalar(TOWERS[FAMILIES[this.hoverFam]][0].range);
+    }
+  }
+
+  /** famille survolée dans le menu radial (aperçu de portée) */
+  hoverFam = -1;
+
+  private positionDom(snap: NonNullable<Interp['latest']>) {
+    const s = ui.sel;
+    if (dom.radial) {
+      if (s && (s.kind === 'build' || s.kind === 'tower') && s.slot !== undefined) {
+        const sl = this.map.slots[s.slot];
+        this.r.project(sl.x, 1.2, sl.z, this.proj);
+        dom.radial.style.transform = `translate(${this.proj.x | 0}px, ${this.proj.y | 0}px)`;
+        dom.radial.style.visibility = 'visible';
+      } else dom.radial.style.visibility = 'hidden';
+    }
+    const showWave = snap.state === GameState.Waiting || snap.nextWaveT > 0;
+    const from = this.map.def.pathFrom;
+    const nextWave = snap.wave + 1;
+    this.world.entries.forEach((e, i) => {
+      const el = dom.waves[i];
+      if (!el) return;
+      const active = !from || (from[e.path] ?? 1) <= nextWave;
+      if (!showWave || !active || (this.cfg.mode === 'story' && snap.wave >= snap.totalWaves)) { el.style.visibility = 'hidden'; return; }
+      this.r.project(e.x, 1.5, e.z, this.proj);
+      const m = 48;
+      const x = Math.max(m, Math.min(this.r.width - m, this.proj.x));
+      const y = Math.max(m + 40, Math.min(this.r.height - m - 90, this.proj.y));
+      el.style.transform = `translate(${x | 0}px, ${y | 0}px)`;
+      el.style.visibility = 'visible';
+    });
+  }
+
+  private syncHud() {
+    const s = this.interp.latest;
+    if (!s) return;
+    const h = ui.hud;
+    const pi = s.playerIndex(this.you);
+    h.gold = pi >= 0 ? s.pGold[pi] : 0;
+    h.lives = s.lives;
+    h.maxLives = s.maxLives;
+    h.wave = s.wave;
+    h.totalWaves = s.totalWaves;
+    h.nextWave = s.nextWaveT < 0 ? -1 : Math.ceil(s.nextWaveT / TICK_RATE);
+    h.state = s.state;
+    h.speed = s.speed;
+    if (h.mutations.join() !== s.mutations.join()) h.mutations = [...s.mutations];
+    if (pi >= 0) {
+      h.spells[0] = Math.ceil(s.pCd0[pi] / TICK_RATE);
+      h.spells[1] = Math.ceil(s.pCd1[pi] / TICK_RATE);
+    }
+    for (const p of h.players) {
+      const i = s.playerIndex(p.id);
+      if (i < 0) continue;
+      p.gold = s.pGold[i];
+      p.connected = (s.pFlags[i] & PF_CONNECTED) !== 0;
+      p.active = (s.pFlags[i] & PF_ACTIVE) !== 0;
+      p.speed2 = (s.pFlags[i] & PF_SPEED2) !== 0;
+    }
+    const hi = s.heroIndex(this.you);
+    if (hi >= 0) {
+      const he = h.hero;
+      he.type = s.hType[hi];
+      he.level = s.hLevel[hi];
+      he.xp = s.hXp[hi];
+      he.cds[0] = Math.ceil(s.hCd[hi * 3] / TICK_RATE);
+      he.cds[1] = Math.ceil(s.hCd[hi * 3 + 1] / TICK_RATE);
+      he.cds[2] = Math.ceil(s.hCd[hi * 3 + 2] / TICK_RATE);
+      he.respawn = Math.ceil(s.hRespawn[hi] / TICK_RATE);
+      const ui_ = this.interp.frame.unitIdx(s.hUnit[hi]);
+      he.dead = ui_ < 0 || (this.interp.frame.uFlags[ui_] & UF_DEAD) !== 0;
+      he.hp = ui_ >= 0 ? this.interp.frame.uHp[ui_] : 0;
+    }
+    if (ui.sel?.kind === 'enemy') {
+      // rien : instantané
+    }
+    // intensité musicale
+    const f = this.interp.frame;
+    let boss = false;
+    for (let i = 0; i < f.eN; i++) if (ENEMIES[f.eType[i]]?.boss) boss = true;
+    audio.intensity = boss ? 1 : Math.min(0.85, f.eN / 40 + (s.state === GameState.Running ? 0.2 : 0));
+  }
+
+  // ------------------------------------------------------------ événements visuels
+
+  private startPos(srcType: number, srcId: number, out: { x: number; y: number; z: number }): boolean {
+    if (srcType === Src.Tower) {
+      const t = this.ents.towerMuzzle.get(srcId);
+      if (!t) return false;
+      out.x = t.x; out.y = t.y; out.z = t.z;
+      return true;
+    }
+    const f = this.interp.frame;
+    if (srcType === Src.Hero) {
+      const s = this.interp.latest!;
+      const hi = s.heroIndex(srcId);
+      const i = hi >= 0 ? f.unitIdx(s.hUnit[hi]) : -1;
+      if (i < 0) return false;
+      out.x = f.uX[i]; out.y = 1.2; out.z = f.uZ[i];
+      return true;
+    }
+    if (srcType === Src.Unit) {
+      const i = f.unitIdx(srcId);
+      if (i < 0) return false;
+      out.x = f.uX[i]; out.y = 0.9; out.z = f.uZ[i];
+      return true;
+    }
+    return false;
+  }
+
+  private damageNumber(x: number, y: number, z: number, amount: number, crit: boolean) {
+    const layer = dom.dmg;
+    if (!layer || !settings.damageNumbers) return;
+    const el = layer.children[this.dmgIdx++ % layer.children.length] as HTMLElement;
+    if (!el) return;
+    this.r.project(x, y, z, this.proj);
+    el.textContent = String(amount);
+    el.className = crit ? 'dn crit' : 'dn';
+    el.style.left = `${this.proj.x | 0}px`;
+    el.style.top = `${this.proj.y | 0}px`;
+    void el.offsetWidth;
+    el.classList.add('go');
+  }
+
+  private handleEvent(tick: number, ev: number[]) {
+    const fx = this.fx;
+    const f = this.interp.frame;
+    const p = this.tpos;
+    switch (ev[0]) {
+      case Ev.Fire: {
+        const [, kind, srcType, srcId, target, tx, tz, flight] = ev;
+        if (srcType === Src.Sky) { p.x = tx - 6; p.y = 24; p.z = tz - 7; }
+        else if (!this.startPos(srcType, srcId, p)) return;
+        const dist = Math.sqrt((tx - p.x) ** 2 + (tz - p.z) ** 2);
+        if (kind === 3) {
+          // rayon arcanique
+          const ti = f.enemyIdx(target);
+          const ty = ti >= 0 ? f.eY[ti] + 0.7 : 0.7;
+          fx.beams.add(p.x, p.y, p.z, tx, ty, tz, 0.3, 0.12, 0xea80fc);
+          fx.beams.add(p.x, p.y, p.z, tx, ty, tz, 0.2, 0.05, 0xffffff);
+          fx.burst(tx, ty, tz, 8, 0xea80fc, 3, 0.1, 0.4, true, 0);
+          audio.play('arcane');
+          return;
+        }
+        let arc = 0.3;
+        if (kind === 0 || kind === FIRE_HERO_ARROW || kind === FIRE_TURRET) arc = 0.12 * dist;
+        else if (kind === 4 || kind === 5 || kind === 12) arc = 0.35 * dist + 1;
+        else if (kind === FIRE_METEOR) arc = 0;
+        const ti = target !== 0xffff ? f.enemyIdx(target) : -1;
+        fx.addShot({ kind, sx: p.x, sy: p.y, sz: p.z, tx, ty: ti >= 0 ? f.eY[ti] + 0.7 : 0.2, tz, targetId: target, t0: tick, dur: Math.max(1, flight), arc, x: p.x, y: p.y, z: p.z });
+        if (kind === 0 || kind === FIRE_HERO_ARROW) audio.play('arrow', 0.8);
+        else if (kind === 1 || kind === FIRE_HERO_BOLT) audio.play('bolt', 0.7);
+        else if (kind === 2) audio.play('frost', 0.8);
+        else if (kind === 4 || kind === 5) { audio.play('shell'); fx.burst(p.x, p.y, p.z, 5, 0x9e9e9e, 2, 0.18, 0.6); }
+        else if (kind === FIRE_TURRET) audio.play('arrow', 0.6);
+        else if (kind === FIRE_METEOR) audio.play('meteor');
+        break;
+      }
+      case Ev.Chain: {
+        const t = this.ents.towerMuzzle.get(ev[1]);
+        if (!t) return;
+        const n = ev[2];
+        let ax = t.x, ay = t.y, az = t.z;
+        for (let k = 0; k < n; k++) {
+          const bx = ev[3 + k * 2], bz = ev[4 + k * 2];
+          fx.beams.add(ax, ay, az, bx, 0.8, bz, 0.22, 0.07, 0x80d8ff, 0.6);
+          fx.burst(bx, 0.8, bz, 5, 0xb3e5fc, 3, 0.07, 0.3, true, 0);
+          ax = bx; ay = 0.8; az = bz;
+        }
+        audio.play('tesla');
+        break;
+      }
+      case Ev.Impact: {
+        const [, kind, x, z, r10] = ev;
+        const rad = r10 / 10;
+        switch (kind) {
+          case Impact.Shell: case Impact.Frag:
+            fx.burst(x, 0.3, z, kind === Impact.Frag ? 6 : 14, 0x6d4c41, 4, 0.2, 0.7);
+            fx.burst(x, 0.4, z, 8, 0xffb74d, 3, 0.18, 0.3, true, 0);
+            fx.ring(x, z, rad, 0xffcc80, 0.35);
+            audio.play('explosion', kind === Impact.Frag ? 0.4 : 0.7);
+            break;
+          case Impact.FireShell:
+            fx.burst(x, 0.3, z, 18, 0xff6f00, 5, 0.22, 0.6, true, -3);
+            fx.burst(x, 0.3, z, 10, 0x3e2723, 3, 0.25, 0.9);
+            fx.ring(x, z, rad, 0xff8f00, 0.45);
+            audio.play('explosion', 0.8);
+            break;
+          case Impact.Meteor:
+            fx.burst(x, 0.3, z, 30, 0xff6f00, 7, 0.3, 0.8, true, -4);
+            fx.burst(x, 0.3, z, 20, 0x4e342e, 5, 0.3, 1.1);
+            fx.ring(x, z, rad * 1.3, 0xffab40, 0.6);
+            this.r.shake(0.35);
+            audio.play('explosion', 1.2);
+            break;
+          case Impact.Frost:
+            fx.burst(x, 0.5, z, 30, 0xb3e5fc, 4, 0.15, 0.8, true, -1);
+            fx.ring(x, z, rad, 0x80deea, 0.7);
+            audio.play('frost', 1.2);
+            break;
+          case Impact.Arcane:
+            fx.burst(x, 0.7, z, 24, 0xea80fc, 5, 0.14, 0.6, true, 2);
+            fx.beams.add(x, 0, z, x, 8, z, 0.4, 0.4, 0xea80fc);
+            audio.play('arcane', 1.2);
+            break;
+          case Impact.Kamikaze:
+            fx.burst(x, 0.4, z, 22, 0x8d9a3a, 5, 0.2, 0.7);
+            fx.burst(x, 0.4, z, 12, 0xffb74d, 4, 0.2, 0.3, true, 0);
+            fx.ring(x, z, rad, 0xc5e1a5, 0.4);
+            audio.play('explosion', 0.7);
+            break;
+          case Impact.Hammer:
+            fx.burst(x, 0.2, z, 24, 0x8d6e63, 5, 0.18, 0.7);
+            fx.ring(x, z, rad, 0xffcc80, 0.5);
+            this.r.shake(0.25);
+            audio.play('shell', 1.2);
+            break;
+          case Impact.Holy:
+            fx.burst(x, 0.5, z, 40, 0xfff59d, 6, 0.18, 0.9, true, 1);
+            fx.ring(x, z, rad, 0xfff176, 0.7);
+            fx.ring(x, z, rad * 0.6, 0xffffff, 0.5);
+            this.r.shake(0.3);
+            audio.play('levelup');
+            break;
+          case Impact.Drain:
+            fx.burst(x, 0.8, z, 30, 0x76ff03, 3, 0.12, 0.8, true, 0);
+            fx.ring(x, z, rad, 0x76ff03, 0.6, rad);
+            audio.play('arcane', 0.8);
+            break;
+          case Impact.Lava:
+            fx.ring(x, z, rad, 0xff6f00, 5, rad * 0.98);
+            for (let k = 0; k < 40; k++) {
+              const a = Math.random() * Math.PI * 2, d = Math.random() * rad;
+              fx.glow.spawn(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 1, 0, 1 + Math.random() * 4, 0.25, 0xff6f00, 0.2);
+            }
+            audio.play('explosion', 0.8);
+            break;
+          case Impact.ArrowRain:
+            fx.ring(x, z, rad, 0xc5e1a5, 3, rad * 0.98);
+            for (let k = 0; k < 36; k++) {
+              const a = Math.random() * Math.PI * 2, d = Math.random() * rad;
+              fx.addShot({ kind: 0, sx: x + Math.cos(a) * d - 2, sy: 9, sz: z + Math.sin(a) * d - 2, tx: x + Math.cos(a) * d, ty: 0, tz: z + Math.sin(a) * d, targetId: 0xffff, t0: tick + k * 1.6, dur: 8, arc: 0, x, y: 9, z });
+            }
+            break;
+          case Impact.Dawn:
+            fx.ring(x, z, rad, 0xffe082, 0.9);
+            fx.burst(x, 1, z, 50, 0xffe082, 8, 0.12, 0.8, true, 0);
+            audio.play('spell');
+            break;
+          case Impact.Charge:
+            fx.burst(x, 0.3, z, 18, 0x90caf9, 5, 0.15, 0.5, true, 0);
+            fx.ring(x, z, rad, 0x90caf9, 0.4);
+            audio.play('hit', 1.5);
+            break;
+          case Impact.Summon:
+            fx.burst(x, 0.3, z, 30, 0x76ff03, 3, 0.15, 0.9, true, 2);
+            fx.ring(x, z, rad, 0x76ff03, 0.6);
+            audio.play('arcane', 0.7);
+            break;
+          case Impact.Turret:
+            fx.burst(x, 0.3, z, 16, 0xffb74d, 4, 0.15, 0.5, true, -2);
+            audio.play('build');
+            break;
+          case Impact.Rally:
+            fx.ring(x, z, 1, 0xfff59d, 0.5);
+            break;
+        }
+        break;
+      }
+      case Ev.Death: {
+        const [, , type, x, z] = ev;
+        const d = ENEMIES[type];
+        if (!d) return;
+        const y = d.flying ? 2.4 : 0.5;
+        const c = d.flying ? 0x37474f : DEATH_COLORS[d.biome] ?? 0x9e9e9e;
+        fx.burst(x, y, z, d.boss ? 60 : Math.round(6 + d.size * 6), c, d.boss ? 7 : 3.5, 0.13 * d.size + 0.05, 0.8);
+        fx.burst(x, y, z, 4, 0xffffff, 2, 0.12, 0.35, true, 0);
+        if (d.boss) { this.r.shake(0.8); audio.play('bigdeath', 1.5); fx.ring(x, z, 5, 0xffffff, 1); }
+        else audio.play(d.size > 1.1 ? 'bigdeath' : 'death', 0.6);
+        // pièces d'or
+        for (let k = 0; k < Math.min(6, Math.ceil(d.bounty / 8)); k++) fx.sparks.spawn(x, y + 0.3, z, (Math.random() - 0.5) * 2, 3 + Math.random() * 2, (Math.random() - 0.5) * 2, 0.7, 0.09, 0xffd54f);
+        break;
+      }
+      case Ev.Leak:
+        audio.play('leak');
+        this.r.shake(0.2);
+        fx.ring(this.world.exit.x, this.world.exit.z, 4, 0xef4444, 0.8);
+        toast(`−${ev[2]} vie${ev[2] > 1 ? 's' : ''} !`, 'danger', 1400);
+        break;
+      case Ev.Build: {
+        const sl = this.map.slots[ev[2]];
+        if (sl) {
+          fx.burst(sl.x, 0.3, sl.z, 18, 0xbcaaa4, 3, 0.2, 0.8);
+          fx.ring(sl.x, sl.z, 1.8, 0xfff8e1, 0.5);
+        }
+        audio.play('build');
+        break;
+      }
+      case Ev.Sell: {
+        const sl = this.map.slots[ev[1]];
+        if (sl) fx.burst(sl.x, 1, sl.z, 14, 0xffd54f, 4, 0.1, 0.8);
+        audio.play('sell');
+        break;
+      }
+      case Ev.Upgrade: {
+        const t = this.ents.towerMuzzle.get(ev[1]);
+        if (t) {
+          fx.burst(t.x, t.y * 0.6, t.z, 26, 0xfff59d, 4, 0.12, 0.9, true, 1);
+          fx.ring(t.x, t.z, 2, 0xfff176, 0.6);
+        }
+        audio.play('upgrade');
+        break;
+      }
+      case Ev.Spell: {
+        const [, kind, owner, x, z] = ev;
+        if (kind === 1) {
+          fx.burst(x, 0.3, z, 16, 0xfff8e1, 3, 0.18, 0.6);
+          fx.ring(x, z, 1.5, PLAYER_COLORS[owner] ?? 0xffffff, 0.6);
+          audio.play('spell');
+        }
+        break;
+      }
+      case Ev.HeroSkill: {
+        const [, owner, skill, x, z, hx, hz] = ev;
+        const s = this.interp.latest!;
+        const hi = s.heroIndex(owner);
+        const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
+        if (type === 'lyra' && skill === 0) {
+          const dx = x - hx, dz = z - hz, l = Math.sqrt(dx * dx + dz * dz) || 1;
+          fx.beams.add(hx, 1.1, hz, hx + (dx / l) * 13, 1.1, hz + (dz / l) * 13, 0.35, 0.12, 0xc5e1a5);
+          audio.play('arrow', 1.5);
+        } else if (type === 'samuel' && skill === 0) {
+          fx.beams.add(hx, 0.6, hz, x, 0.6, z, 0.3, 0.3, 0x90caf9);
+        } else if (type === 'samuel' && skill === 1) {
+          fx.ring(hx, hz, 4.5, 0xffcc80, 0.8);
+          audio.play('heal');
+        } else if (type === 'brom' && skill === 1) {
+          // l'impact Turret suffit
+        }
+        if (owner === this.you) audio.play('spell', 0.6);
+        break;
+      }
+      case Ev.Dmg: {
+        const i = f.enemyIdx(ev[1]);
+        this.ents.hitTime[ev[1]] = this.time;
+        if (i >= 0 && (ev[2] >= 25 || ev[3])) this.damageNumber(f.eX[i], f.eY[i] + 1.6, f.eZ[i], ev[2], ev[3] !== 0);
+        if (ev[3] === 2 && i >= 0) fx.burst(f.eX[i], 0.8, f.eZ[i], 14, 0xea80fc, 3, 0.12, 0.5, true, 0);
+        break;
+      }
+      case Ev.WaveStart: {
+        const [, wave, boss, mut] = ev;
+        this.lastWave = wave;
+        const total = this.cfg.mode === 'story' ? ` / ${this.interp.latest?.totalWaves ?? ''}` : '';
+        banner(boss ? 'Le boss arrive !' : `Vague ${wave}${total}`, mut !== 255 && MUTATIONS[mut] ? `Mutation : ${MUTATIONS[mut].name} — ${MUTATIONS[mut].desc}` : '');
+        audio.play(boss ? 'boss' : 'wave');
+        if (this.cfg.mode === 'story' && ui.game) {
+          const st = STORY[ui.game.level];
+          const lines = st?.waves?.[wave];
+          if (lines) this.showDialog(lines);
+        }
+        break;
+      }
+      case Ev.LevelUp: {
+        if (ev[1] === this.you) {
+          const id = HERO_IDS[ui.hud.hero.type];
+          const def = HEROES[id];
+          const unlocked = def.skills.find((s) => s.unlock === ev[2]);
+          toast(`${def.name} passe niveau ${ev[2]} !${unlocked ? ` Nouvelle compétence : ${unlocked.name}` : ''}`, 'good', 3000);
+          audio.play('levelup');
+        }
+        const s = this.interp.latest!;
+        const hi = s.heroIndex(ev[1]);
+        const i = hi >= 0 ? f.unitIdx(s.hUnit[hi]) : -1;
+        if (i >= 0) {
+          fx.burst(f.uX[i], 1, f.uZ[i], 24, 0xfff176, 3, 0.1, 1, true, 2);
+          fx.ring(f.uX[i], f.uZ[i], 1.5, 0xfff176, 0.6);
+        }
+        break;
+      }
+      case Ev.Stun: {
+        const t = this.ents.towerMuzzle.get(ev[1]);
+        if (t) {
+          fx.burst(t.x, t.y, t.z, 16, 0xb2ff59, 2, 0.12, 1, true, 0);
+          fx.beams.add(t.x, t.y + 3, t.z, t.x, t.y, t.z, 0.3, 0.15, 0xb2ff59, 0.5);
+        }
+        audio.play('stun');
+        break;
+      }
+      case Ev.Teleport:
+        fx.burst(ev[2], 0.8, ev[3], 18, 0xea80fc, 3, 0.12, 0.6, true, 1);
+        break;
+      case Ev.BossPhase: {
+        const d = ENEMIES[ev[2]];
+        banner(d?.name ?? 'Le boss se transforme !', d?.desc ?? '');
+        this.r.shake(0.9);
+        audio.play('boss');
+        const i = f.enemyIdx(ev[1]);
+        if (i >= 0) fx.burst(f.eX[i], 1.5, f.eZ[i], 60, 0xff3d00, 7, 0.2, 1, true, 0);
+        break;
+      }
+      case Ev.UnitDeath:
+        fx.burst(ev[1], 0.5, ev[2], 8, 0xbdbdbd, 2.5, 0.12, 0.6);
+        audio.play('hit', 0.5);
+        break;
+      case Ev.Heal:
+        fx.burst(ev[1], 0.8, ev[2], 12, 0x69f0ae, 1.5, 0.1, 0.9, true, 1.5);
+        break;
+      case Ev.Gift: {
+        const from = ui.hud.players.find((p) => p.id === ev[1]);
+        const to = ui.hud.players.find((p) => p.id === ev[2]);
+        if (ev[2] === this.you) toast(`${from?.name ?? '?'} vous donne ${ev[3]} or`, 'good');
+        else if (ev[1] === this.you) toast(`Vous donnez ${ev[3]} or à ${to?.name ?? '?'}`, 'info');
+        break;
+      }
+      case Ev.Spawn:
+        fx.burst(ev[2], 0.3, ev[3], 6, 0x8d6e63, 2, 0.12, 0.5);
+        break;
+      case Ev.HeroDeath:
+        if (ev[1] === this.you) toast(`Votre héros est tombé ! Retour dans 15 secondes.`, 'danger', 3000);
+        break;
+      case Ev.GameEnd:
+        audio.play(ev[1] ? 'victory' : 'defeat');
+        break;
+      case Ev.Skill: {
+        const t = this.ents.towerMuzzle.get(ev[1]);
+        if (t) fx.burst(t.x, t.y, t.z, 10, 0xfff59d, 2, 0.1, 0.5, true, 1);
+        break;
+      }
+    }
+  }
+
+  nextDialog() {
+    const d = ui.dialog;
+    if (!d) return;
+    audio.play('click');
+    if (d.i + 1 >= d.lines.length) this.dialogDone();
+    else d.i++;
+  }
+
+  // ------------------------------------------------------------ fin
+
+  handleEnd(info: import('@dfend/shared').EndInfo) {
+    if (this.ended) return;
+    this.ended = true;
+    ui.end = info;
+    audio.intensity = 0;
+    if (info.mode === 'story' && ui.game && info.won) {
+      const lv = ui.game.level;
+      progress.stars[lv] ??= [0, 0, 0];
+      progress.stars[lv][info.difficulty] = Math.max(progress.stars[lv][info.difficulty] ?? 0, info.stars);
+      if (lv + 1 > progress.unlocked && lv + 1 < STORY.length) progress.unlocked = lv + 1;
+      if (lv === STORY.length - 1) progress.finished = true;
+      saveProgress();
+      const outro = STORY[lv]?.outro;
+      if (outro) setTimeout(() => this.showDialog(outro), 900);
+    }
+    void this.onLeaveRequest;
+  }
+
+  dispose() {
+    for (const d of this.disposers) d();
+    this.host.dispose();
+    const scene = this.r.scene;
+    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.rangeRing, this.hoverRing, this.aimRing, this.rallyFlag]) scene.remove(obj);
+    scene.traverse(() => {});
+    const disposeTree = (o: THREE.Object3D) => o.traverse((c) => {
+      const m = c as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+    });
+    disposeTree(this.world.group);
+    ui.sel = null;
+    ui.dialog = null;
+  }
+}
