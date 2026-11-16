@@ -13,6 +13,8 @@ import { NodeIO, getBounds, type Document } from '@gltf-transform/core';
 import { dedup, mergeDocuments, unpartition } from '@gltf-transform/functions';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
+import jpeg from 'jpeg-js';
+import { PNG } from 'pngjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SRC = join(ROOT, 'assets/models-src');
@@ -28,11 +30,18 @@ const NAT = 'quaternius-nature/glTF';
 /**
  * FREE_SOURCES : fichier attendu par le catalogue -> chemin de la source dans _packs/, ou recette.
  *
- * Sans équivalent gratuit (ils gardent l'art construit en code) : le loup, le ver, la vasière, le crâne,
- * le champignon et le saule (les arbres feuillus du pack nature mêlent deux textures, ce que la cuisson ne garde pas).
+ * Les 81 entrées du catalogue ont une source ; les remplaçants approximatifs sont signalés en commentaire.
  */
 /** Source composée : pièces empilées de bas en haut, teinte multipliée sur les matériaux, étirement (x, y, z). */
-export interface Recipe { parts: string[]; tint?: [number, number, number]; scale?: [number, number, number] }
+export interface Recipe {
+  parts: string[];
+  tint?: [number, number, number];
+  scale?: [number, number, number];
+  /** 0..1 : désature textures et matériaux avant la teinte (pour changer franchement de couleur) */
+  desat?: number;
+  /** ne garde que les maillages dont le nom correspond (ex. la tête d'un squelette) */
+  only?: RegExp;
+}
 const KR = (...n: string[]) => n.map((p) => `${KEN}/tower-round-${p}.glb`);
 const KS = (...n: string[]) => n.map((p) => `${KEN}/tower-square-${p}.glb`);
 const one = (path: string, tint?: Recipe['tint'], scale?: Recipe['scale']): Recipe => ({ parts: [path], tint, scale });
@@ -82,6 +91,9 @@ export const FREE_SOURCES: Record<string, string | Recipe> = {
   'enemy-kessin1.glb': one(`${MON}/Big/glTF/Demon.gltf`, [0.7, 0.45, 0.95]),
   'enemy-kessin2.glb': one(`${MON}/Big/glTF/BlueDemon.gltf`, [1, 0.4, 0.4]),
   'enemy-kessin3.glb': one(`${MON}/Flying/glTF/Dragon_Evolved.gltf`, [0.75, 0.4, 0.6]),
+  'enemy-loup.glb': { parts: [`${MON}/Blob/glTF/Dog.gltf`], desat: 1, tint: [0.62, 0.64, 0.72] },
+  'enemy-ver.glb': { parts: [`${MON}/Flying/glTF/Squidle.gltf`], desat: 0.7, tint: [0.85, 0.6, 0.5] },
+  'enemy-vasiere.glb': { parts: [`${MON}/Blob/glTF/GreenBlob.gltf`], desat: 1, tint: [0.6, 0.42, 0.26] },
   // héros et soldats approchés
   'hero-brom.glb': one(`${KK_ADV}/Barbarian.glb`, [1, 0.8, 0.7], [1.35, 1, 1.35]),
   'soldier-2.glb': one(`${KK_ADV}/Knight.glb`, [0.7, 0.78, 1]),
@@ -112,6 +124,9 @@ export const FREE_SOURCES: Record<string, string | Recipe> = {
   'decor-cendre-cristal-0.glb': one(`${RTS}/Resource_Gold_2.gltf`, [1, 0.45, 0.3]),
   'decor-cendre-rocher-0.glb': one(`${RTS}/Rock.gltf`, [0.42, 0.36, 0.36]),
   'decor-cendre-pic-0.glb': one(`${RTS}/Mountain_Single.gltf`, [0.45, 0.38, 0.38]),
+  'decor-marais-champignon-0.glb': `${MON}/Blob/glTF/Mushnub.gltf`,
+  'decor-marais-saule-0.glb': one(`${RTS}/Resource_Tree1.gltf`, [0.75, 0.95, 0.7], [1.35, 1, 1.35]),
+  'decor-cendre-crane-0.glb': { parts: [`${KK_SKE}/Skeleton_Minion.glb`], only: /Head|Jaw|Eyes/ },
   // végétaux à feuillage découpé (texture transparente)
   'decor-vallee-buisson-0.glb': one(`${NAT}/Bush.gltf`, [0.55, 0.7, 0.45]),
   'decor-vallee-fleurs-0.glb': `${NAT}/Flower_3_Clump.gltf`,
@@ -145,6 +160,28 @@ async function load(io: NodeIO, src: string | Recipe): Promise<Document> {
     mergeDocuments(doc, part);
     const [main, ...extra] = doc.getRoot().listScenes();
     for (const s of extra) { for (const c of s.listChildren()) main.addChild(c); s.dispose(); }
+  }
+  if (r.only) for (const n of doc!.getRoot().listNodes()) if (n.getMesh() && !r.only.test(n.getName())) n.setMesh(null);
+  if (r.desat) {
+    const k = r.desat;
+    const gray = (d: Uint8Array | Buffer) => {
+      for (let i = 0; i < d.length; i += 4) {
+        const l = 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2];
+        for (let c = 0; c < 3; c++) d[i + c] = d[i + c] + (l - d[i + c]) * k;
+      }
+    };
+    for (const t of doc!.getRoot().listTextures()) {
+      const buf = Buffer.from(t.getImage()!);
+      let out: PNG;
+      if (t.getMimeType() === 'image/png') { out = PNG.sync.read(buf) as unknown as PNG; }
+      else { const j = jpeg.decode(buf, { useTArray: true }); out = new PNG({ width: j.width, height: j.height }); out.data = Buffer.from(j.data); }
+      gray(out.data);
+      t.setImage(new Uint8Array(PNG.sync.write(out))).setMimeType('image/png');
+    }
+    for (const m of doc!.getRoot().listMaterials()) {
+      const f = m.getBaseColorFactor(), l = 0.3 * f[0] + 0.59 * f[1] + 0.11 * f[2];
+      m.setBaseColorFactor([f[0] + (l - f[0]) * k, f[1] + (l - f[1]) * k, f[2] + (l - f[2]) * k, f[3]]);
+    }
   }
   if (r.tint) for (const m of doc!.getRoot().listMaterials()) {
     const f = m.getBaseColorFactor();

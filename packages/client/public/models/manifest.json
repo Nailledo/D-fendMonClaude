@@ -397,6 +397,36 @@
    "file": "decor-marais-herbe-0.glb",
    "height": 0.45,
    "tris": 58
+  },
+  "enemy:loup": {
+   "file": "enemy-loup.glb",
+   "height": 0.8,
+   "tris": 1200
+  },
+  "enemy:ver": {
+   "file": "enemy-ver.glb",
+   "height": 0.9,
+   "tris": 1200
+  },
+  "enemy:vasiere": {
+   "file": "enemy-vasiere.glb",
+   "height": 1.1,
+   "tris": 1200
+  },
+  "decor:marais:saule:0": {
+   "file": "decor-marais-saule-0.glb",
+   "height": 3.6,
+   "tris": 552
+  },
+  "decor:marais:champignon:0": {
+   "file": "decor-marais-champignon-0.glb",
+   "height": 0.8,
+   "tris": 300
+  },
+  "decor:cendre:crane:0": {
+   "file": "decor-cendre-crane-0.glb",
+   "height": 0.5,
+   "tris": 298
   }
  }
 }
