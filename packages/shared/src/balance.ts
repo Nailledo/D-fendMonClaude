@@ -5,9 +5,10 @@ import type { Difficulty } from './types';
  * n = nombre de joueurs actifs (1 à 4).
  */
 export const BALANCE = {
-  hpPerPlayer: 0.45,
-  countPerPlayer: 0.35,
-  bossHpPerPlayer: 0.6,
+  /** multiplicateur de PV selon le nombre de joueurs (calibré par tools/tune-players.ts) */
+  hpByPlayers: [1, 1.78, 2.28, 2.56],
+  countPerPlayer: 0.3,
+  bossHpPerPlayer: 0.4,
   startGold: [1, 0.7, 0.6, 0.55],
   bountyShare: [1, 0.62, 0.48, 0.4],
   diffHp: [0.8, 1, 1.35],
@@ -31,12 +32,12 @@ export interface Scaling {
   lives: number;
 }
 
-export function computeScaling(nPlayers: number, diff: Difficulty): Scaling {
+export function computeScaling(nPlayers: number, diff: Difficulty, multiK = 1): Scaling {
   const n = Math.max(1, Math.min(4, nPlayers));
   const b = BALANCE;
   return {
     n,
-    hpMul: (1 + b.hpPerPlayer * (n - 1)) * b.diffHp[diff],
+    hpMul: (1 + (b.hpByPlayers[n - 1] - 1) * multiK) * b.diffHp[diff],
     countMul: 1 + b.countPerPlayer * (n - 1),
     bossHpMul: (1 + b.bossHpPerPlayer * (n - 1)) * b.diffHp[diff],
     startGoldMul: b.startGold[n - 1],

@@ -68,13 +68,15 @@ export function genStoryWaves(level: LevelDef, nPaths: number): Wave[] {
     // les chemins secondaires s'ouvrent à partir de la vague 2
     const active = w === 1 ? [0] : paths;
     const groups = buildGroups(budget, level.roster, w, active, rng);
+    const hpMul = 1 + level.hpRamp * (w - 1);
+    for (const g of groups) g.hpMul = hpMul;
     let boss = false;
     if (level.boss && w === level.waves) {
       boss = true;
       const escorts = buildGroups(level.boss.escortBudget, level.roster, w, active, rng);
       const last = groups.reduce((m, g) => Math.max(m, g.delay), 0);
       groups.push({ type: ENEMY_INDEX[level.boss.type], count: 1, interval: 1, path: 0, delay: last + 8 });
-      for (const e of escorts) { e.delay += last + 12; groups.push(e); }
+      for (const e of escorts) { e.delay += last + 12; e.hpMul = hpMul; groups.push(e); }
     }
     waves.push({ groups, boss });
   }
@@ -122,7 +124,7 @@ const BIOME_ROSTER: Record<Biome, RosterEntry[]> = {
 const BIOME_BOSS: Record<Biome, string[]> = {
   vallee: ['grolbak', 'vasiere', 'kessin1'],
   marais: ['vasiere', 'grolbak', 'kessin1'],
-  cendre: ['kessin1', 'grolbak', 'vasiere'],
+  cendre: ['grolbak', 'kessin1', 'vasiere'],
 };
 
 /** Mutation active pour une vague donnée (changent toutes les 5 vagues). */
@@ -162,7 +164,7 @@ export function genSurvivalWave(biome: Biome, seed: number, wave: number, active
     const cycle = Math.floor(wave / 10) - 1;
     const id = BIOME_BOSS[biome][cycle % 3];
     const last = groups.reduce((m, g) => Math.max(m, g.delay), 0);
-    groups.push({ type: ENEMY_INDEX[id], count: 1, interval: 1, path: activePaths[0], delay: last + 6, hpMul: 0.6 * ipow(1.35, cycle) });
+    groups.push({ type: ENEMY_INDEX[id], count: 1, interval: 1, path: activePaths[0], delay: last + 6, hpMul: 0.45 * ipow(1.4, cycle) });
   }
   budget = 0;
   return { groups, boss, mutation: muts[muts.length - 1] };

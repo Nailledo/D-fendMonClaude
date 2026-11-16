@@ -263,8 +263,8 @@ export class Sim {
     this.rng = new Rng(cfg.seed);
     const n = cfg.players.length;
     this.map = buildRuntimeMap(cfg.mapId, n);
-    this.scaling = computeScaling(n, cfg.difficulty);
     this.level = cfg.mode === 'story' ? LEVELS.find((l) => l.mapId === cfg.mapId) ?? null : null;
+    this.scaling = computeScaling(n, cfg.difficulty, this.level?.multiK ?? 1);
     if (this.level) {
       this.storyWaves = genStoryWaves(this.level, this.map.paths.length);
       this.totalWaves = this.storyWaves.length;
@@ -434,7 +434,12 @@ export class Sim {
       e.flying = !!nd.flying;
       e.abT = sec(3);
       e.ab2T = sec(4);
-      if (e.flying) for (const u of [...e.blockers]) this.release(u);
+      for (const u of [...e.blockers]) this.release(u);
+      // en se transformant, le boss recule sur le chemin : le combat se joue en plusieurs temps
+      e.dist = Math.max(0.6, e.dist - 18);
+      this.pathOf(e).at(e.dist, e.lane, tmp);
+      e.x = tmp.x;
+      e.z = tmp.z;
       this.ev(Ev.BossPhase, e.id, nt);
       return;
     }
@@ -520,7 +525,7 @@ export class Sim {
     if (this.level && this.waveIdx >= this.totalWaves) return;
     this.waveIdx++;
     const n = this.activeCount;
-    this.scaling = computeScaling(n, this.cfg.difficulty);
+    this.scaling = computeScaling(n, this.cfg.difficulty, this.level?.multiK ?? 1);
     let wave: Wave;
     if (this.level) wave = this.storyWaves[this.waveIdx - 1];
     else {
@@ -1133,8 +1138,10 @@ export class Sim {
         const path = this.pathOf(e);
         if (e.dist >= path.length) {
           e.dead = true;
-          this.lives = Math.max(0, this.lives - e.def.lives);
-          this.ev(Ev.Leak, e.id, e.def.lives);
+          // en survie, un boss qui passe coûte cher mais ne termine pas la partie d'un coup
+          const cost = this.level ? e.def.lives : Math.min(e.def.lives, 5);
+          this.lives = Math.max(0, this.lives - cost);
+          this.ev(Ev.Leak, e.id, cost);
           for (const u of [...e.blockers]) this.release(u);
           continue;
         }
