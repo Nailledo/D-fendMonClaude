@@ -12,9 +12,11 @@
     "balance": "tsx tools/balance.ts",
     "bench": "node tools/bench.cjs",
     "smoke": "node tools/smoke.cjs",
-    "tune": "tsx tools/tune.ts && tsx tools/tune-players.ts && tsx tools/tune-multi.ts"
+    "tune": "tsx tools/tune.ts && tsx tools/tune-players.ts && tsx tools/tune-multi.ts",
+    "hf:example": "node --env-file=.env.local --import tsx tools/higgsfield/index.ts"
   },
   "devDependencies": {
+    "@higgsfield/client": "0.2.6",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

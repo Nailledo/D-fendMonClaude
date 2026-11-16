@@ -6,3 +6,5 @@ data/
 *.db
 tools/out
 tools/out-bench.png
+.env.local
+.env.*.local
