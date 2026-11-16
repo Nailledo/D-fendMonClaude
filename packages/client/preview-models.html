@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Aperçu des modèles cuits</title>
+<style>
+  html, body { margin: 0; background: #6f8f5a; font: 12px system-ui, sans-serif; color: #fff; }
+  canvas { position: fixed; inset: 0; }
+  .lab { position: fixed; text-shadow: 0 1px 2px #000; pointer-events: none; text-align: center; }
+  nav { position: fixed; top: 4px; left: 6px; z-index: 2; }
+  nav a { color: #fff; margin-right: 8px; }
+</style>
+</head>
+<body>
+<!-- Outil de contrôle : affiche les GLB de public/models/ en grille.  ?g=enemy|hero|soldier|tower|decor|gate  &yaw=degrés -->
+<nav id="nav"></nav>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const q = new URLSearchParams(location.search);
+const group = q.get('g') ?? 'hero';
+const yaw = (Number(q.get('yaw') ?? 25) * Math.PI) / 180;
+const cols = Number(q.get('cols') ?? 5);
+const nav = document.getElementById('nav');
+for (const g of ['hero', 'soldier', 'enemy', 'tower', 'decor', 'gate']) nav.innerHTML += `<a href="?g=${g}">${g}</a>`;
+
+const manifest = (await (await fetch('/models/manifest.json')).json()).models;
+const keys = Object.keys(manifest).filter((k) => k.startsWith(group + ':'));
+const W = innerWidth, H = innerHeight;
+const rows = Math.ceil(keys.length / cols);
+const cw = W / cols, ch = (H - 20) / rows;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(W, H);
+renderer.setScissorTest(true);
+document.body.appendChild(renderer.domElement);
+const loader = new GLTFLoader();
+const cells = [];
+
+await Promise.all(keys.map(async (key, i) => {
+  const gltf = await loader.loadAsync('/models/' + manifest[key].file);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(i % 2 ? 0x7a9a63 : 0x6f8f5a);
+  gltf.scene.traverse((o) => {
+    if (o.isMesh) {
+      const map = o.material.map ?? null;
+      o.material = new THREE.MeshLambertMaterial({ vertexColors: !!o.geometry.attributes.color, map });
+    }
+  });
+  scene.add(gltf.scene);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x556644, 2.2));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(2, 4, 3);
+  scene.add(sun);
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const r = Math.max(size.x, size.y, size.z) * 0.62;
+  const cam = new THREE.PerspectiveCamera(30, cw / ch, 0.01, 1000);
+  const d = r / Math.tan((15 * Math.PI) / 180) * 1.05;
+  cam.position.set(c.x + Math.sin(yaw) * d, c.y + d * 0.28, c.z + Math.cos(yaw) * d);
+  cam.lookAt(c);
+  cells[i] = { scene, cam };
+  const lab = document.createElement('div');
+  lab.className = 'lab';
+  lab.textContent = `${key}  (${manifest[key].tris} tris)`;
+  lab.style.left = (i % cols) * cw + 'px';
+  lab.style.width = cw + 'px';
+  lab.style.top = 20 + Math.floor(i / cols) * ch + ch - 16 + 'px';
+  document.body.appendChild(lab);
+}));
+
+cells.forEach((cell, i) => {
+  const x = (i % cols) * cw, y = H - 20 - (Math.floor(i / cols) + 1) * ch;
+  renderer.setViewport(x, y, cw, ch);
+  renderer.setScissor(x, y, cw, ch);
+  renderer.render(cell.scene, cell.cam);
+});
+document.title = 'prêt ' + keys.length;
+</script>
+</body>
+</html>

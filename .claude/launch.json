@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dfend-dev",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set PORT=3000&& npx --yes pnpm@9 dev"],
+      "port": 5173
+    }
+  ]
+}

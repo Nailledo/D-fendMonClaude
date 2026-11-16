@@ -1,4 +1,194 @@
 {
  "version": 1,
- "models": {}
+ "models": {
+  "hero:samuel": {
+   "file": "hero-samuel.glb",
+   "height": 1.35,
+   "tris": 2500
+  },
+  "hero:lyra": {
+   "file": "hero-lyra.glb",
+   "height": 1.35,
+   "tris": 2500
+  },
+  "hero:nox": {
+   "file": "hero-nox.glb",
+   "height": 1.35,
+   "tris": 2500
+  },
+  "soldier:0": {
+   "file": "soldier-0.glb",
+   "height": 1.3,
+   "tris": 1200
+  },
+  "soldier:1": {
+   "file": "soldier-1.glb",
+   "height": 1.3,
+   "tris": 1200
+  },
+  "soldier:4": {
+   "file": "soldier-4.glb",
+   "height": 1.3,
+   "tris": 1199
+  },
+  "soldier:5": {
+   "file": "soldier-5.glb",
+   "height": 1.3,
+   "tris": 1199
+  },
+  "soldier:6": {
+   "file": "soldier-6.glb",
+   "height": 1.3,
+   "tris": 1412
+  },
+  "soldier:7": {
+   "file": "soldier-7.glb",
+   "height": 1.3,
+   "tris": 620
+  },
+  "enemy:gobelin": {
+   "file": "enemy-gobelin.glb",
+   "height": 1,
+   "tris": 1200
+  },
+  "enemy:brute": {
+   "file": "enemy-brute.glb",
+   "height": 1.5,
+   "tris": 1600
+  },
+  "enemy:chaman": {
+   "file": "enemy-chaman.glb",
+   "height": 1.1,
+   "tris": 1200
+  },
+  "enemy:bouclier": {
+   "file": "enemy-bouclier.glb",
+   "height": 1.2,
+   "tris": 1200
+  },
+  "enemy:crapaud": {
+   "file": "enemy-crapaud.glb",
+   "height": 0.8,
+   "tris": 1200
+  },
+  "enemy:limon": {
+   "file": "enemy-limon.glb",
+   "height": 0.8,
+   "tris": 1200
+  },
+  "enemy:petitlimon": {
+   "file": "enemy-petitlimon.glb",
+   "height": 0.5,
+   "tris": 500
+  },
+  "enemy:chauvesouris": {
+   "file": "enemy-chauvesouris.glb",
+   "height": 0.5,
+   "tris": 700
+  },
+  "enemy:diablotin": {
+   "file": "enemy-diablotin.glb",
+   "height": 0.9,
+   "tris": 1200
+  },
+  "enemy:cornu": {
+   "file": "enemy-cornu.glb",
+   "height": 1.5,
+   "tris": 1600
+  },
+  "enemy:invocateur": {
+   "file": "enemy-invocateur.glb",
+   "height": 1.3,
+   "tris": 1200
+  },
+  "enemy:gargouille": {
+   "file": "enemy-gargouille.glb",
+   "height": 1,
+   "tris": 1200
+  },
+  "enemy:grolbak": {
+   "file": "enemy-grolbak.glb",
+   "height": 2,
+   "tris": 2200
+  },
+  "tower:0-0": {
+   "file": "tower-0-0.glb",
+   "height": 2.6,
+   "muzzleY": 2.1,
+   "tris": 588
+  },
+  "tower:0-1": {
+   "file": "tower-0-1.glb",
+   "height": 3.2,
+   "muzzleY": 2.7,
+   "tris": 700
+  },
+  "tower:0-2": {
+   "file": "tower-0-2.glb",
+   "height": 3.8,
+   "muzzleY": 3.3,
+   "tris": 1324
+  },
+  "tower:0-3": {
+   "file": "tower-0-3.glb",
+   "height": 4.2,
+   "muzzleY": 3.7,
+   "tris": 2500
+  },
+  "tower:0-4": {
+   "file": "tower-0-4.glb",
+   "height": 4.2,
+   "muzzleY": 3.7,
+   "tris": 2496
+  },
+  "tower:1-0": {
+   "file": "tower-1-0.glb",
+   "height": 2.2,
+   "muzzleY": 1.7000000000000002,
+   "tris": 1466
+  },
+  "tower:1-1": {
+   "file": "tower-1-1.glb",
+   "height": 2.6,
+   "muzzleY": 2.1,
+   "tris": 2500
+  },
+  "tower:1-2": {
+   "file": "tower-1-2.glb",
+   "height": 3,
+   "muzzleY": 2.5,
+   "tris": 2500
+  },
+  "tower:1-3": {
+   "file": "tower-1-3.glb",
+   "height": 3.4,
+   "muzzleY": 2.9,
+   "tris": 2472
+  },
+  "decor:vallee:sapin:0": {
+   "file": "decor-vallee-sapin-0.glb",
+   "height": 3.4,
+   "tris": 345
+  },
+  "decor:vallee:rocher:0": {
+   "file": "decor-vallee-rocher-0.glb",
+   "height": 0.8,
+   "tris": 162
+  },
+  "decor:marais:arbremort:0": {
+   "file": "decor-marais-arbremort-0.glb",
+   "height": 3,
+   "tris": 478
+  },
+  "decor:marais:rocher:0": {
+   "file": "decor-marais-rocher-0.glb",
+   "height": 0.8,
+   "tris": 200
+  },
+  "decor:cendre:arbrecalcine:0": {
+   "file": "decor-cendre-arbrecalcine-0.glb",
+   "height": 2.8,
+   "tris": 500
+  }
+ }
 }

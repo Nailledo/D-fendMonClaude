@@ -127,6 +127,7 @@ function extract(doc: Document): RawMesh[] {
       const skin = node.getSkin();
       let jointM: Mat4[] | null = null;
       let jointPart: Part[] = [];
+      let jointRoot: boolean[] = [];
       let jointPos: [number, number, number][] = [];
       if (skin) {
         const joints = skin.listJoints();
@@ -138,11 +139,13 @@ function extract(doc: Document): RawMesh[] {
           return mulM(j.getWorldMatrix() as unknown as Mat4, inv);
         });
         jointPart = joints.map((j) => partOfJoint(j.getName()));
+        // racine d'un membre = os dont le parent n'appartient pas au même membre (épaule, hanche)
+        jointRoot = joints.map((j, i) => { const par = j.getParentNode(); return !par || partOfJoint(par.getName()) !== jointPart[i]; });
         jointPos = joints.map((j) => { const m = j.getWorldMatrix() as unknown as Mat4; return [m[12], m[13], m[14]]; });
       }
       for (const prim of mesh.listPrimitives()) {
         if (prim.getMode() !== 4) continue;
-        out.push(primToRaw(prim, world, jointM, jointPart, jointPos));
+        out.push(primToRaw(prim, world, jointM, jointPart, jointPos, jointRoot));
       }
     }
     for (const c of node.listChildren()) visit(c);
@@ -162,7 +165,7 @@ function readVec(prim: Primitive, name: string, size: number): Float32Array | nu
   return out;
 }
 
-function primToRaw(prim: Primitive, world: Mat4, jointM: Mat4[] | null, jointPart: Part[], jointPos: [number, number, number][]): RawMesh {
+function primToRaw(prim: Primitive, world: Mat4, jointM: Mat4[] | null, jointPart: Part[], jointPos: [number, number, number][], jointRoot: boolean[]): RawMesh {
   const posA = prim.getAttribute('POSITION')!;
   const n = posA.getCount();
   const pos0 = readVec(prim, 'POSITION', 3)!;
@@ -206,7 +209,7 @@ function primToRaw(prim: Primitive, world: Mat4, jointM: Mat4[] | null, jointPar
       weight[i] = bp === Part.Body ? 1 : Math.min(1, bpw);
       if (bp !== Part.Body) {
         let top = -Infinity, pv: [number, number, number] = jointPos[best] ?? [0, 0, 0];
-        for (let j = 0; j < jointPart.length; j++) if (jointPart[j] === bp && jointPos[j][1] > top) { top = jointPos[j][1]; pv = jointPos[j]; }
+        for (let j = 0; j < jointPart.length; j++) if (jointPart[j] === bp && jointRoot[j] && jointPos[j][1] > top) { top = jointPos[j][1]; pv = jointPos[j]; }
         pivot[i * 3] = pv[0]; pivot[i * 3 + 1] = pv[1]; pivot[i * 3 + 2] = pv[2];
       }
     } else {
@@ -226,6 +229,57 @@ function primToRaw(prim: Primitive, world: Mat4, jointM: Mat4[] | null, jointPar
   return { pos, nrm, uv, col, part, weight, pivot, idx, texture };
 }
 
+const whiteCache = new Map<Img, { u: number; v: number; rgb: [number, number, number] }>();
+function whitest(img: Img) {
+  let hit = whiteCache.get(img);
+  if (hit) return hit;
+  let best = -1, bx = 0, by = 0;
+  for (let y = 0; y < img.h; y++) for (let x = 0; x < img.w; x++) {
+    const o = (y * img.w + x) * 4;
+    const v = Math.min(img.data[o], img.data[o + 1], img.data[o + 2]);
+    if (v > best) { best = v; bx = x; by = y; }
+  }
+  const o = (by * img.w + bx) * 4;
+  hit = { u: (bx + 0.5) / img.w, v: (by + 0.5) / img.h, rgb: [img.data[o] / 255, img.data[o + 1] / 255, img.data[o + 2] / 255] };
+  whiteCache.set(img, hit);
+  return hit;
+}
+
+/**
+ * Modèles riggés en T-pose (bras à l'horizontale, ex. KayKit) : abaisse les bras autour de l'épaule
+ * pour retrouver la pose bras le long du corps attendue par l'animation du jeu.
+ */
+function dropArms(r: RawMesh) {
+  const n = r.pos.length / 3;
+  const TARGET = (-62 * Math.PI) / 180, LIMIT = (-35 * Math.PI) / 180;
+  let dropped = false;
+  for (const part of [Part.ArmL, Part.ArmR]) {
+    let cx = 0, cy = 0, cz = 0, px = 0, py = 0, pz = 0, m = 0;
+    for (let i = 0; i < n; i++) if (r.part[i] === part) {
+      cx += r.pos[i * 3]; cy += r.pos[i * 3 + 1]; cz += r.pos[i * 3 + 2];
+      px = r.pivot[i * 3]; py = r.pivot[i * 3 + 1]; pz = r.pivot[i * 3 + 2]; m++;
+    }
+    if (m < 3) continue;
+    const vx = cx / m - px, vy = cy / m - py, vz = cz / m - pz;
+    const hl = Math.hypot(vx, vz);
+    if (hl < 1e-6) continue;
+    const elev = Math.atan2(vy, hl);
+    if (elev < LIMIT) continue; // bras déjà baissés (A-pose)
+    const hx = vx / hl, hz = vz / hl, delta = TARGET - elev;
+    for (let i = 0; i < n; i++) if (r.part[i] === part) {
+      const a = delta * r.weight[i], c = Math.cos(a), sn = Math.sin(a);
+      const dx = r.pos[i * 3] - px, dy = r.pos[i * 3 + 1] - py, dz = r.pos[i * 3 + 2] - pz;
+      const ph = dx * hx + dz * hz;
+      const ph2 = ph * c - dy * sn, dy2 = ph * sn + dy * c;
+      r.pos[i * 3] = px + dx + (ph2 - ph) * hx;
+      r.pos[i * 3 + 1] = py + dy2;
+      r.pos[i * 3 + 2] = pz + dz + (ph2 - ph) * hz;
+    }
+    dropped = true;
+  }
+  return dropped;
+}
+
 // ------------------------------------------------------------------ fusion + texture
 function merge(parts: RawMesh[], keepTexture: boolean, images: Map<GTexture, Img | null>): RawMesh {
   let n = 0, m = 0;
@@ -239,6 +293,15 @@ function merge(parts: RawMesh[], keepTexture: boolean, images: Map<GTexture, Img
     if (p.nrm) nrm.set(p.nrm, vo * 3); else hasN = false;
     if (p.uv) uv.set(p.uv, vo * 2);
     const img = p.texture ? images.get(p.texture) ?? null : null;
+    if (keepTexture && !p.texture) {
+      // partie sans texture (yeux lumineux…) dans un modèle à atlas unique : on pointe ses UV
+      // sur le pixel le plus clair de l'atlas et on compense avec la couleur de sommet
+      const w = whitest(images.get(parts.find((q) => q.texture)!.texture!)!);
+      for (let i = 0; i < k; i++) {
+        uv[(vo + i) * 2] = w.u; uv[(vo + i) * 2 + 1] = w.v;
+        for (let c = 0; c < 3; c++) col[(vo + i) * 3 + c] = Math.min(1, col[(vo + i) * 3 + c] / Math.max(0.05, w.rgb[c]));
+      }
+    }
     if (!keepTexture && img && p.uv) {
       for (let i = 0; i < k; i++) {
         const c = sample(img, p.uv[i * 2], p.uv[i * 2 + 1]);
@@ -248,7 +311,7 @@ function merge(parts: RawMesh[], keepTexture: boolean, images: Map<GTexture, Img
     for (let i = 0; i < p.idx.length; i++) idx[io + i] = p.idx[i] + vo;
     vo += k; io += p.idx.length;
   }
-  return { pos, nrm: hasN ? nrm : null, uv: keepTexture ? uv : null, col, part, weight, pivot, idx, texture: keepTexture ? parts[0].texture : null };
+  return { pos, nrm: hasN ? nrm : null, uv: keepTexture ? uv : null, col, part, weight, pivot, idx, texture: keepTexture ? parts.find((q) => q.texture)!.texture : null };
 }
 
 // ------------------------------------------------------------------ soudure / décimation
@@ -491,12 +554,14 @@ async function main() {
       const textures = new Set(parts.map((p) => p.texture).filter((t): t is GTexture => !!t));
       const images = new Map<GTexture, Img | null>();
       for (const t of textures) images.set(t, decode(t));
-      const single = textures.size === 1 && parts.every((p) => p.texture && p.uv) && images.get([...textures][0]) !== null;
+      // une seule texture pour tout le modèle ; les parties sans texture y sont raccordées (voir merge)
+      const single = textures.size === 1 && parts.every((p) => !p.texture || p.uv) && images.get([...textures][0]) !== null;
       let r = merge(parts, single, images);
       const srcTris = r.idx.length / 3;
       const b0 = bounds(r);
       r = weld(r, Math.max(b0.maxY - b0.minY, b0.maxX - b0.minX) * 2e-4);
       r = simplify(r, e.tris);
+      if (rigged && e.anim === 'rig') dropArms(r);
       normalize(r, e);
       assignParts(r, e.anim, rigged && e.anim === 'rig');
       smoothNormals(r);
