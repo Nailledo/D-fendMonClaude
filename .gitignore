@@ -2,7 +2,6 @@ node_modules
 dist
 *.log
 .env
-data/
 *.db
 tools/out
 tools/out-bench.png
