@@ -1,16 +1,17 @@
 <script lang="ts">
-  import { MAPS, SURVIVAL_MAPS } from '@dfend/shared';
+  import { DIFFICULTY_NAMES, MAPS, SURVIVAL_MAPS, type Difficulty } from '@dfend/shared';
   import { ui } from '../state.svelte';
   import { ICON } from './icons';
 
   let map = $state(SURVIVAL_MAPS[0]);
   let players = $state(1);
+  let difficulty = $state<Difficulty>(1);
   let rows = $state<{ name: string; wave: number; date: number }[]>([]);
   let error = $state(false);
   $effect(() => {
-    const m = map, p = players;
+    const m = map, p = players, d = difficulty;
     error = false;
-    fetch(`/api/leaderboard?map=${m}&players=${p}`).then((r) => r.json()).then((j) => (rows = j.rows ?? [])).catch(() => { rows = []; error = true; });
+    fetch(`/api/leaderboard?map=${m}&players=${p}&difficulty=${d}`).then((r) => r.json()).then((j) => (rows = j.rows ?? [])).catch(() => { rows = []; error = true; });
   });
 </script>
 
@@ -25,6 +26,9 @@
     </div>
     <div class="row">
       {#each [1, 2, 3, 4] as n}<button class="btn small" class:gold={players === n} onclick={() => (players = n)}>{n} joueur{n > 1 ? 's' : ''}</button>{/each}
+    </div>
+    <div class="row">
+      {#each DIFFICULTY_NAMES as dn, i}<button class="btn small" class:gold={difficulty === i} onclick={() => (difficulty = i as Difficulty)}>{dn}</button>{/each}
     </div>
     {#if error}<p class="muted">Serveur indisponible.</p>{:else if rows.length === 0}<p class="muted">Aucun score pour l’instant.</p>{/if}
     <ol class="scroll">

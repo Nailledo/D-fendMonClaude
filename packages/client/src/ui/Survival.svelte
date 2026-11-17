@@ -15,8 +15,8 @@
     fournaise: 'Quatre chemins, la lave et beaucoup de démons.',
   };
   $effect(() => {
-    const m = map;
-    fetch(`/api/leaderboard?map=${m}&players=1`).then((r) => r.json()).then((j) => (top = j.rows ?? [])).catch(() => (top = []));
+    const m = map, d = diff;
+    fetch(`/api/leaderboard?map=${m}&players=1&difficulty=${d}`).then((r) => r.json()).then((j) => (top = j.rows ?? [])).catch(() => (top = []));
   });
   function play() {
     audio.play('click');
@@ -49,7 +49,7 @@
     </div>
   </div>
   <div class="panel lb">
-    <h3>{@html ICON.trophy} Meilleurs scores (solo)</h3>
+    <h3>{@html ICON.trophy} Meilleurs scores (solo, {DIFFICULTY_NAMES[diff]})</h3>
     {#if top.length === 0}<p class="muted">Aucun score pour l’instant. À vous l’honneur !</p>{/if}
     <ol>
       {#each top.slice(0, 10) as r}<li><span>{r.name}</span><b>vague {r.wave}</b></li>{/each}

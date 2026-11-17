@@ -107,7 +107,28 @@ docker compose cp game:/data/scores.db ./scores-$(date +%F).db
 ```
 **Santé** : `https://defend.sayk.fr/health` renvoie le nombre de salons et de joueurs connectés.
 
-Variables d’environnement : `DOMAIN`, `PORT` (3000), `MAX_ROOMS` (60), `LOG_LEVEL` (`info` ou `silent`), `DB_PATH`, `STATIC_DIR`.
+Variables d’environnement :
+
+| Variable | Rôle |
+|---|---|
+| `DOMAIN` | Domaine servi par Caddy |
+| `PORT` | Port du jeu (3000) |
+| `MAX_ROOMS` | Salons simultanés (60) |
+| `MAX_CLIENTS` | Connexions WebSocket simultanées (500) |
+| `MAX_CONN_PER_IP` | Connexions WebSocket par adresse IP (8) |
+| `TRUST_PROXY` | `1` derrière Caddy : l’IP des joueurs est lue dans `X-Forwarded-For`. À laisser vide si le jeu est exposé directement, sinon l’en-tête est falsifiable |
+| `SCORE_SECRET` | Clé de signature des tickets de survie (`openssl rand -hex 32`). Sans elle, une clé aléatoire est tirée à chaque démarrage |
+| `ALLOWED_ORIGINS` | Origines supplémentaires autorisées pour le WebSocket, séparées par des virgules |
+| `LOG_LEVEL` | `info` ou `silent` |
+| `DB_PATH`, `STATIC_DIR` | Emplacements de la base et du client construit |
+
+## Sécurité
+
+- **Classement de survie** : la graine de chaque partie est tirée et signée par le serveur (`POST /api/seed`, ticket HMAC à usage unique, valable 6 h, 6 par IP toutes les 10 min). À l’envoi du score, le serveur vérifie le ticket, refuse un journal plus long que le temps réellement écoulé (vitesse ×2 comprise), puis rejoue la partie dans un thread dédié, tué au bout de 30 s. Le classement est séparé par difficulté.
+- **Salons** : codes de 6 caractères, 3 créations et 5 tentatives pour rejoindre par minute et par connexion (10 et 20 par IP), salon vide supprimé immédiatement, 40 messages par seconde et par connexion (fermeture au-delà du double).
+- **WebSocket** : Origin vérifiée à la connexion, nombre de connexions plafonné par IP et au total.
+- **En-têtes** : CSP stricte (aucun script en ligne), `X-Frame-Options`, `Permissions-Policy`, `nosniff`, envoyés par le serveur du jeu quel que soit le proxy.
+- **Noms et discussion** : caractères de contrôle, invisibles et bidirectionnels retirés, noms réservés (« Système »…) refusés.
 
 ## Notes
 

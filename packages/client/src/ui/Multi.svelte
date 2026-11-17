@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ROOM_CODE_LEN } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { net } from '../net/Net';
   import { setName, ui } from '../state.svelte';
@@ -13,7 +14,7 @@
   }
   function join() {
     const c = code.trim().toUpperCase();
-    if (c.length !== 5) return;
+    if (c.length !== ROOM_CODE_LEN) return;
     audio.play('click');
     setName(name.trim() || 'Chevalier');
     net.send({ t: 'join', code: c });
@@ -34,8 +35,8 @@
     <button class="btn gold big" onclick={create} disabled={ui.netStatus !== 'open'}>Créer un salon</button>
     <div class="sep">ou</div>
     <div class="row">
-      <input class="code" type="text" maxlength="5" placeholder="CODE" bind:value={code} onkeydown={(e) => e.key === 'Enter' && join()} />
-      <button class="btn" onclick={join} disabled={ui.netStatus !== 'open' || code.trim().length !== 5}>Rejoindre</button>
+      <input class="code" type="text" maxlength={ROOM_CODE_LEN} placeholder="CODE" bind:value={code} onkeydown={(e) => e.key === 'Enter' && join()} />
+      <button class="btn" onclick={join} disabled={ui.netStatus !== 'open' || code.trim().length !== ROOM_CODE_LEN}>Rejoindre</button>
     </div>
     <p class="muted">Jusqu’à 4 joueurs en coopération. La difficulté s’adapte au nombre de joueurs.</p>
     <button class="btn ghost" onclick={() => (ui.screen = 'title')}>Retour</button>
