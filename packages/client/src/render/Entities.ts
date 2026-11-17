@@ -7,6 +7,7 @@ import { enemyGeometry } from '../art/enemies';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry, soldierGeometry } from '../art/units';
+import { HERO_STYLE, heroWeapon } from '../art/weapons';
 import type { Frame } from '../game/Interp';
 import { settings } from '../settings';
 import { InstPool } from './InstPool';
@@ -26,6 +27,9 @@ export class Entities {
   private enemyPools: InstPool[] = [];
   private soldierPools: InstPool[] = [];
   private heroPools: InstPool[] = [];
+  /** arme tenue par chaque héros importé (null : art en code, l'arme fait partie du modèle) */
+  private weaponPools: (InstPool | null)[] = [];
+  private heroStyle: number[] = [];
   private towerBase = new Map<number, InstPool>();
   private towerTop = new Map<number, InstPool>();
   private hp: THREE.InstancedMesh;
@@ -50,8 +54,13 @@ export class Entities {
   private uKnown = new Uint8Array(N);
   private uDead = new Uint8Array(N);
   private uRoll = new Float32Array(N);
+  /** cible visée par un tir ou un sort (le tireur se tourne vers elle) : ennemi suivi, sinon point fixe */
+  private aimId = new Uint16Array(N).fill(0xffff);
+  private aimX = new Float32Array(N);
+  private aimZ = new Float32Array(N);
+  private aimUntil = new Float32Array(N);
   /** corps qui tombent : rendus avec l'animation de mort après la disparition de l'entité */
-  private corpses: { pool: InstPool; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number }[] = [];
+  private corpses: { pool: InstPool; weapon?: InstPool | null; style?: number; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number }[] = [];
   private frameNo = 0;
   /** hauteur du canon de chaque tour (pour l'origine des tirs) */
   towerMuzzle = new Map<number, { x: number; y: number; z: number; fam: number; level: number; owner: number; slot: number }>();
@@ -98,7 +107,14 @@ export class Entities {
     };
     ENEMIES.forEach((d) => this.enemyPools.push(pool(K.enemy(d.id), () => enemyGeometry(d.id), d.boss ? 2 : 48)));
     for (let k = 0; k < 8; k++) this.soldierPools.push(pool(K.soldier(k), () => soldierGeometry(k), 24));
-    for (const h of HERO_IDS) this.heroPools.push(pool(K.hero(h), () => heroGeometry(h), 4));
+    for (const h of HERO_IDS) {
+      this.heroPools.push(pool(K.hero(h), () => heroGeometry(h), 4));
+      // modèle importé : on lui met son arme en main et son animation de combat
+      const m = model(K.hero(h));
+      const wg = m ? heroWeapon(h, m.geo) : null;
+      this.weaponPools.push(wg ? new InstPool(wg, 4, this.group, settings.shadows) : null);
+      this.heroStyle.push(wg ? HERO_STYLE[h] ?? 0 : 0);
+    }
     const g = new THREE.PlaneGeometry(1, 1);
     this.hp = new THREE.InstancedMesh(g, hpBarMaterial(), 1024);
     this.hpAttr = new THREE.InstancedBufferAttribute(new Float32Array(1024 * 2), 2).setUsage(THREE.DynamicDrawUsage);
@@ -158,6 +174,14 @@ export class Entities {
     this.glow.children[1].scale.setScalar(1 + 0.08 * pulse);
     this.glow.position.set(x, 0, z);
     this.glow.visible = true;
+  }
+
+  /** Un tireur (unité ou héros) vise : il se tourne vers l'ennemi `target` (ou le point x, z) pendant `dur` secondes. */
+  aim(unitId: number, target: number, x: number, z: number, time: number, dur = 1.2) {
+    this.aimId[unitId] = target;
+    this.aimX[unitId] = x;
+    this.aimZ[unitId] = z;
+    this.aimUntil[unitId] = time + dur;
   }
 
   /** Mort d'un ennemi (événement) : son corps bascule et s'enfonce au lieu de disparaître. */
@@ -220,6 +244,7 @@ export class Entities {
     // ------------------------------------------------ unités et héros
     for (const p of this.soldierPools) p.begin();
     for (const p of this.heroPools) p.begin();
+    for (const p of this.weaponPools) p?.begin();
     this.glow.visible = false;
     for (let i = 0; i < f.uN; i++) {
       const flags = f.uFlags[i];
@@ -230,8 +255,9 @@ export class Entities {
         if (!this.uDead[id] && this.uKnown[id]) {
           this.uDead[id] = 1;
           const hero = kind === HERO_UNIT;
-          const pool = hero ? this.heroPools[this.heroTypeByUnit.get(id) ?? 0] : this.soldierPools[kind] ?? this.soldierPools[0];
-          this.corpses.push({ pool, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
+          const ht = this.heroTypeByUnit.get(id) ?? 0;
+          const pool = hero ? this.heroPools[ht] : this.soldierPools[kind] ?? this.soldierPools[0];
+          this.corpses.push({ pool, weapon: hero ? this.weaponPools[ht] : null, style: hero ? this.heroStyle[ht] : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
         }
         continue;
       }
@@ -240,35 +266,59 @@ export class Entities {
       let yawT = this.uYaw[id];
       const tg = f.uTarget[i];
       const ti = tg !== 0xffff ? f.enemyIdx(tg) : -1;
-      if (ti >= 0) yawT = Math.atan2(f.eX[ti] - f.uX[i], f.eZ[ti] - f.uZ[i]);
-      else if (f.uDx[i] * f.uDx[i] + f.uDz[i] * f.uDz[i] > 0.0004) yawT = Math.atan2(f.uDx[i], f.uDz[i]);
+      const walking = f.uDx[i] * f.uDx[i] + f.uDz[i] * f.uDz[i] > 0.0004;
+      let turn = k;
+      if (ti >= 0) { yawT = Math.atan2(f.eX[ti] - f.uX[i], f.eZ[ti] - f.uZ[i]); turn = Math.min(1, dt * 14); }
+      else if (time < this.aimUntil[id] && !walking) {
+        // tir ou sort : face à la cible (suivie tant qu'elle vit), sinon vers le point visé
+        const ai = this.aimId[id] !== 0xffff ? f.enemyIdx(this.aimId[id]) : -1;
+        if (ai >= 0) { this.aimX[id] = f.eX[ai]; this.aimZ[id] = f.eZ[ai]; }
+        const ax = this.aimX[id] - f.uX[i], az = this.aimZ[id] - f.uZ[i];
+        if (ax * ax + az * az > 0.01) yawT = Math.atan2(ax, az);
+        turn = Math.min(1, dt * 16);
+      } else if (walking) yawT = Math.atan2(f.uDx[i], f.uDz[i]);
       const prevYaw = this.uYaw[id];
-      this.uYaw[id] = lerpAngle(this.uYaw[id], yawT, k);
+      this.uYaw[id] = lerpAngle(this.uYaw[id], yawT, turn);
       let dyw = this.uYaw[id] - prevYaw;
       if (dyw > Math.PI) dyw -= Math.PI * 2; else if (dyw < -Math.PI) dyw += Math.PI * 2;
       const rollT = Math.max(-0.18, Math.min(0.18, (-dyw / Math.max(dt, 1e-3)) * 0.08));
       this.uRoll[id] += (rollT - this.uRoll[id]) * Math.min(1, dt * 6);
-      const moving = f.uDx[i] * f.uDx[i] + f.uDz[i] * f.uDz[i] > 0.0004;
+      const moving = walking;
       const fighting = (flags & UF_FIGHTING) !== 0;
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.5;
       const team = PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff;
       let pool: InstPool;
+      let weapon: InstPool | null = null;
+      let style = 0;
       let scale = 1;
       if (kind === HERO_UNIT) {
-        pool = this.heroPools[this.heroTypeByUnit.get(id) ?? 0];
+        const ht = this.heroTypeByUnit.get(id) ?? 0;
+        pool = this.heroPools[ht];
+        weapon = this.weaponPools[ht];
+        style = this.heroStyle[ht];
         scale = 1.25;
         if (f.uOwner[i] === this.you) this.placeGlow(f.uX[i], f.uZ[i], team, time);
       } else {
         pool = this.soldierPools[kind] ?? this.soldierPools[0];
         if (kind === 7) scale = 1.1;
       }
-      const j = pool.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, moving || fighting ? 9 : 0, flash, fighting ? 1 : 0);
-      pool.setTeam(j, team);
+      const mode = (fighting ? 1 : 0) + style * 2;
       const uhit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
-      const cast = time - this.castTime[id] < 0.6 ? (time - this.castTime[id]) / 0.6 : time - this.uFireTime[id] < 0.35 ? (time - this.uFireTime[id]) / 0.35 : 0;
-      pool.setPose(j, cast, uhit, this.uRoll[id], Math.min(1, Math.max(0.001, (time - this.uBorn[id]) / 0.4)));
-      if (flags & UF_SHIELD) pool.setTint(j, 1, 0.95, 0.6, 0.3);
-      else if (flags & UF_BUFF) pool.setTint(j, 1, 0.7, 0.3, 0.2);
+      let cast: number;
+      if (style) {
+        // héros armés : 0..1 = tir (l'arc reste en joue plus longtemps), 1..2 = sort
+        const castDur = style === 3 ? 0.7 : 0.6, fireDur = style === 2 ? 1.2 : style === 4 ? 0.55 : 0.35;
+        const ct = time - this.castTime[id], ft = time - this.uFireTime[id];
+        cast = ct < castDur ? 1 + Math.max(0.001, ct / castDur) : ft < fireDur ? Math.max(0.001, ft / fireDur) : 0;
+      } else cast = time - this.castTime[id] < 0.6 ? (time - this.castTime[id]) / 0.6 : time - this.uFireTime[id] < 0.35 ? (time - this.uFireTime[id]) / 0.35 : 0;
+      const life = Math.min(1, Math.max(0.001, (time - this.uBorn[id]) / 0.4));
+      for (const p of weapon ? [pool, weapon] : [pool]) {
+        const j = p.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, moving || fighting ? 9 : 0, flash, mode);
+        p.setTeam(j, team);
+        p.setPose(j, cast, uhit, this.uRoll[id], life);
+        if (flags & UF_SHIELD) p.setTint(j, 1, 0.95, 0.6, 0.3);
+        else if (flags & UF_BUFF) p.setTint(j, 1, 0.7, 0.3, 0.2);
+      }
       if (kind === HERO_UNIT || f.uHp[i] < 0.999) this.hpBar(f.uX[i], 1.75 * scale, f.uZ[i], f.uHp[i], kind === HERO_UNIT ? 1.1 : 0.7);
     }
     // ------------------------------------------------ corps (animation de mort)
@@ -279,14 +329,17 @@ export class Entities {
       this.corpses[w++] = c;
       // les volants tombent au sol avant de basculer
       const y = c.y > 0.05 ? c.y * Math.max(0, 1 - (p / 0.4) ** 2) : 0;
-      const j = c.pool.push(c.x, y, c.z, c.yaw, c.s, 0, 0, p < 0.08 ? 0.6 : 0, 0);
-      c.pool.setTeam(j, c.team);
-      c.pool.setPose(j, 0, 0, 0, -Math.max(0.001, p));
+      for (const pool of c.weapon ? [c.pool, c.weapon] : [c.pool]) {
+        const j = pool.push(c.x, y, c.z, c.yaw, c.s, 0, 0, p < 0.08 ? 0.6 : 0, (c.style ?? 0) * 2);
+        pool.setTeam(j, c.team);
+        pool.setPose(j, 0, 0, 0, -Math.max(0.001, p));
+      }
     }
     this.corpses.length = w;
     for (const p of this.enemyPools) p.end();
     for (const p of this.soldierPools) p.end();
     for (const p of this.heroPools) p.end();
+    for (const p of this.weaponPools) p?.end();
 
     // ------------------------------------------------ tours
     for (const p of this.towerBase.values()) p.begin();

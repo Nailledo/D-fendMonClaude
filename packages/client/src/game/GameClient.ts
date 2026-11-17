@@ -902,11 +902,16 @@ export class GameClient {
         else if (!this.startPos(srcType, srcId, p)) return;
         // gestes des tireurs : recul de la tour, bras levés de l'unité
         if (srcType === Src.Tower) this.ents.towerFire.set(srcId, this.time);
-        else if (srcType === Src.Unit) this.ents.uFireTime[srcId] = this.time;
+        else if (srcType === Src.Unit) { this.ents.uFireTime[srcId] = this.time; this.ents.aim(srcId, target, tx, tz, this.time); }
         else if (srcType === Src.Hero) {
           const s = this.interp.latest!;
           const hi = s.heroIndex(srcId);
-          if (hi >= 0) this.ents.uFireTime[s.hUnit[hi]] = this.time;
+          if (hi >= 0) { this.ents.uFireTime[s.hUnit[hi]] = this.time; this.ents.aim(s.hUnit[hi], target, tx, tz, this.time); }
+          // le projectile part de l'arc (ou de l'orbe du bâton), devant le héros, pas du centre de son corps
+          const dx = tx - p.x, dz = tz - p.z, l = Math.hypot(dx, dz) || 1;
+          const fwd = kind === FIRE_HERO_BOLT ? 0.75 : 0.45;
+          p.x += (dx / l) * fwd; p.z += (dz / l) * fwd;
+          p.y = kind === FIRE_HERO_BOLT ? 1.35 : 1.05;
         }
         const dist = Math.sqrt((tx - p.x) ** 2 + (tz - p.z) ** 2);
         if (kind === 3) {
@@ -1175,7 +1180,11 @@ export class GameClient {
         const [, owner, skill, x, z, hx, hz] = ev;
         const s = this.interp.latest!;
         const hi = s.heroIndex(owner);
-        if (hi >= 0) this.ents.castTime[s.hUnit[hi]] = this.time;
+        if (hi >= 0) {
+          this.ents.castTime[s.hUnit[hi]] = this.time;
+          // sort ciblé : le héros se tourne vers le point visé
+          if ((x - hx) ** 2 + (z - hz) ** 2 > 0.25) this.ents.aim(s.hUnit[hi], 0xffff, x, z, this.time, 0.9);
+        }
         const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
         if (type === 'lyra' && skill === 0) {
           // flèche perçante : trait lumineux et sillage de vent

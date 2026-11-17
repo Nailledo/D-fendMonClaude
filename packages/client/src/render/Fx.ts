@@ -539,11 +539,15 @@ export interface Shot {
 }
 
 function projGeometries() {
+  // flèche : fût fin, pointe en acier, empennage croisé (lisible sous tous les angles)
   const arrow = new GB(1);
   arrow.ao = false;
-  arrow.box(0.05, 0.05, 0.75, 0x8d6e63, 0, 0, 0);
-  arrow.cone(0.07, 0.18, 4, 0xcfd8dc, 0, 0, 0.45, Math.PI / 2);
-  arrow.box(0.12, 0.02, 0.12, 0xffffff, 0, 0, -0.33);
+  arrow.jitter = 0;
+  arrow.box(0.035, 0.035, 0.62, 0xa1785a, 0, 0, 0);
+  arrow.cone(0.055, 0.15, 4, 0xe0e6ea, 0, 0, 0.38, Math.PI / 2);
+  arrow.box(0.13, 0.012, 0.15, 0xf4f1ea, 0, 0, -0.25);
+  arrow.box(0.012, 0.13, 0.15, 0xd84b3b, 0, 0, -0.25);
+  arrow.box(0.045, 0.045, 0.03, 0x5d4037, 0, 0, -0.31);
   const shell = new GB(2);
   shell.ao = false;
   shell.ball(0.22, 0x263238, 0, 0, 0);
@@ -612,28 +616,47 @@ export class Fx {
    * @param target fonction donnant la position actuelle d'une cible (ou null)
    */
   update(dt: number, tick: number, target: (id: number, out: { x: number; y: number; z: number }) => boolean) {
-    const tp = { x: 0, y: 0, z: 0 };
+    const tp = this.tp;
     this.arrows.begin();
     this.shells.begin();
     this.rocks.begin();
     let w = 0;
     for (const s of this.shots) {
       const t = (tick - s.t0) / s.dur;
-      if (t >= 1) continue;
+      if (t >= 1) {
+        // arrivée : petit éclat à l'impact (flèches, carreaux, éclairs magiques)
+        if (s.x !== s.sx || s.z !== s.sz) this.hit(s);
+        continue;
+      }
       this.shots[w++] = s;
       if (t < 0) continue;
-      if (s.targetId !== 0xffff && target(s.targetId, tp)) { s.tx = tp.x; s.ty = tp.y; s.tz = tp.z; }
+      // la cible bouge : on la suit en douceur (pas de saut de trajectoire quand elle change de direction)
+      if (s.targetId !== 0xffff && target(s.targetId, tp)) {
+        const f = Math.min(1, dt * 20);
+        s.tx += (tp.x - s.tx) * f; s.ty += (tp.y - s.ty) * f; s.tz += (tp.z - s.tz) * f;
+      }
       const x = s.sx + (s.tx - s.sx) * t;
       const z = s.sz + (s.tz - s.sz) * t;
       const y = s.sy + (s.ty - s.sy) * t + s.arc * 4 * t * (1 - t);
-      const dx = x - s.x, dy = y - s.y, dz = z - s.z;
+      const px = s.x, py = s.y, pz = s.z;
       s.x = x; s.y = y; s.z = z;
+      // tangente exacte de la parabole : orientation stable même à faible vitesse ou image saccadée
+      const dx = s.tx - s.sx, dz = s.tz - s.sz, dy = s.ty - s.sy + s.arc * 4 * (1 - 2 * t);
       const yaw = Math.atan2(dx, dz);
       const k = s.kind;
       if (k === 0 || k === 8 || k === 10) {
         // la flèche suit sa trajectoire (montée puis plongée)
-        if (dx * dx + dy * dy + dz * dz > 1e-6) this.arrows.pushDir(x, y, z, dx, dy, dz, 1);
+        if (dx * dx + dy * dy + dz * dz > 1e-6) this.arrows.pushDir(x, y, z, dx, dy, dz, k === 10 ? 0.8 : 1);
         else this.arrows.push(x, y, z, yaw, 1);
+        // sillage d'air : fins traits clairs le long du chemin parcouru depuis l'image précédente
+        const seg = Math.hypot(x - px, y - py, z - pz);
+        if (seg > 0.02 && seg < 3) {
+          const n = Math.min(3, Math.ceil(seg / 0.35));
+          for (let q = 0; q < n; q++) {
+            const u = q / n;
+            this.glow.spawn(px + (x - px) * u, py + (y - py) * u, pz + (z - pz) * u, 0, 0, 0, 0.16, k === 8 ? 0.07 : 0.05, k === 8 ? 0xe8ffd0 : 0xfff6e0, 0);
+          }
+        }
       } else if (k === 4 || k === 5 || k === 12) {
         this.shells.push(x, y, z, 0, k === 12 ? 0.6 : 1);
         if (k === 5) this.glow.spawn(x, y, z, 0, 0.5, 0, 0.35, 0.2, 0xff8f00, 0);
@@ -644,9 +667,16 @@ export class Fx {
         for (let n = 0; n < 5; n++) this.glow.spawn(x + (Math.random() - 0.5) * 0.9, y + (Math.random() - 0.5) * 0.9, z + (Math.random() - 0.5) * 0.9, -dx * 4, -dy * 4 + 0.5, -dz * 4, 0.35 + Math.random() * 0.3, 0.3 + Math.random() * 0.3, n < 2 ? 0xffd54f : n < 4 ? 0xff6f00 : 0xff3d00, 0);
         if (Math.random() < 0.7) this.sparks.spawn(x, y + 0.4, z, -dx * 2, 0.8, -dz * 2, 1.1, 0.32 + Math.random() * 0.2, 0x3e3e3e, 0.5);
       } else {
+        // projectile magique : cœur lumineux + traînée continue (indépendante de la cadence d'images)
         const c = GLOW[k] ?? 0xffffff;
-        this.glow.spawn(x, y, z, 0, 0, 0, 0.18, 0.22, c, 0);
-        this.glow.spawn(x, y, z, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 0.3, 0.1, c, 0);
+        this.glow.spawn(x, y, z, 0, 0, 0, 0.12, 0.3, c, 0);
+        this.glow.spawn(x, y, z, 0, 0, 0, 0.08, 0.15, 0xffffff, 0);
+        const seg = Math.hypot(x - px, y - py, z - pz);
+        const n = seg > 0.01 && seg < 3 ? Math.min(5, Math.ceil(seg / 0.18)) : 1;
+        for (let q = 0; q < n; q++) {
+          const u = q / n;
+          this.glow.spawn(px + (x - px) * u, py + (y - py) * u, pz + (z - pz) * u, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, 0.28, 0.13, c, 0);
+        }
       }
     }
     this.shots.length = w;
@@ -662,6 +692,21 @@ export class Fx {
     this.pillars.update(dt);
     this.shards.update(dt);
     this.flashes.update(dt);
+  }
+
+  private tp = { x: 0, y: 0, z: 0 };
+
+  /** Impact d'un projectile direct à son arrivée. */
+  private hit(s: Shot) {
+    const k = s.kind;
+    if (k === 0 || k === 8 || k === 10) {
+      this.sparks.spawn(s.x, s.y, s.z, 0, 0.8, 0, 0.25, 0.09, 0xd7ccc8, -6);
+      this.burst(s.x, s.y, s.z, 3, 0xfff3e0, 1.5, 0.06, 0.18, true, 0);
+    } else if (k === 1 || k === 2 || k === 9 || k === 13) {
+      const c = GLOW[k] ?? 0xffffff;
+      this.burst(s.x, s.y, s.z, 7, c, 2.2, 0.12, 0.35, true, 0);
+      this.glow.spawn(s.x, s.y, s.z, 0, 0, 0, 0.18, 0.5, c, 0);
+    }
   }
 
   // ------------------------------------------------ recettes composées

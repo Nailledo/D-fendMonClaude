@@ -45,6 +45,10 @@ float strikeCurve(float ph) {
 vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
 vec3 rotZ(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x - s * p.y, s * p.x + c * p.y, p.z); }
 vec3 rotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
+/** bras d'un héros : tangage (avant/arrière), écartement (roulis) puis rotation horizontale autour de l'épaule */
+vec3 armMove(vec3 p, vec3 sh, vec3 a) { return rotY(rotZ(rotX(p - sh, a.x), a.y), a.z) + sh; }
+/** pose d'une arme : angle du bras a et angle voulu de l'arme th (depuis la verticale, + vers l'avant) → poignet */
+vec2 grip(float a, float th) { return vec2(a, th - a); }
 `;
 
 const ANIM_BEGIN = /* glsl */ `
@@ -58,13 +62,119 @@ vec3 transformed = vec3(position);
   float life = iPose.w;
   float alive = life != 0.0 ? 1.0 : 0.0;
   float walk = spd > 0.0 ? 1.0 : 0.0;
-  if (mode > 0.5 && mode < 1.5) walk = 0.25;
   // phase d'attaque propre à chaque instance
   float atk = fract(uTime * 1.25 + iAnim.x * 0.37);
   float strike = strikeCurve(atk);
-  float gesture = iPose.x > 0.0 && alive > 0.5 ? sin(3.14159 * clamp(iPose.x, 0.0, 1.0)) : 0.0;
+  // style d'animation (0 générique, 1 épée, 2 arc, 3 marteau, 4 bâton) codé avec le mode : w = combat + 2 × style
+  float style = floor(iAnim.w * 0.5 + 0.01);
+  mode -= style * 2.0;
+  if (mode > 0.5 && mode < 1.5) walk = 0.25;
+  // geste : 0..1 = tir, 1..2 = sort (héros)
+  float fireP = iPose.x > 0.0 && iPose.x <= 1.0 && alive > 0.5 ? iPose.x : 0.0;
+  float castP = iPose.x > 1.0 && alive > 0.5 ? iPose.x - 1.0 : 0.0;
+  float gesture = style > 0.5 ? sin(3.14159 * castP) : (iPose.x > 0.0 && alive > 0.5 ? sin(3.14159 * clamp(iPose.x, 0.0, 1.0)) : 0.0);
+  // ---- poses des héros armés : bras (tangage, écartement, rotation), poignets, torsion et inclinaison du corps
+  vec3 armR = vec3(0.0), armL = vec3(0.0);
+  float wristR = 0.0, wristL = 0.0, twist = 0.0, lean = 0.0;
+  if (style > 0.5 && alive > 0.5) {
+    float fight = mode > 0.5 && mode < 1.5 ? 1.0 : 0.0;
+    float rate = style < 1.5 ? 1.0 : style < 2.5 ? 1.3 : style < 3.5 ? 0.85 : 0.9;
+    float ph = fract(uTime * rate + iAnim.x * 0.37);
+    float sc = strikeCurve(ph);
+    float wind = max(-sc, 0.0) * fight, hit = max(sc, 0.0) * fight;
+    float sw = sin(t) * 0.4 * walk * (1.0 - fight);
+    float spell = sin(3.14159 * castP);
+    vec2 r, l;
+    if (style < 1.5) {
+      // épée : garde haute, armé au-dessus de la tête, taille en diagonale
+      r = grip(-0.3 - sw, 0.6);
+      vec2 guard = grip(-1.0, 0.3), up = grip(-2.5, -1.2), down = grip(-0.6, 2.0);
+      r = mix(r, guard, fight);
+      r += (up - guard) * wind + (down - guard) * hit;
+      armR.y = -0.5 * wind + 0.35 * hit;
+      twist = -0.35 * wind + 0.35 * hit;
+      lean = -0.1 * wind + 0.22 * hit;
+      l = vec2(mix(sw, -0.6, fight) - 0.3 * wind, 0.0);
+      armL.y = 0.2 * fight;
+      // sort : l'épée levée vers le ciel
+      r = mix(r, grip(-2.9, -0.1), spell);
+      l = mix(l, vec2(-0.5, 0.0), spell);
+    } else if (style < 2.5) {
+      // arc (main gauche) : visée de côté, corde tirée jusqu'à la joue, relâchée au tir
+      l = grip(-0.25 + sw, 0.9);
+      r = vec2(-0.2 - sw, 0.0);
+      // coup d'arc au corps à corps
+      l = mix(l, grip(-0.8, 0.4), fight);
+      l += (grip(-1.9, -0.6) - grip(-0.8, 0.4)) * wind + (grip(-0.5, 1.6) - grip(-0.8, 0.4)) * hit;
+      r.x = mix(r.x, -0.4, fight);
+      float aim = fireP > 0.0 ? 1.0 - smoothstep(0.75, 1.0, fireP) : 0.0;
+      float draw = smoothstep(0.12, 0.55, fireP);
+      float snap = fireP > 0.0 ? 1.0 - smoothstep(0.0, 0.12, fireP) : 0.0;
+      l = mix(l, grip(-1.5, 0.12), aim);
+      armL.z = -0.45 * aim;
+      r = mix(r, vec2(mix(-1.6, -1.35, draw), 0.0), aim);
+      armR.z = mix(0.0, mix(0.95, 0.55, draw), aim);
+      armR.y = -0.45 * snap * aim;
+      twist = -0.5 * aim;
+      lean = -0.05 * aim;
+      // sort : tir vers le ciel
+      l = mix(l, grip(-2.3, -0.8), spell);
+      r = mix(r, vec2(-2.0, 0.0), spell);
+      armR.z = mix(armR.z, 0.6, spell);
+      armL.z = mix(armL.z, 0.3, spell);
+      twist = mix(twist, -0.4, spell);
+    } else if (style < 3.5) {
+      // marteau : porté sur l'épaule, frappe à deux mains au-dessus de la tête jusqu'au sol
+      r = grip(-1.25 - sw * 0.3, -1.35);
+      vec2 guard = grip(-1.0, 0.2), up = grip(-2.7, -1.9), down = grip(-1.0, 1.85);
+      float slam = strikeCurve(clamp(castP, 0.0, 1.0)) * step(0.001, castP);
+      float wind2 = max(wind, max(-slam, 0.0)), hit2 = max(hit, max(slam, 0.0));
+      float act = max(fight, step(0.001, castP));
+      r = mix(r, guard, act);
+      r += (up - guard) * wind2 + (down - guard) * hit2;
+      // main gauche sur le manche
+      l = mix(vec2(sw, 0.0), vec2(r.x + 0.15, 0.0), act);
+      armL.y = 0.3 * act;
+      armL.z = 0.4 * act;
+      armR.z = 0.25 * act;
+      lean = -0.15 * wind2 + 0.3 * hit2;
+      twist = 0.0;
+    } else {
+      // bâton : appui à la marche, pointé vers la cible au tir, levé au ciel pour les sorts
+      r = grip(-0.25 - sw * 0.5, 0.15);
+      vec2 guard = grip(-0.8, 0.6), back = grip(-0.3, -0.6), jab = grip(-1.4, 1.6);
+      r = mix(r, guard, fight);
+      r += (back - guard) * wind + (jab - guard) * hit;
+      l = vec2(sw, 0.0);
+      float thrust = fireP > 0.0 ? sin(3.14159 * min(fireP * 1.4, 1.0)) : 0.0;
+      r = mix(r, grip(-1.35, 1.25), thrust);
+      l = mix(l, vec2(-1.2, 0.0), thrust);
+      armL.z = -0.25 * thrust;
+      lean = 0.12 * thrust + 0.15 * hit;
+      r = mix(r, grip(-2.6, -0.1), spell);
+      l = mix(l, vec2(-2.4, 0.0), spell);
+      armL.y = 0.3 * spell;
+    }
+    armR.x = r.x; wristR = r.y;
+    armL.x = l.x; wristL = l.y;
+  }
   vec3 moved = transformed;
-  if (part > 0.5 && part < 2.5) {
+  if (style > 0.5 && (part > 2.5 && part < 4.5 || part > 9.5)) {
+    // bras et armes des héros (parties 10 et 11 : arme en main droite / gauche, pivot = la main, épaule au-dessus)
+    bool right = part > 3.5 && part < 4.5 || part > 9.5 && part < 10.5;
+    vec3 a = right ? armR : armL;
+    a.y *= right ? 1.0 : -1.0;
+    a.z *= right ? 1.0 : -1.0;
+    vec3 p = transformed, sh = pivot;
+    if (part > 9.5) {
+      sh = pivot + vec3(0.0, aWeight, 0.0);
+      p = rotX(p - pivot, right ? wristR : wristL) + pivot;
+    }
+    moved = armMove(p, sh, a);
+  } else if (part > 9.5) {
+    // arme hors style (repli) : suit simplement le corps
+    moved = transformed;
+  } else if (part > 0.5 && part < 2.5) {
     float s = (part < 1.5 ? 1.0 : -1.0) * sin(t) * 0.6 * walk;
     // fente pendant la frappe : jambe avant en avant, jambe arrière en arrière
     if (mode > 0.5 && mode < 1.5) s += (part < 1.5 ? 0.35 : -0.25) * max(strike, 0.0);
@@ -94,15 +204,16 @@ vec3 transformed = vec3(position);
     moved.y += sin(uTime * 2.0 + iAnim.x) * 0.12;
   }
   // fondu aux articulations (modèles importés : aWeight < 1 près des jointures)
-  transformed = mix(transformed, moved, aWeight);
-  if (walk > 0.5 && part < 7.5) transformed.y += abs(sin(t)) * 0.07;
+  transformed = mix(transformed, moved, part > 9.5 ? 1.0 : aWeight);
+  if (walk > 0.5 && (part < 7.5 || part > 9.5)) transformed.y += abs(sin(t)) * 0.07;
 
   if (alive > 0.5) {
     // respiration au repos, écrasement-étirement à chaque pas
     if (spd == 0.0) transformed.y *= 1.0 + sin(uTime * 2.3 + iAnim.x) * 0.022;
     else if (walk > 0.5) { float st = cos(2.0 * t) * 0.035; transformed.y *= 1.0 + st; transformed.xz *= 1.0 - st * 0.5; }
     // tout le corps accompagne la frappe : recul à l'élan, plongée à l'impact
-    if (mode > 0.5 && mode < 1.5) transformed = rotX(transformed, strike * 0.22);
+    if (style > 0.5) transformed = rotX(rotY(transformed, twist), lean);
+    else if (mode > 0.5 && mode < 1.5) transformed = rotX(transformed, strike * 0.22);
     // recul quand on est touché : bascule en arrière et écrasement
     float hit = iPose.y;
     if (hit > 0.0) {
@@ -145,7 +256,7 @@ vColor.rgb = mix(vColor.rgb, iTint.rgb, iTint.a);
 vColor.rgb = mix(vColor.rgb, vec3(1.6, 1.5, 1.4), iAnim.z);
 // mort : la couleur s'assombrit ; sort : lueur
 if (iPose.w < 0.0) vColor.rgb *= 1.0 - (-iPose.w) * 0.55;
-if (iPose.x > 0.0 && iPose.w != 0.0) vColor.rgb += vec3(0.35, 0.3, 0.15) * sin(3.14159 * clamp(iPose.x, 0.0, 1.0));
+if (iPose.x > 0.0 && iPose.w != 0.0) vColor.rgb += vec3(0.35, 0.3, 0.15) * sin(3.14159 * clamp(iPose.x > 1.0 ? iPose.x - 1.0 : iPose.x, 0.0, 1.0)) * (iAnim.w > 1.5 && iPose.x <= 1.0 ? 0.0 : 1.0);
 `;
 
 /**
