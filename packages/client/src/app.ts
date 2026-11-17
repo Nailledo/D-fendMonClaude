@@ -1,62 +1,15 @@
-import * as THREE from 'three';
 import {
   ENEMIES, HERO_IDS, LEVELS, buildRuntimeMap, type Difficulty, type EndInfo, type GameConfig, type HeroId, type Mode, type ServerMsg,
 } from '@dfend/shared';
 import { audio } from './audio/Audio';
-import { enemyGeometry } from './art/enemies';
-import { K, ensureModels, gameModelKeys, geoFor, loadManifest } from './art/models';
-import { heroGeometry } from './art/units';
+import { K, ensureModels, gameModelKeys, loadManifest } from './art/models';
 import { GameClient } from './game/GameClient';
 import { LocalHost } from './net/host';
 import { RemoteHost, net } from './net/Net';
-import { InstPool } from './render/InstPool';
 import { Renderer } from './render/Renderer';
-import { buildWorld } from './render/World';
+import { TitleScene } from './render/TitleScene';
 import { autoDetect, settings } from './settings';
 import { toast, ui } from './state.svelte';
-
-/** Scène 3D de l'écran titre : un diorama animé. */
-class TitleScene {
-  private group = new THREE.Group();
-  private t = 0;
-  constructor(private r: Renderer) {
-    const map = buildRuntimeMap('pont', 4);
-    const w = buildWorld(map);
-    this.group.add(w.group);
-    r.applyTheme(w.theme);
-    const hg = geoFor(K.hero('samuel'), () => heroGeometry('samuel'));
-    const heroes = new InstPool(hg.geo, 1, this.group, settings.shadows, hg.map);
-    heroes.begin();
-    const h = heroes.push(9, 0, 3, -0.6, 1.6);
-    heroes.setTeam(h, 0x3b82f6);
-    heroes.setPose(h, 0, 0, 0, 1);
-    heroes.end();
-    const kg = geoFor(K.enemy('kessin2'), () => enemyGeometry('kessin2'));
-    const k = new InstPool(kg.geo, 1, this.group, settings.shadows, kg.map);
-    k.begin();
-    k.setPose(k.push(-20, 5, -34, 0.5, 2.6, 0, 1.2, 0, 2), 0, 0, 0, 1);
-    k.end();
-    const gg = geoFor(K.enemy('gobelin'), () => enemyGeometry('gobelin'));
-    const gob = new InstPool(gg.geo, 8, this.group, settings.shadows, gg.map);
-    gob.begin();
-    for (let i = 0; i < 6; i++) gob.setPose(gob.push(-6 + i * 1.3, 0, -3 + (i % 2), 0.9, 0.8, i, 6, 0, 0), 0, 0, 0, 1);
-    gob.end();
-    r.scene.add(this.group);
-  }
-  update(dt: number) {
-    this.t += dt;
-    const a = this.t * 0.05;
-    const cam = this.r.camera;
-    cam.position.set(Math.sin(a) * 30 + 4, 13 + Math.sin(this.t * 0.2) * 1.5, Math.cos(a) * 26 + 6);
-    cam.lookAt(2, 1, -2);
-    this.r.update(dt, this.t);
-    cam.position.set(Math.sin(a) * 30 + 4, 13 + Math.sin(this.t * 0.2) * 1.5, Math.cos(a) * 26 + 6);
-    cam.lookAt(2, 1, -2);
-  }
-  dispose() {
-    this.r.scene.remove(this.group);
-  }
-}
 
 class App {
   renderer!: Renderer;
@@ -70,7 +23,7 @@ class App {
     autoDetect(this.renderer.gl.getContext());
     this.showTitle();
     // modèles importés de l'écran titre : on reconstruit le diorama une fois chargés
-    void loadManifest().then(() => ensureModels([K.hero('samuel'), K.enemy('kessin2'), K.enemy('gobelin'), ...gameModelKeys('vallee', [], [])])).then(() => {
+    void loadManifest().then(() => ensureModels([K.hero('samuel'), ...['kessin2', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], [])])).then(() => {
       if (this.title && !this.game) {
         this.title.dispose();
         this.title = new TitleScene(this.renderer);

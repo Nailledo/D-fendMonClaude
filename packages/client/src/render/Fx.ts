@@ -573,7 +573,7 @@ export class Fx {
   private rocks: InstPool;
   shots: Shot[] = [];
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Object3D) {
     scene.add(this.group);
     this.sparks = new Particles(this.group, false);
     this.glow = new Particles(this.group, true);

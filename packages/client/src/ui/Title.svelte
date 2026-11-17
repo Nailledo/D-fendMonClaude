@@ -48,13 +48,15 @@
 
   <nav class="menu" aria-label="Menu principal">
     <button class="row main" onclick={() => go('story')}><b>{storyLabel}</b><span>{storySub}</span>{@html ICON.chev}</button>
-    <button class="row" onclick={() => go('survival')}><b>Survie</b><span>Vagues sans fin, classement en ligne</span>{@html ICON.chev}</button>
-    <button class="row" onclick={() => go('multi')}><b>Multijoueur</b><span>De 1 à 4 joueurs avec un code de salon</span>{@html ICON.users}</button>
+    <div class="modes">
+      <button class="row" onclick={() => go('survival')}><b>Survie</b><span>Vagues sans fin, classement en ligne</span>{@html ICON.horn}</button>
+      <button class="row" onclick={() => go('multi')}><b>Multijoueur</b><span>De 1 à 4 joueurs avec un code de salon</span>{@html ICON.users}</button>
+    </div>
     <div class="small">
-      <button onclick={() => overlay('encyclo')}>{@html ICON.book}Encyclopédie</button>
-      <button onclick={() => overlay('leaderboard')}>{@html ICON.trophy}Classement</button>
-      <button onclick={() => overlay('help')}>{@html ICON.help}Aide</button>
-      <button onclick={() => overlay('settings')}>{@html ICON.gear}Réglages</button>
+      <button onclick={() => overlay('encyclo')}><i>{@html ICON.book}</i><span>Encyclopédie</span></button>
+      <button onclick={() => overlay('leaderboard')}><i>{@html ICON.trophy}</i><span>Classement</span></button>
+      <button onclick={() => overlay('help')}><i>{@html ICON.help}</i><span>Aide</span></button>
+      <button onclick={() => overlay('settings')}><i>{@html ICON.gear}</i><span>Réglages</span></button>
     </div>
   </nav>
 
@@ -95,8 +97,10 @@
     background: var(--panel); border-radius: var(--r-sm); }
   .small button:hover { filter: brightness(1.18); }
   .small :global(.icon) { width: 22px; height: 22px; color: var(--muted); }
+  .small i { display: contents; }
+  .modes { display: flex; flex-direction: column; gap: 10px; }
   .profile { position: absolute; top: 16px; right: 16px; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; }
-  .pp { width: 44px; height: 44px; background: #d9cfb8; overflow: hidden; flex: none; }
+  .pp { width: 44px; height: 44px; background: #d9cfb8; overflow: hidden; flex: none; border-radius: var(--r-sm); }
   .pp img { width: 100%; height: 100%; display: block; }
   .who { display: flex; align-items: center; gap: 12px; border: 0; background: none; cursor: pointer; text-align: left; padding: 0; color: var(--text); }
   .who b { display: block; font-size: 1.05em; }
@@ -104,8 +108,55 @@
   .who :global(.icon) { color: var(--muted); }
   .profile input { width: 170px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .profile { border-radius: 99px; }
+
+  /* ================= téléphone en portrait : logo en haut, scène 3D visible, menu compact en bas ================= */
   @media (max-width: 640px) {
-    .titlescreen { justify-content: flex-end; padding-bottom: 24px; }
-    .small { grid-template-columns: repeat(2, 1fr); }
+    .titlescreen { justify-content: space-between; gap: 12px; padding: calc(64px + var(--sat)) 16px calc(16px + var(--sab)); }
+    .logo { text-align: center; filter: drop-shadow(0 2px 0 rgba(8, 10, 12, 0.7)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+    h1 { font-size: clamp(54px, 17vw, 76px); }
+    .sub { margin: 4px 0 0; font-size: 13px; letter-spacing: 0.2em; }
+    .menu { width: 100%; gap: 8px; filter: none; }
+    .row { padding: 10px 16px; box-shadow: var(--rim), var(--shadow-sm); }
+    .row.main { padding: 14px 18px; box-shadow: 0 3px 0 #9c6c14, 0 8px 20px rgba(0, 0, 0, 0.3); }
+    .row.main b { font-size: 1.55em; }
+    .row.main span { font-size: 0.85em; }
+    .modes { flex-direction: row; gap: 8px; }
+    .modes .row { flex: 1; grid-template-columns: auto 1fr; padding: 10px 12px; gap: 8px; }
+    .modes .row b { font-size: 1.2em; grid-column: 2; grid-row: 1; }
+    .modes .row span { display: none; }
+    .modes .row :global(.icon) { grid-column: 1; grid-row: 1; width: 22px; height: 22px; color: var(--gold); }
+    .small { display: flex; justify-content: space-around; gap: 4px; margin-top: 2px; }
+    .small button { background: none; padding: 2px; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
+    .small i { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--panel); box-shadow: var(--rim), var(--shadow-sm); }
+    .small :global(.icon) { width: 22px; height: 22px; color: var(--text); }
+    .profile { top: calc(10px + var(--sat)); right: 12px; padding: 4px 12px 4px 4px; gap: 8px; }
+    .pp { width: 36px; height: 36px; border-radius: 50%; }
+    .who b { font-size: 0.95em; }
+    .who small { font-size: 0.75em; }
+    .profile input { width: 140px; }
+  }
+
+  /* ================= téléphone en paysage : logo à gauche, menu en colonne à droite ================= */
+  @media (max-height: 520px) and (min-width: 641px) {
+    .titlescreen { flex-direction: row; justify-content: space-between; align-items: flex-end; padding: calc(12px + var(--sat)) calc(16px + var(--sar)) calc(12px + var(--sab)) calc(20px + var(--sal)); }
+    .logo { align-self: flex-start; filter: drop-shadow(0 2px 0 rgba(8, 10, 12, 0.7)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+    h1 { font-size: clamp(48px, 11vh, 72px); }
+    .sub { font-size: 13px; letter-spacing: 0.18em; }
+    .menu { width: min(330px, 42vw); gap: 6px; margin-top: 52px; }
+    .row { padding: 8px 14px; }
+    .row b { font-size: 1.3em; }
+    .row span { font-size: 0.8em; }
+    .row.main b { font-size: 1.45em; }
+    .modes { flex-direction: row; gap: 6px; }
+    .modes .row { flex: 1; grid-template-columns: auto 1fr; gap: 8px; padding: 8px 10px; }
+    .modes .row b { font-size: 1.1em; grid-column: 2; grid-row: 1; }
+    .modes .row span { display: none; }
+    .modes .row :global(.icon) { grid-column: 1; grid-row: 1; width: 20px; height: 20px; color: var(--gold); }
+    .small { display: flex; justify-content: space-between; gap: 4px; margin-top: 0; }
+    .small button { flex: 1; padding: 6px 2px; font-size: 10.5px; gap: 3px; }
+    .small :global(.icon) { width: 18px; height: 18px; }
+    .profile { top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); padding: 4px 12px 4px 4px; }
+    .pp { width: 34px; height: 34px; border-radius: 50%; }
   }
 </style>
