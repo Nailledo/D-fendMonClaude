@@ -1,9 +1,10 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, TOWERS } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HERO_IDS, TOWERS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
   import { FAMILY_COLOR, FAMILY_NAME, ICON } from './icons';
-  import { PASSIVE_ICON, SKILL_ICON, UPGRADE_ICON } from './skillIcons';
+  import { UPGRADE_ICON } from './skillIcons';
+  import HeroSheet from './HeroSheet.svelte';
 
   let tab = $state<'towers' | 'enemies' | 'heroes'>('towers');
   const enemies = ENEMIES.filter((e) => !e.spawnOnly || e.boss);
@@ -31,7 +32,13 @@
                 <b>{t.name}</b>
                 <span class="small">{t.desc}</span>
                 <span class="cost"><Ico k="coin" fb={ICON.coin} /> {t.cost}</span>
-                {#if t.skills}{#each t.skills as s}<span class="small"><Ico k={'up_' + s.id} fb={UPGRADE_ICON[s.id] ?? ''} /> <b>{s.name}</b> : {s.desc}</span>{/each}{/if}
+                {#if t.skills}
+                  <ul class="sk">
+                    {#each t.skills as s}
+                      <li><span class="ic"><Ico k={'up_' + s.id} fb={UPGRADE_ICON[s.id] ?? ''} /></span><span><b>{s.name}</b><span>{s.desc}</span></span></li>
+                    {/each}
+                  </ul>
+                {/if}
               </div>
             {/each}
           </div>
@@ -51,17 +58,8 @@
           {/each}
         </div>
       {:else}
-        <div class="grid">
-          {#each HERO_IDS as h}
-            {@const d = HEROES[h]}
-            <div class="card">
-              {#if ui.portraits['full_' + h]}<img src={ui.portraits['full_' + h]} alt="" />{/if}
-              <b>{d.name}</b><span class="small"><i>{d.title}</i></span>
-              <span class="small">{d.desc}</span>
-              <span class="small"><Ico k={'pa_' + h} fb={PASSIVE_ICON[h] ?? ''} /> <b>{d.passive.name}</b> : {d.passive.desc}</span>
-              {#each d.skills as s, i}<span class="small"><Ico k={`sk_${h}_${i}`} fb={SKILL_ICON[h]?.[i] ?? ''} /> <b>{s.name}</b> : {s.desc}</span>{/each}
-            </div>
-          {/each}
+        <div class="heroes">
+          {#each HERO_IDS as h}<div class="hrow"><HeroSheet id={h} portrait /></div>{/each}
         </div>
       {/if}
     </div>
@@ -72,18 +70,28 @@
   .box { width: min(1000px, 100%); height: min(88vh, 900px); display: flex; flex-direction: column; gap: 14px; }
   .head { display: flex; justify-content: space-between; align-items: center; }
   h2 { margin: 0; font-size: 2em; display: flex; align-items: center; gap: 10px; }
-  h3 { margin: 14px 0 8px; font-size: 1.45em; display: flex; align-items: center; gap: 10px; }
-  h3::before { content: ''; width: 14px; height: 14px; background: var(--fc, var(--gold)); }
-  .body { flex: 1; padding-right: 6px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
-  .card { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; padding: 10px; background: var(--raised); }
-  .card img { width: 96px; height: 96px; background: #d9cfb8; border-radius: var(--r-sm); }
-  .card b { font-size: 1.02em; }
+  h3 { margin: 16px 0 10px; font-size: 1.45em; display: flex; align-items: center; gap: 10px; }
+  h3:first-child { margin-top: 2px; }
+  h3::before { content: ''; width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--ink); background: var(--fc, var(--gold-fill)); }
+  .body { flex: 1; padding: 2px 8px 8px 2px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; align-items: start; }
+  .card { display: flex; flex-direction: column; gap: 5px; align-items: center; text-align: center; padding: 12px 10px; min-width: 0;
+    background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); overflow-wrap: anywhere; }
+  .card img { width: 92px; height: 92px; background: linear-gradient(180deg, #a9d3f2 0 55%, #7cc242 55%); border: 2.5px solid var(--ink); border-radius: 50%; }
+  .card > b { font-weight: 900; font-size: 1.02em; line-height: 1.2; }
   .card.unknown img { filter: brightness(0) opacity(0.5); }
-  .small { font-size: 0.83em; color: var(--muted); line-height: 1.35; }
-  .small b { color: var(--text); }
-  .small :global(svg.icon) { width: 1.7em; height: 1.7em; vertical-align: -0.55em; }
-  .cost { font-weight: 700; color: var(--gold); display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
-  /* médaillons des compétences et passifs : lisibles dans les listes */
-  .small :global(.icon.ico3d) { width: 1.9em; height: 1.9em; vertical-align: -0.62em; }
+  .small { font-size: 0.84em; font-weight: 700; color: var(--muted); line-height: 1.35; }
+  .cost { font-family: var(--font-display); font-size: 1.1em; color: #a05f00; display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  .cost :global(.icon) { margin: 0; vertical-align: 0; }
+  /* compétences des spécialisations : une ligne par compétence, icône alignée à gauche */
+  .sk { list-style: none; margin: 4px 0 0; padding: 8px 0 0; border-top: 2px dashed var(--ink-soft); width: 100%; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  .sk li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 0.82em; line-height: 1.3; }
+  .sk li > span:last-child { display: flex; flex-direction: column; }
+  .sk b { font-weight: 900; color: var(--text); }
+  .sk li > span:last-child > span { color: var(--muted); font-weight: 700; }
+  .ic { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); overflow: hidden; }
+  .ic :global(.icon) { width: 30px; height: 30px; margin: 0; vertical-align: 0; }
+  .ic :global(svg.icon) { width: 18px; height: 18px; color: #fff; }
+  .heroes { display: flex; flex-direction: column; gap: 12px; }
+  .hrow { padding: 14px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r); box-shadow: 0 3px 0 var(--ink); }
 </style>

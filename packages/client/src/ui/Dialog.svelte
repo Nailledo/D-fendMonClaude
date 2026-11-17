@@ -11,16 +11,16 @@
 </script>
 
 <div class="dlg ui" role="button" tabindex="0" onclick={() => app.game?.nextDialog()} onkeydown={() => {}}>
-  <div class="box panel" class:right={line.who === 'kessin' || line.who === 'grolbak' || line.who === 'vasiere'}>
+  <div class="box panel paper" class:right={line.who === 'kessin' || line.who === 'grolbak' || line.who === 'vasiere'}>
     <div class="por" style="--c:{sp.color}">
       {#if portrait}<img src={portrait} alt={sp.name} />{:else}<span>{sp.name[0]}</span>{/if}
     </div>
     <div class="txt">
-      <b style="color:{sp.color}">{sp.name}</b>
+      <b style="--c:{sp.color}">{sp.name}</b>
       {#key d.i}<p>{line.text}</p>{/key}
       <div class="foot">
         <span>{d.i + 1} / {d.lines.length}</span>
-        {#if ui.touch}<span>Touchez pour continuer</span>
+        {#if ui.touch}<span>Touchez pour tourner la page</span>
         {:else}<span>Clic ou <span class="kbd">{keyLabel(keys.wave)}</span> pour continuer · <span class="kbd">{keyLabel(keys.menu)}</span> pour passer</span>{/if}
       </div>
     </div>
@@ -28,15 +28,35 @@
 </div>
 
 <style>
-  .dlg { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 0 16px 128px; background: rgba(12, 14, 16, 0.35); cursor: pointer; z-index: 30; }
-  .box { display: flex; gap: 18px; align-items: center; width: min(800px, 100%); animation: rise 0.2s ease; padding: 16px 20px; }
-  .box.right { flex-direction: row-reverse; }
-  .por { flex: none; width: 100px; height: 100px; background: #d9cfb8; display: grid; place-items: center; overflow: hidden; font-family: var(--font-display); font-size: 44px; font-weight: 700; color: var(--line);
-    border-radius: var(--r-sm); box-shadow: inset 0 -5px 0 var(--c); }
-  .por img { width: 100%; height: 100%; }
+  .dlg { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 0 16px calc(172px + var(--sab)); background: linear-gradient(180deg, rgba(43, 26, 18, 0) 40%, rgba(43, 26, 18, 0.45)); cursor: pointer; z-index: 30; }
+  /* une page du livre du conteur */
+  .box { display: flex; gap: 20px; align-items: center; width: min(820px, 100%); animation: page 0.28s ease; padding: 18px 24px 14px 20px; transform: rotate(-0.4deg); }
+  .box.right { flex-direction: row-reverse; transform: rotate(0.4deg); }
+  @keyframes page { from { opacity: 0; transform: translateY(14px) rotate(-1.5deg); } }
+  /* vignette ovale cernée d'encre, lavis d'aquarelle à la couleur du personnage */
+  .por { position: relative; flex: none; width: 104px; height: 122px; display: grid; place-items: center; overflow: hidden; font-family: var(--font-story); font-size: 52px; color: var(--ink);
+    border-radius: 50%; border: 2px solid var(--ink); box-shadow: inset 0 0 0 4px #f6ecd2, inset 0 0 0 5px rgba(45, 36, 22, 0.4);
+    background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--c) 55%, transparent) 0%, color-mix(in srgb, var(--c) 25%, transparent) 60%, transparent 80%), #efe1bd; }
+  .por img { width: 100%; height: 100%; object-fit: cover; filter: sepia(0.15); }
   .txt { flex: 1; min-width: 0; }
-  .txt b { font-family: var(--font-display); font-size: 1.45em; line-height: 1; }
-  p { margin: 6px 0 8px; font-size: 1.12em; line-height: 1.45; max-width: 62ch; animation: fade 0.25s ease; }
-  .foot { display: flex; justify-content: space-between; font-size: 0.8em; color: var(--faint); gap: 8px; flex-wrap: wrap; }
-  @media (max-width: 600px) { .por { width: 64px; height: 64px; } }
+  .txt b { font-family: var(--font-story-sc); font-weight: 400; font-size: 1.45em; line-height: 1; letter-spacing: 0.04em; color: color-mix(in srgb, var(--c) 45%, #2d2416);
+    background: linear-gradient(transparent 62%, color-mix(in srgb, var(--c) 45%, transparent) 62% 92%, transparent 92%); padding: 0 4px; }
+  p { margin: 8px 0 10px; font-family: var(--font-story); font-size: 1.3em; line-height: 1.4; max-width: 62ch; animation: fade 0.3s ease; }
+  /* lettrine rouge */
+  p::first-letter { float: left; font-size: 2.6em; line-height: 0.82; margin: 4px 6px 0 0; color: var(--wax); }
+  .foot { display: flex; justify-content: space-between; font-family: var(--font-story); font-style: italic; font-size: 0.92em; color: var(--faint); gap: 8px; flex-wrap: wrap; border-top: 1px solid rgba(45, 36, 22, 0.25); padding-top: 6px; }
+  .foot .kbd { font-style: normal; }
+  .foot > span:first-child { font-family: var(--font-ui); font-style: normal; font-weight: 800; }
+  @media (max-width: 600px) {
+    .dlg { padding-bottom: calc(110px + var(--sab)); }
+    .box { gap: 12px; padding: 12px 14px 10px; }
+    .por { width: 64px; height: 76px; }
+    p { font-size: 1.12em; }
+  }
+  @media (max-height: 520px) and (orientation: landscape) {
+    .dlg { padding-bottom: calc(86px + var(--sab)); }
+    .box { padding: 10px 16px 8px; gap: 14px; }
+    .por { width: 70px; height: 82px; }
+    p { font-size: 1.1em; margin: 4px 0 6px; }
+  }
 </style>

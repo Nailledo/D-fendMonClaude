@@ -40,6 +40,7 @@ pnpm start        # http://localhost:3000
 | `pnpm smoke` | Test de fumée multijoueur dans un vrai navigateur (2 joueurs, construction, une vague) |
 | `pnpm models:prompts` | Régénère `docs/modeles-3d.md` (liste des modèles à produire dans Higgsfield, prompts et réglages) |
 | `pnpm models:bake` | Cuit les GLB de `assets/models-src/` vers `packages/client/public/models/` (décimation, textures, animation) |
+| `pnpm models:pose` | Retouches de pose sur les GLB cuits (ex. bras qui traverse le corps) ; à relancer après `models:bake` |
 | `pnpm hf:example` | Exemple d'appel de l'API Higgsfield (Seedance 2.5) via le SDK officiel ; lit `HF_CREDENTIALS` dans `.env.local` (facturable) |
 
 `bench` et `smoke` utilisent Playwright et un serveur lancé sur `http://localhost:3000` (ou `BENCH_URL` / `SMOKE_URL`).
@@ -150,7 +151,7 @@ Variables d’environnement :
 ## Notes
 
 - Le classement utilise `node:sqlite` (intégré à Node 22) plutôt que `better-sqlite3`, pour éviter toute compilation native dans l’image Docker.
-- Interface « Facette » : aplats sombres aux coins biseautés et hexagones, comme les facettes du décor low-poly ; une couleur par famille de tours, l’or pour l’argent, le rouge pour les vies. Jetons et composants de base dans `packages/client/src/app.css`, icônes au trait dans `packages/client/src/ui/icons.ts`.
-- Polices hébergées avec le jeu (Grenze, Grenze Gotisch, Atkinson Hyperlegible via `@fontsource`) : aucune requête vers un service tiers.
-- La carte de campagne est dessinée en code (facettes en SVG) ; l’écran titre est un diorama 3D animé.
+- Interface « Coffre à jouets » : panneaux crème cernés d’encre, ombrage en 3 paliers et ombres colorées, comme les modèles 3D ; une couleur par famille de tours, l’or pour l’argent, le rouge pour les vies. Les écrans de récit (dialogues, carte de campagne, fin de chapitre) passent en « Livre du conteur » (classe `.paper` : papier, encre, aquarelle). Jetons et composants de base dans `packages/client/src/app.css`, icônes au trait dans `packages/client/src/ui/icons.ts`.
+- Polices hébergées avec le jeu (aucune requête vers un service tiers) : Nunito et IM Fell English via `@fontsource`, et pour les titres une copie corrigée de Lilita One renommée « DFend Titres » (`packages/client/src/fonts/`, licence OFL).
+- La carte de campagne est peinte en code (lavis d’aquarelle et encre en SVG) ; l’écran titre est un diorama 3D animé.
 - Les menus sont en Svelte 5 ; le HUD est mis à jour à 10 Hz, les éléments qui suivent la caméra (menu radial, boutons de vague) sont positionnés directement à chaque frame.

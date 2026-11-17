@@ -45,10 +45,10 @@
   .head { display: flex; justify-content: space-between; align-items: center; }
   h2 { margin: 0; font-size: 2em; display: flex; align-items: center; gap: 10px; }
   ol { list-style: none; margin: 6px 0 0; padding: 0; }
-  li { display: flex; gap: 12px; align-items: center; padding: 7px 4px; border-bottom: 1px solid rgba(243, 238, 226, 0.1); font-variant-numeric: tabular-nums; }
+  li { display: flex; gap: 12px; align-items: center; padding: 7px 4px; border-bottom: 1px solid rgba(43, 26, 18, 0.1); font-variant-numeric: tabular-nums; }
   li.podium { font-weight: 700; }
-  .rank { width: 30px; height: 27px; display: grid; place-items: center; background: var(--raised); font-weight: 700; border-radius: 50%; }
-  li.podium .rank { background: var(--gold); color: var(--gold-ink); }
+  .rank { width: 32px; height: 32px; display: grid; place-items: center; background: var(--toon-cream); border: 2px solid var(--ink); font-family: var(--font-display); border-radius: 50%; }
+  li.podium .rank { background: var(--toon-gold); }
   .d { color: var(--faint); font-size: 0.82em; }
   .muted { color: var(--muted); margin: 0; }
 </style>

@@ -32,7 +32,7 @@
 </div>
 
 <style>
-  .box { width: min(360px, 100%); display: flex; flex-direction: column; gap: 10px; text-align: center; padding: 22px; }
-  h2 { margin: 0 0 6px; font-size: 2.4em; }
-  .muted { margin: 0; color: var(--muted); font-size: 0.9em; }
+  .box { width: min(360px, 100%); display: flex; flex-direction: column; gap: 12px; text-align: center; padding: 22px; animation: pop 0.2s ease; }
+  h2 { margin: 0 0 6px; font-size: 2.8em; color: #fff; -webkit-text-stroke: 8px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+  .muted { margin: 0; color: var(--muted); font-size: 0.9em; font-weight: 700; }
 </style>

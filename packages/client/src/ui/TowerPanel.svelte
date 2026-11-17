@@ -97,38 +97,38 @@
   .more { position: absolute; right: -4px; top: 50%; transform: translateY(-50%); padding: 6px 10px; min-height: 36px; gap: 4px; }
   .more :global(.icon) { transition: transform 0.15s; }
   .more.open :global(.icon) { transform: rotate(180deg); }
-  .th small { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fc); }
-  .th b { font-family: var(--font-display); font-size: 1.6em; line-height: 1; }
+  .th small { align-self: flex-start; font-size: 11.5px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); background: var(--fc); border: 2px solid var(--ink); border-radius: 99px; padding: 0 9px; }
+  .th b { font-family: var(--font-display); font-weight: 400; font-size: 1.75em; line-height: 1; }
   .cmp, .stats { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 10px; font-variant-numeric: tabular-nums; align-items: baseline; }
   .stats { grid-template-columns: 1fr auto; }
-  .k, .from, .arr { color: var(--muted); }
+  .k, .from, .arr { color: var(--muted); font-weight: 700; }
   .from { text-align: right; }
-  .to, .v { font-weight: 700; text-align: right; }
+  .to, .v { font-weight: 900; text-align: right; }
   .to.better { color: var(--good); }
   .to.worse { color: var(--bad); }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .tags span { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(243, 238, 226, 0.3); }
+  .tags span { font-size: 11px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 8px; border-radius: 99px; border: 2px solid var(--ink); background: var(--panel-hi); }
   .btns { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
   .btns.one { grid-template-columns: 1fr; }
   .btns .btn, .rally { padding: 9px 10px; font-size: 0.95em; }
   .poor { opacity: 0.6; }
   .hint { margin: 0; color: var(--muted); }
   .specs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .spec, .sk { cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 5px; padding: 10px; border: 0; color: var(--text); font: inherit;
-    background: var(--raised); border-radius: var(--r-sm); }
-  .spec { box-shadow: inset 0 3px 0 var(--fc); }
-  .spec:hover, .sk:hover:not(:disabled), .spec:focus-visible, .sk:focus-visible { filter: brightness(1.18); }
+  .spec, .sk { cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 5px; padding: 10px; border: 2.5px solid var(--ink); color: var(--text); font: inherit;
+    background: var(--toon-cream); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); transition: transform 0.08s; }
+  .spec { box-shadow: inset 0 6px 0 var(--fc), 0 3px 0 var(--ink); }
+  .spec:hover, .sk:hover:not(:disabled), .spec:focus-visible, .sk:focus-visible { transform: translateY(-2px); }
   .sk:disabled { cursor: default; opacity: 0.7; }
-  .spec b, .sk b { font-size: 1em; }
-  .desc { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+  .spec b, .sk b { font-family: var(--font-display); font-weight: 400; font-size: 1.15em; }
+  .desc { font-size: 12.5px; font-weight: 700; color: var(--muted); line-height: 1.3; }
   .mini { display: flex; flex-direction: column; gap: 1px; font-size: 12px; color: var(--muted); }
-  .mini i { font-style: normal; font-weight: 700; color: var(--text); }
-  .cost { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--gold); margin-top: auto; font-variant-numeric: tabular-nums; }
+  .mini i { font-style: normal; font-weight: 900; color: var(--text); }
+  .cost { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-display); font-size: 1.1em; color: #a05f00; margin-top: auto; font-variant-numeric: tabular-nums; }
   .skills { display: grid; grid-template-columns: 1fr; gap: 6px; }
   .sn { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .pips { display: flex; gap: 3px; }
-  .pips i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
-  .pips i.on { background: var(--gold); }
-  .undo { margin: 0; font-size: 12px; color: var(--faint); }
+  .pips i { width: 11px; height: 11px; border-radius: 50%; background: #d8bf8f; border: 1.5px solid var(--ink); }
+  .pips i.on { background: var(--gold-fill); }
+  .undo { margin: 0; font-size: 12px; font-weight: 700; color: var(--faint); }
   .kbd { margin-left: 2px; }
 </style>

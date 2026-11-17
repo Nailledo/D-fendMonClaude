@@ -1,9 +1,10 @@
 // polices hébergées avec le jeu (aucune requête vers un service tiers)
-import '@fontsource/atkinson-hyperlegible/400.css';
-import '@fontsource/atkinson-hyperlegible/700.css';
-import '@fontsource/grenze/500.css';
-import '@fontsource/grenze/700.css';
-import '@fontsource/grenze-gotisch/700.css';
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-800.css';
+import '@fontsource/nunito/latin-900.css';
+import '@fontsource/im-fell-english/latin-400.css';
+import '@fontsource/im-fell-english/latin-400-italic.css';
+import '@fontsource/im-fell-english-sc/latin-400.css';
 import './app.css';
 import { mount } from 'svelte';
 import { app } from './app';

@@ -45,7 +45,7 @@
 </div>
 
 <style>
-  .wrap { position: fixed; inset: 0; display: flex; overflow-y: auto; padding: calc(12px + var(--sat)) 12px calc(12px + var(--sab)); background: rgba(12, 14, 16, 0.55); }
+  .wrap { position: fixed; inset: 0; display: flex; overflow-y: auto; padding: calc(12px + var(--sat)) 12px calc(12px + var(--sab)); background: rgba(43, 26, 18, 0.55); }
   .wrap > :global(*) { margin: auto; }
   .box { width: min(440px, 100%); min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 22px; }
   h2 { margin: 0; font-size: 2.2em; }
@@ -54,7 +54,7 @@
   .ko { color: var(--bad); }
   .code { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 0.3em; font-weight: 700; font-size: 1.3em; text-align: center; }
   .sep { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
-  .sep::before, .sep::after { content: ''; flex: 1; height: 1px; background: rgba(243, 238, 226, 0.18); }
+  .sep::before, .sep::after { content: ''; flex: 1; height: 1px; background: rgba(43, 26, 18, 0.18); }
   .muted { color: var(--muted); font-size: 0.9em; margin: 0; }
   .col span { font-weight: 700; color: var(--muted); font-size: 0.9em; }
 </style>

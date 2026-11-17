@@ -98,18 +98,11 @@ export const ICONS3D: Record<string, Icon3D> = {
 
   // ------------------------------------------------ HUD (sans médaillon, sauf l'appel de vague)
   horn: {
-    rot: [0.2, -0.35, 0],
+    // compteur de vagues : deux épées croisées (le combat qui arrive)
+    rot: [0.12, -0.3, 0],
     build(g) {
-      // cor de guerre : corne courbe ivoire, cerclages dorés, pavillon
-      const n = 7;
-      for (let i = 0; i < n; i++) {
-        const t = i / (n - 1), a = Math.PI * (0.95 - t * 0.75), r = 0.75;
-        const x = Math.cos(a) * r, y = Math.sin(a) * r * 0.8 - 0.25, rad = 0.09 + t * 0.2;
-        g.cyl(rad, rad * 0.85, 0.3, 8, i === 2 || i === 5 ? GOLD : IVORY, x, y, 0, 0, 0, a - Math.PI / 2 + Math.PI);
-      }
-      g.cyl(0.42, 0.28, 0.25, 10, GOLD, 0.68, -0.05, 0, 0, 0, Math.PI / 2 - 0.35);
-      g.cyl(0.33, 0.33, 0.27, 10, 0x3a2a1a, 0.72, -0.04, 0.02, 0, 0, Math.PI / 2 - 0.35);
-      g.box(0.12, 0.3, 0.12, GOLD, -0.78, -0.12, 0, 0, 0, 0.3);
+      sword(g, -0.62, -0.7, -0.68, 2.1);
+      sword(g, 0.62, -0.7, 0.68, 2.1);
     },
   },
   skull: { medal: M.red, rot: [0.1, -0.3, 0], build: (g) => skull(g, 0, 0, 1.3) },
@@ -525,35 +518,49 @@ export const ICONS3D: Record<string, Icon3D> = {
   // ------------------------------------------------ sorts
   meteor: {
     medal: 0xc2410c,
-    rot: [0.2, -0.3, 0],
+    rot: [0.15, -0.25, 0],
     build(g) {
-      // traînée de feu continue : cônes emboîtés qui partent du rocher vers le haut à droite
-      const dx = Math.SQRT1_2, dy = Math.SQRT1_2, rz = -Math.PI / 4;
-      const rx0 = -0.35, ry0 = -0.35;
-      for (const [h, r, c, z] of [[1.9, 0.5, 0xff6f00, -0.25], [1.5, 0.36, 0xffa726, -0.1], [1.05, 0.22, 0xffe082, 0.05]] as const) {
-        g.cone(r, h, 7, c, rx0 + dx * (h / 2 - 0.1), ry0 + dy * (h / 2 - 0.1), z, 0, 0, rz);
-      }
-      g.rock(0.62, 0x4e342e, rx0, ry0, 0.15, 1, 1, 1, 0.4);
-      // fissures incandescentes
-      g.box(0.55, 0.07, 0.7, 0xff8f00, rx0, ry0 + 0.05, 0.12, 0, 0.5, 0.4);
-      g.box(0.07, 0.45, 0.7, 0xffb300, rx0 - 0.08, ry0 - 0.08, 0.14, 0, 0, 0.3);
-      // étincelles
-      g.ball(0.09, 0xffe082, 0.62, -0.05, 0.25);
-      g.ball(0.07, 0xffcc80, -0.05, 0.62, 0.25);
+      // boule de feu : rocher sombre dans une gerbe de flammes qui file vers le haut à droite
+      const tongue = (ang: number, h: number, r: number, c: number, z: number) => {
+        const dx = Math.cos(ang), dy = Math.sin(ang);
+        g.cone(r, h, 8, c, dx * (h / 2 - 0.05), dy * (h / 2 - 0.05), z, 0, 0, ang - Math.PI / 2);
+      };
+      const A = Math.PI / 4;
+      tongue(A, 1.7, 0.6, 0xe53935, -0.5);
+      tongue(A + 0.42, 1.15, 0.36, 0xe53935, -0.42);
+      tongue(A - 0.42, 1.15, 0.36, 0xe53935, -0.42);
+      tongue(A, 1.35, 0.44, 0xff8f00, -0.3);
+      tongue(A + 0.3, 0.9, 0.26, 0xff8f00, -0.25);
+      tongue(A - 0.3, 0.9, 0.26, 0xff8f00, -0.25);
+      tongue(A, 0.95, 0.26, 0xffd54f, -0.12);
+      g.ball(0.62, 0xff8f00, 0, 0, -0.1, 1, 1, 0.8, 1);
+      g.rock(0.46, 0x4e342e, -0.04, -0.04, 0.25, 1, 1, 1, 0.3);
+      // points de lave sur le rocher
+      g.ball(0.1, 0xffd54f, -0.16, 0.1, 0.66);
+      g.ball(0.08, 0xffb300, 0.12, -0.14, 0.64);
+      g.ball(0.07, 0xffd54f, -0.22, -0.22, 0.58);
     },
   },
   reinforce: {
     medal: 0x1e5aa8,
-    rot: [0.15, -0.35, 0],
+    rot: [0.12, -0.42, 0],
+    zoom: 1.12,
     build(g) {
-      // deux grandes épées croisées derrière un bouclier
-      sword(g, -0.55, -0.7, 0.62, 2.2);
-      sword(g, 0.55, -0.7, -0.62, 2.2);
-      g.cyl(0.5, 0.5, 0.16, 12, 0x2f6fd0, 0, -0.25, 0.3, Math.PI / 2);
-      g.torus(0.48, GOLD, 0, -0.25, 0.39);
-      g.ball(0.14, GOLD, 0, -0.25, 0.43);
-      g.box(0.07, 0.78, 0.06, 0xf5e6b8, 0, -0.25, 0.41);
-      g.box(0.78, 0.07, 0.06, 0xf5e6b8, 0, -0.25, 0.41);
+      // renforts : deux heaumes de miliciens, l'un derrière l'autre, plumets bleu et rouge
+      const helm = (x: number, y: number, z: number, k: number, plume: number) => {
+        g.cyl(0.5 * k, 0.52 * k, 0.72 * k, 10, STEEL, x, y - 0.05 * k, z);
+        g.ball(0.5 * k, STEEL, x, y + 0.3 * k, z, 1, 0.75, 1, 1);
+        g.cyl(0.54 * k, 0.54 * k, 0.12 * k, 10, GOLD, x, y - 0.4 * k, z);
+        g.box(0.06 * k, 0.95 * k, 0.12 * k, GOLD, x, y + 0.12 * k, z + 0.46 * k);
+        g.box(0.72 * k, 0.09 * k, 0.12 * k, 0x1b1b1b, x, y + 0.08 * k, z + 0.46 * k);
+        for (const xx of [-0.2, 0.2]) for (const yy of [-0.14, -0.26]) g.box(0.08 * k, 0.05 * k, 0.12 * k, 0x1b1b1b, x + xx * k, y + yy * k, z + 0.47 * k);
+        // crinière du cimier, couchée vers l'arrière
+        g.ball(0.2 * k, plume, x, y + 0.66 * k, z + 0.12 * k, 0.7, 1, 1);
+        g.ball(0.22 * k, plume, x, y + 0.74 * k, z - 0.12 * k, 0.75, 1.1, 1.2);
+        g.ball(0.18 * k, plume, x, y + 0.68 * k, z - 0.38 * k, 0.7, 1, 1);
+      };
+      helm(-0.42, 0.22, -0.5, 0.85, 0x3f7ee0);
+      helm(0.3, -0.12, 0.2, 1, RED);
     },
   },
   // ------------------------------------------------ compétences
@@ -690,8 +697,8 @@ export function renderIcons3D(keys: string[] = Object.keys(ICONS3D), size = 192)
 /** Libère le contexte WebGL des icônes (une fois toutes générées). */
 export function disposeIcons3D() {
   if (!gl) return;
+  gl.setSize(1, 1, false);
   gl.dispose();
-  gl.forceContextLoss();
   gl = null;
 }
 

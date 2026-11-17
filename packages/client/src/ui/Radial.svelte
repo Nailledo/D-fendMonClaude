@@ -138,54 +138,56 @@
 </div>
 
 <style>
-  .radial { position: absolute; left: 0; top: 0; width: 0; height: 0; animation: radialIn 0.18s cubic-bezier(0.2, 1.4, 0.4, 1); }
-  @keyframes radialIn { from { transform: scale(0.6); opacity: 0; } }
-  .ring { position: absolute; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45); background: radial-gradient(circle, rgba(15, 19, 22, 0) 55%, rgba(15, 19, 22, 0.25) 100%); pointer-events: none; }
-  .opt { position: absolute; transform: translate(-50%, -50%); width: 62px; height: 62px; cursor: pointer; border: 0; padding: 0; background: none; display: grid; place-items: center; transition: transform 0.12s; touch-action: manipulation; }
-  .opt:hover { transform: translate(-50%, -50%) scale(1.08); }
-  .face { width: 62px; height: 62px; display: grid; place-items: center; background: var(--fc); color: var(--line); border: 3px solid rgba(255, 255, 255, 0.85);
-    box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.22), 0 3px 0 rgba(8, 10, 12, 0.6), 0 6px 14px rgba(0, 0, 0, 0.35); }
-  .face :global(.icon) { width: 30px; height: 30px; }
-  /* médaillon 3D : il remplace la pastille colorée */
-  .face:has(:global(.ico3d)) { background: none; border: 0; box-shadow: none; }
-  .face :global(.ico3d) { width: 112%; height: 112%; max-width: none; filter: drop-shadow(0 3px 0 rgba(8, 10, 12, 0.5)); }
-  .opt.armed .face :global(.ico3d) { filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 6px var(--gold)); }
-  .sicon :global(.ico3d) { width: 42px; height: 42px; margin-top: -8px; }
-  .face.neutral { background: var(--raised-2); color: var(--text); }
-  .face.neutral :global(.icon) { color: var(--gold); }
-  .opt:hover .face { filter: brightness(1.12); }
-  .opt.poor .face { filter: saturate(0.15) brightness(0.7); }
-  .opt.spec { width: 70px; height: 70px; }
-  .opt.spec .face { width: 70px; height: 70px; overflow: hidden; }
-  .opt.spec img { width: 64px; height: 64px; }
-  .opt.skill { width: 82px; height: 64px; color: var(--text); font-size: 11px; font-weight: 700; line-height: 1.1; text-align: center; padding: 6px 6px 14px;
-    background: var(--raised); border-radius: var(--r); box-shadow: var(--rim), var(--shadow-sm); }
-  .opt.skill.max { color: var(--gold); }
+  .radial { position: absolute; left: 0; top: 0; width: 0; height: 0; animation: radialIn 0.2s cubic-bezier(0.2, 1.5, 0.4, 1); }
+  @keyframes radialIn { from { transform: scale(0.5) rotate(-20deg); opacity: 0; } }
+  /* anneau en pointillés blancs cernés d'encre, comme une marque à la craie autour de l'emplacement */
+  .ring { position: absolute; border-radius: 50%; border: 5px dashed #fff; box-shadow: 0 0 0 3px rgba(43, 26, 18, 0.55), inset 0 0 0 3px rgba(43, 26, 18, 0.35); pointer-events: none; }
+  .opt { position: absolute; transform: translate(-50%, -50%); width: 66px; height: 66px; cursor: pointer; border: 0; padding: 0; background: none; display: grid; place-items: center; transition: transform 0.12s; touch-action: manipulation; }
+  .opt:hover { transform: translate(-50%, -50%) scale(1.1); z-index: 2; }
+  .face { width: 66px; height: 66px; display: grid; place-items: center; background: var(--fc); color: var(--ink); border: var(--bw) solid var(--ink);
+    box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.45), inset 0 -6px 0 rgba(43, 26, 18, 0.25), 0 4px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
+  .face :global(.icon) { width: 32px; height: 32px; }
+  /* médaillon 3D : un disque cerné d'encre */
+  .face:has(:global(.ico3d)) { background: var(--ink); box-shadow: 0 4px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
+  .face :global(.ico3d) { width: 106%; height: 106%; max-width: none; }
+  .sicon :global(.ico3d) { width: 46px; height: 46px; margin-top: -10px; }
+  .face.neutral { background: var(--toon-cream); color: var(--ink); }
+  .face.neutral:has(:global(.ico3d)) { background: var(--toon-cream); }
+  .opt:hover .face { filter: brightness(1.08); }
+  .opt.poor .face { filter: grayscale(0.9) brightness(0.85); }
+  .opt.spec { width: 76px; height: 76px; }
+  .opt.spec .face { width: 76px; height: 76px; overflow: hidden; background: linear-gradient(180deg, #a9d3f2 0 55%, #7cc242 55%); }
+  .opt.spec img { width: 70px; height: 70px; }
+  .opt.skill { width: 70px; height: 70px; color: var(--ink); font-size: 11px; font-weight: 900; line-height: 1.1; text-align: center; padding: 6px 6px 14px;
+    background: var(--toon-cream); border: var(--bw) solid var(--ink); border-radius: 50%; box-shadow: var(--rim), 0 4px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
+  .opt.skill.max { background: var(--toon-gold); }
   .sname { display: block; }
-  .sicon :global(svg.icon) { width: 32px; height: 32px; margin-top: -6px; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)); }
+  .sicon :global(svg.icon) { width: 32px; height: 32px; margin-top: -6px; }
   .pips { position: absolute; bottom: 7px; display: flex; gap: 3px; }
-  .pips i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
-  .pips i.on { background: var(--gold); }
-  .cost { position: absolute; bottom: -12px; font-size: 12.5px; font-weight: 700; color: var(--gold); background: var(--line); padding: 0 8px; border-radius: 99px; font-variant-numeric: tabular-nums; }
-  .opt .kbd { position: absolute; top: -8px; right: -4px; font-size: 11px; }
-  .tip { position: absolute; left: 100px; top: -44px; width: min(270px, calc(100vw - 24px)); padding: 10px 12px; font-size: 0.86em; z-index: 5; display: flex; flex-direction: column; gap: 4px; animation: pop 0.1s ease; }
-  .tip.flip { left: auto; right: 100px; }
-  .tip b { font-family: var(--font-display); font-size: 1.3em; }
-  .tip div { color: var(--muted); }
-  .tc { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .pips i { width: 9px; height: 9px; border-radius: 50%; background: #d8bf8f; border: 1.5px solid var(--ink); }
+  .pips i.on { background: var(--gold-fill); }
+  /* prix : jeton doré sous l'option */
+  .cost { position: absolute; z-index: 1; bottom: -16px; font-family: var(--font-display); font-size: 15px; line-height: 1.1; color: var(--ink); background: var(--gold-fill); border: 2.5px solid var(--ink); padding: 0 8px; border-radius: 99px; box-shadow: 0 2px 0 var(--ink); font-variant-numeric: tabular-nums; }
+  .opt.poor .cost { background: #d9c5a0; color: var(--bad); }
+  .opt .kbd { position: absolute; top: -8px; right: -6px; font-size: 11px; }
+  .tip { position: absolute; left: 108px; top: -50px; width: min(270px, calc(100vw - 24px)); padding: 10px 14px 12px; font-size: 0.88em; z-index: 5; display: flex; flex-direction: column; gap: 4px; animation: pop 0.12s ease; }
+  .tip.flip { left: auto; right: 108px; }
+  .tip b { font-family: var(--font-display); font-weight: 400; font-size: 1.4em; line-height: 1.05; }
+  .tip div { color: var(--muted); font-weight: 700; }
+  .tc { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-display); font-size: 1.15em; color: #a05f00; font-variant-numeric: tabular-nums; }
+  .tc :global(.icon) { width: 1.1em; height: 1.1em; }
   .tc.poor { color: var(--bad); }
 
   /* tactile : options plus grandes, l'option armée gonfle et pulse en attendant la confirmation */
-  .touch .opt, .touch .face { width: 66px; height: 66px; }
+  .touch .opt, .touch .face { width: 68px; height: 68px; }
   .touch.short .opt, .touch.short .face { width: 58px; height: 58px; }
-  .touch.short .face :global(.icon) { width: 26px; height: 26px; }
+  .touch.short .face :global(svg.icon) { width: 26px; height: 26px; }
   .touch .opt .kbd { display: none; }
   .touch .opt:hover { transform: translate(-50%, -50%); }
   .opt.armed { transform: translate(-50%, -50%) scale(1.16); z-index: 2; }
+  .opt.armed .cost { bottom: -22px; }
   .touch .opt.armed:hover { transform: translate(-50%, -50%) scale(1.16); }
-  .opt.armed .face, .opt.skill.armed { border-color: var(--gold); }
-  .opt.armed::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 3px solid var(--gold); animation: armed 1s ease-out infinite; pointer-events: none; }
-  .opt.skill.armed::after { border-radius: var(--r); }
-  .opt.skill.armed { box-shadow: inset 0 0 0 3px var(--gold), var(--shadow-sm); }
+  .opt.armed .face, .opt.skill.armed { box-shadow: 0 0 0 4px var(--gold-fill), 0 0 0 7px var(--ink), 0 4px 0 7px var(--ink); }
+  .opt.armed::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 4px solid #fff; animation: armed 1s ease-out infinite; pointer-events: none; }
   @keyframes armed { from { opacity: 1; transform: scale(0.95); } to { opacity: 0; transform: scale(1.3); } }
 </style>

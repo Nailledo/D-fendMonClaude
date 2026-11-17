@@ -59,24 +59,25 @@
 </div>
 
 <style>
-  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 660px) 300px; justify-content: center; align-content: start; gap: 16px; padding: 28px 16px; overflow: auto; background: rgba(12, 14, 16, 0.55); }
+  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 660px) 300px; justify-content: center; align-content: start; gap: 16px; padding: 28px 16px; overflow: auto; background: rgba(43, 26, 18, 0.45); }
   .main { display: flex; flex-direction: column; gap: 14px; padding: 22px; }
   h2 { margin: 0; font-size: 2.3em; }
   h3 { margin: 0; font-size: 1.35em; display: flex; align-items: center; gap: 8px; }
   .muted { color: var(--muted); margin: 0; }
   .maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .map { cursor: pointer; text-align: left; padding: 12px; border: 0; color: #fff; display: flex; flex-direction: column; gap: 6px; min-height: 104px; background: var(--b);
-    border-radius: var(--r-sm); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
-  .map b { font-family: var(--font-display); font-size: 1.3em; line-height: 1; }
+  .map { cursor: pointer; text-align: left; padding: 12px; border: var(--bw) solid var(--ink); color: #fff; display: flex; flex-direction: column; gap: 6px; min-height: 104px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0 5px, transparent 5px calc(100% - 6px), rgba(0, 0, 0, 0.22) calc(100% - 6px)), var(--b);
+    border-radius: var(--r-sm); box-shadow: var(--shadow-sm); text-shadow: 0 2px 0 rgba(43, 26, 18, 0.6); transition: transform 0.08s; }
+  .map b { font-family: var(--font-display); font-weight: 400; font-size: 1.4em; line-height: 1; }
   .map span { font-size: 0.84em; opacity: 0.92; }
   .map.vallee { --b: #5f8f3e; }
   .map.marais { --b: #46705a; }
   .map.cendre { --b: #7a3b2e; }
-  .map.on { box-shadow: inset 0 0 0 3px var(--gold), inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
+  .map.on { box-shadow: 0 0 0 4px var(--gold-fill), 0 0 0 7px var(--ink), var(--shadow-sm); transform: translateY(-2px); }
   .map:hover { filter: brightness(1.1); }
   .lb { display: flex; flex-direction: column; gap: 8px; }
   ol { margin: 0; padding: 0; list-style: none; counter-reset: r; }
-  li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(243, 238, 226, 0.1); font-variant-numeric: tabular-nums; counter-increment: r; }
+  li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(43, 26, 18, 0.1); font-variant-numeric: tabular-nums; counter-increment: r; }
   li::before { content: counter(r); color: var(--faint); width: 1.6em; }
   li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   li b { color: var(--gold); }

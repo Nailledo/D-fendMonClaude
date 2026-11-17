@@ -56,7 +56,9 @@ export async function warmup(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera
     }
   });
   try {
-    await gl.compileAsync(scene, camera);
+    // compilation en parallèle si le navigateur la propose (sinon three.js le signale à chaque appel)
+    if (gl.extensions.has('KHR_parallel_shader_compile')) await gl.compileAsync(scene, camera);
+    else gl.compile(scene, camera);
     // un rendu complet : passe d'ombres, envoi des textures et des tampons
     gl.render(scene, camera);
   } catch (e) {
