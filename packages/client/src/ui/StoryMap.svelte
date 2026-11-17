@@ -2,21 +2,25 @@
   import { DIFFICULTY_NAMES, LEVELS, MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
-  import { progress, ui } from '../state.svelte';
+  import { HEROES } from '@dfend/shared';
+  import { progress, setDifficulty, setHero, ui } from '../state.svelte';
+  import HeroPicker from './HeroPicker.svelte';
   import { ICON } from './icons';
 
   // positions des niveaux sur la carte (en %)
   const POS = [[12, 74], [24, 56], [17, 34], [38, 40], [50, 62], [64, 44], [74, 26], [88, 16]];
   const BIOME = ['Vallée d’Aubeclair', 'Vallée d’Aubeclair', 'Vallée d’Aubeclair', 'Marais de Brumenoire', 'Marais de Brumenoire', 'Terres de Cendre', 'Terres de Cendre', 'Citadelle de Kessin'];
   let sel = $state(Math.min(progress.unlocked, LEVELS.length - 1));
-  let diff = $state<Difficulty>(1);
+  const nightmareFor = (i: number) => (progress.stars[i]?.[1] ?? 0) >= 3 || (progress.stars[i]?.[2] ?? 0) > 0;
+  // Cauchemar mémorisé mais pas encore débloqué sur ce niveau : on retombe sur Vétéran
+  const diff = $derived<Difficulty>(ui.difficulty === 2 && !nightmareFor(sel) ? 1 : ui.difficulty);
   const stars = (i: number) => Math.max(0, ...(progress.stars[i] ?? [0]));
-  const nightmareOk = $derived((progress.stars[sel]?.[1] ?? 0) >= 3 || (progress.stars[sel]?.[2] ?? 0) > 0);
+  const nightmareOk = $derived(nightmareFor(sel));
   const totalStars = $derived(LEVELS.reduce((s, _, i) => s + stars(i), 0));
 
   function play() {
     audio.play('click');
-    app.startSolo('story', LEVELS[sel].mapId, diff, 'samuel', sel);
+    app.startSolo('story', LEVELS[sel].mapId, diff, ui.hero, sel);
   }
   function coop() {
     audio.play('click');
@@ -72,16 +76,21 @@
     </p>
     <div class="diffs">
       {#each DIFFICULTY_NAMES as d, i}
-        <button class="btn small" class:gold={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => (diff = i as Difficulty)} title={i === 2 && !nightmareOk ? 'Obtenez 3 étoiles en Vétéran pour débloquer' : ''}>
+        <button class="btn small" class:gold={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => setDifficulty(i as Difficulty)}>
           {d}
         </button>
       {/each}
     </div>
     <p class="hint">
       {#if diff === 0}Pour découvrir l’histoire tranquillement.{:else if diff === 1}La difficulté prévue : exigeante.{:else}Une seule vie. Aucune erreur permise.{/if}
+      {#if !nightmareOk}<br /><span class="lock">Cauchemar : obtenez 3 étoiles en Vétéran sur ce niveau.</span>{/if}
     </p>
+    <div class="heroes">
+      <HeroPicker value={ui.hero} onpick={setHero} compact />
+      <p class="hint"><b>{HEROES[ui.hero].name}</b>, {HEROES[ui.hero].title.toLowerCase()}. {HEROES[ui.hero].passive.desc}</p>
+    </div>
     <div class="col">
-      <button class="btn gold big" onclick={play}>Jouer seul (Samuel)</button>
+      <button class="btn gold big" onclick={play}>Jouer seul</button>
       <button class="btn" onclick={coop}>{@html ICON.users} Jouer en coop</button>
       <button class="btn ghost" onclick={() => (ui.screen = 'title')}>Retour</button>
     </div>
@@ -129,6 +138,8 @@
   .biome { margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75em; font-weight: 800; color: #8a5a2b; }
   .desc, .hint { margin: 0; font-size: 0.9em; }
   .bossTxt { color: var(--red); }
+  .lock { color: #7a4d06; font-weight: 700; }
+  .heroes { display: flex; flex-direction: column; gap: 6px; }
   .diffs { display: flex; gap: 6px; flex-wrap: wrap; }
   .col .btn { width: 100%; }
   @media (max-width: 760px) {

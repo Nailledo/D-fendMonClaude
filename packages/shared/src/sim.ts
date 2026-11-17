@@ -1,10 +1,11 @@
-import { BALANCE, computeScaling, starsFor, type Scaling } from './balance';
+import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, type EnemyDef } from './data/enemies';
 import { HEROES, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
 import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, type SoldierDef, type TowerLevel } from './data/towers';
 import { buildRuntimeMap, type RuntimeMap } from './mapgen';
+import { activePathsFor, scaledCount } from './preview';
 import { Rng } from './rng';
 import { DmgType, FAMILIES, GameState, type Command, type Family, type GameConfig } from './types';
 import { MUTATION_INDEX, genStoryWaves, genSurvivalWave, mutationsFor, type Wave } from './waves';
@@ -515,10 +516,7 @@ export class Sim {
   }
 
   private activePaths(wave: number): number[] {
-    const from = this.map.def.pathFrom;
-    const res: number[] = [];
-    for (let i = 0; i < this.map.paths.length; i++) if (!from || (from[i] ?? 1) <= wave) res.push(i);
-    return res.length ? res : [0];
+    return activePathsFor(this.map.def.pathFrom, this.map.paths.length, wave);
   }
 
   private startWave() {
@@ -535,7 +533,7 @@ export class Sim {
     const cm = this.scaling.countMul;
     for (const g of wave.groups) {
       const def = ENEMIES[g.type];
-      const count = def.boss ? g.count : Math.max(1, Math.round(g.count * cm));
+      const count = scaledCount(g.type, g.count, cm);
       const interval = g.interval / (1 + 0.5 * (cm - 1));
       const hpMul = (def.boss ? this.scaling.bossHpMul : this.scaling.hpMul) * (g.hpMul ?? 1);
       for (let i = 0; i < count; i++) {
@@ -692,7 +690,10 @@ export class Sim {
           this.startWave();
         } else if (this.nextWaveT > 0) {
           const rem = this.nextWaveT / TICK_RATE;
-          p.gold += Math.floor(rem * BALANCE.earlyGoldPerSec);
+          // bonus d'équipe : chaque joueur actif touche sa part, selon la même règle que les primes
+          // (en solo, rien ne change ; en coop, plus de course au clic)
+          const bonus = earlyCallBonus(rem, this.activeCount);
+          for (const q of this.players) if (q.active) q.gold += bonus;
           const red = sec(rem * BALANCE.earlySpellCdPerSec);
           for (const q of this.players) {
             q.spellCd[0] = Math.max(0, q.spellCd[0] - red);

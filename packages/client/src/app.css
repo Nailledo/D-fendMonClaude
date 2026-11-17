@@ -159,7 +159,7 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold-2); widt
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.35);
   color: #fff;
-  font-size: 0.72em;
+  font-size: max(11px, 0.72em);
   font-weight: 800;
   line-height: 1.5em;
   text-align: center;
@@ -167,6 +167,15 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold-2); widt
 }
 
 .icon { width: 1.2em; height: 1.2em; display: inline-block; vertical-align: -0.2em; }
+
+/* Badges de raccourcis sur les boutons du jeu : visibles au survol, au focus clavier,
+   en maintenant Alt (classe .keys-held) ou si l'option est cochée (.show-keys). */
+.hud button > .kbd { opacity: 0; transition: opacity 0.12s; }
+.hud button:hover > .kbd,
+.hud button:focus-visible > .kbd,
+.show-keys .hud button > .kbd,
+.keys-held .hud button > .kbd { opacity: 1; }
+@media (hover: none) { .hud button > .kbd { display: none; } }
 
 /* chiffres de dégâts */
 .dn {

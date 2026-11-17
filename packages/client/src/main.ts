@@ -8,6 +8,7 @@ import { loadRaw } from './storage';
 import App from './ui/App.svelte';
 
 document.documentElement.style.setProperty('--scale', String(settings.textScale));
+document.documentElement.classList.toggle('show-keys', !!settings.showKeys);
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 app.init(canvas);
 ui.portraits = renderPortraits();

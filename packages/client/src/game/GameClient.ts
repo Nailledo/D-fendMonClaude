@@ -163,9 +163,13 @@ export class GameClient {
   upgrade(spec?: 1 | 2) {
     const s = ui.sel;
     if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
+    const fam = FAMILIES[s.fam ?? 0];
+    const cost = spec ? TOWERS[fam][2 + spec].cost : (s.level ?? 0) < 2 ? TOWERS[fam][(s.level ?? 0) + 1].cost : 0;
+    if (ui.hud.gold < cost) { audio.play('deny'); toast('Pas assez d’or', 'warn', 1500); return; }
     if (spec) this.send({ k: 'spec', tower: s.tower, s: spec });
     else if ((s.level ?? 0) < 2) this.send({ k: 'up', tower: s.tower });
-    ui.sel = null;
+    // la sélection reste ouverte : le panneau montre aussitôt les nouvelles statistiques
+    this.hoverLevel = -1;
   }
 
   skill(i: 0 | 1) {
@@ -260,6 +264,12 @@ export class GameClient {
       this.disposers.push(() => t.removeEventListener(type, fn as EventListener));
     };
     on(c, 'contextmenu', (e) => e.preventDefault());
+    let longPress: ReturnType<typeof setTimeout> | null = null;
+    const stopLongPress = () => {
+      if (longPress) clearTimeout(longPress);
+      longPress = null;
+    };
+    this.disposers.push(stopLongPress);
     on(c, 'pointerdown', (e) => {
       audio.unlock();
       this.mouse.down = true;
@@ -267,12 +277,27 @@ export class GameClient {
       this.mouse.sx = e.clientX;
       this.mouse.sy = e.clientY;
       this.mouse.moved = false;
+      // tactile : un appui long remplace le clic droit (déplacer le héros, annuler une visée)
+      stopLongPress();
+      if (e.pointerType === 'touch') {
+        const x = e.clientX, y = e.clientY;
+        longPress = setTimeout(() => {
+          longPress = null;
+          if (!this.mouse.down || this.mouse.moved) return;
+          this.mouse.down = false;
+          navigator.vibrate?.(15);
+          this.rightClick(x, y);
+        }, 450);
+      }
     });
     on(window, 'pointermove', (e) => {
       const dx = e.clientX - this.mouse.x, dy = e.clientY - this.mouse.y;
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
-      if (this.mouse.down && (Math.abs(e.clientX - this.mouse.sx) + Math.abs(e.clientY - this.mouse.sy) > 6)) this.mouse.moved = true;
+      if (this.mouse.down && (Math.abs(e.clientX - this.mouse.sx) + Math.abs(e.clientY - this.mouse.sy) > 6)) {
+        this.mouse.moved = true;
+        stopLongPress();
+      }
       if (this.mouse.down && this.mouse.moved && (this.mouse.button === 1 || this.mouse.button === 2 || (this.mouse.button === 0 && !this.targeting))) {
         const k = this.r.cam.dist / this.r.height * 1.25;
         this.r.cam.tx -= dx * k;
@@ -280,6 +305,7 @@ export class GameClient {
       }
     });
     on(window, 'pointerup', (e) => {
+      stopLongPress();
       if (!this.mouse.down) return;
       this.mouse.down = false;
       if (this.mouse.moved || e.target !== c) return;
@@ -292,9 +318,21 @@ export class GameClient {
     }, { passive: false });
     on(document, 'mouseleave' as keyof WindowEventMap, () => (this.mouse.inside = false));
     on(document, 'mouseenter' as keyof WindowEventMap, () => (this.mouse.inside = true));
-    on(window, 'keydown', (e) => this.key(e));
-    on(window, 'keyup', (e) => this.keysDown.delete(e.code));
-    on(window, 'blur', () => this.keysDown.clear());
+    // maintenir Alt affiche tous les raccourcis clavier
+    const keysHeld = (on_: boolean) => document.documentElement.classList.toggle('keys-held', on_);
+    this.disposers.push(() => keysHeld(false));
+    on(window, 'keydown', (e) => {
+      if (e.key === 'Alt') keysHeld(true);
+      this.key(e);
+    });
+    on(window, 'keyup', (e) => {
+      if (e.key === 'Alt') keysHeld(false);
+      this.keysDown.delete(e.code);
+    });
+    on(window, 'blur', () => {
+      keysHeld(false);
+      this.keysDown.clear();
+    });
   }
 
   private action(code: string): Action | null {
@@ -579,6 +617,7 @@ export class GameClient {
       const lvl = TOWERS[fam][snap.tLevel[ti]];
       let range = lvl.range;
       if (fam === 'archer' && snap.tLevel[ti] === LEVEL_SPEC_A && snap.tSk[ti] >> 4) range += lvl.skills![1].values[(snap.tSk[ti] >> 4) - 1];
+      if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = TOWERS[fam][this.hoverLevel].range;
       const sl = this.map.slots[snap.tSlot[ti]];
       this.rangeRing.visible = true;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
@@ -597,6 +636,8 @@ export class GameClient {
 
   /** famille survolée dans le menu radial (aperçu de portée) */
   hoverFam = -1;
+  /** niveau survolé dans le panneau de tour ou le menu radial (aperçu de la portée future) */
+  hoverLevel = -1;
 
   private positionDom(snap: NonNullable<Interp['latest']>) {
     const s = ui.sel;

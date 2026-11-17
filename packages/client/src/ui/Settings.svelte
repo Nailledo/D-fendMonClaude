@@ -15,6 +15,7 @@
     saveSettings();
     audio.applyVolumes();
     document.documentElement.style.setProperty('--scale', String(settings.textScale));
+    document.documentElement.classList.toggle('show-keys', settings.showKeys);
     if (reload) needReload = true;
   }
   function preset(q: Quality) {
@@ -102,6 +103,7 @@
         <label>Taille du texte : {Math.round(s.textScale * 100)} %<input type="range" min="0.85" max="1.4" step="0.05" bind:value={s.textScale} onchange={commit} /></label>
         <label class="check"><input type="checkbox" bind:checked={s.damageNumbers} onchange={commit} /> Afficher les chiffres de dégâts</label>
         <label class="check"><input type="checkbox" bind:checked={s.reduceShake} onchange={commit} /> Réduire les tremblements d’écran</label>
+        <label class="check"><input type="checkbox" bind:checked={s.showKeys} onchange={commit} /> Toujours afficher les raccourcis clavier (sinon : au survol, ou en maintenant Alt)</label>
         <label class="check"><input type="checkbox" bind:checked={s.colorblind} onchange={commit} /> Mode daltonien (motifs sur les couleurs de joueurs)</label>
       {/if}
     </div>

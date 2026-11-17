@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -9,7 +9,9 @@
   import EndScreen from './EndScreen.svelte';
   import PauseMenu from './PauseMenu.svelte';
   import Radial from './Radial.svelte';
-  import { FAMILY_NAME, ICON } from './icons';
+  import TowerPanel from './TowerPanel.svelte';
+  import { enemyTraits } from './enemyTraits';
+  import { FAMILY_NAME, ICON, LINE, SKILL_ICON } from './icons';
 
   const h = $derived(ui.hud);
   const hero = $derived(HEROES[HERO_IDS[h.hero.type]]);
@@ -27,6 +29,31 @@
     dom.radial = radialEl ?? null;
   });
   const sel = $derived(ui.sel);
+
+  // ---- aperçu de la vague suivante ----
+  const activePlayers = $derived(Math.max(1, h.players.filter((p) => p.active).length));
+  const preview = $derived.by(() => {
+    const cfg = app.game?.cfg;
+    if (!cfg || (h.totalWaves && h.wave >= h.totalWaves)) return null;
+    return previewWave(cfg, h.wave + 1, activePlayers);
+  });
+  const bonus = $derived(h.nextWave > 0 ? earlyCallBonus(h.nextWave, activePlayers) : 0);
+  /** bouton dont l'aperçu est ouvert (survol, focus ou premier appui tactile) */
+  let openWave = $state(-1);
+  let flipWave = $state(false);
+  function showPreview(i: number, el: HTMLElement) {
+    openWave = i;
+    flipWave = el.getBoundingClientRect().left > window.innerWidth * 0.6;
+  }
+  function waveTap(i: number, e: PointerEvent | MouseEvent) {
+    // au tactile, un premier appui montre l'aperçu, le second appelle la vague
+    if ((e as PointerEvent).pointerType === 'touch' && openWave !== i) {
+      showPreview(i, e.currentTarget as HTMLElement);
+      return;
+    }
+    openWave = -1;
+    g()?.callWave();
+  }
 </script>
 
 <div class="hud">
@@ -68,10 +95,32 @@
 
   <!-- boutons d'appel de vague -->
   {#each Array(entries) as _, i}
-    <button class="wavebtn ui" bind:this={waveEls[i]} onclick={() => g()?.callWave()} title="Appeler la vague maintenant ({keyLabel(keys.wave)}) : bonus d'or et recharge des sorts">
-      {@html ICON.skull}
-      {#if h.nextWave > 0}<span class="sec">{h.nextWave}</span>{/if}
-    </button>
+    <div class="waveanchor" bind:this={waveEls[i]}>
+      <button class="wavebtn ui" class:first={h.state === 0} aria-label="Appeler la vague {h.wave + 1} ({keyLabel(keys.wave)})"
+        onpointerenter={(e) => e.pointerType !== 'touch' && showPreview(i, e.currentTarget)} onpointerleave={() => (openWave = -1)}
+        onfocus={(e) => showPreview(i, e.currentTarget)} onblur={() => (openWave = -1)}
+        onclick={(e) => waveTap(i, e)}>
+        {@html LINE.skull}
+        {#if h.nextWave > 0}<span class="sec">{h.nextWave} s</span>{/if}
+      </button>
+      {#if openWave === i && preview}
+        <div class="wavecard" class:flip={flipWave} role="tooltip">
+          <div class="wh"><b>Vague {preview.wave}{h.totalWaves ? ' / ' + h.totalWaves : ''}</b><span>{h.nextWave > 0 ? `dans ${h.nextWave} s` : 'quand vous voulez'}</span></div>
+          <ul>
+            {#each preview.entries as en}
+              {@const d = ENEMIES[en.type]}
+              {@const tr = enemyTraits(d)}
+              <li class:boss={d.boss}><span>{d.name}{#each tr.slice(0, 2) as t}<em>{t}</em>{/each}</span><b>×{en.count}</b></li>
+            {/each}
+          </ul>
+          {#if preview.mutations.length}<div class="wm">{#each preview.mutations as m}<span>{MUTATIONS[m].name} : {MUTATIONS[m].desc}</span>{/each}</div>{/if}
+          <div class="wf">
+            {#if bonus > 0}Appeler maintenant : <b>+{bonus} or</b>{multi ? ' chacun' : ''}, sorts rechargés plus vite{:else}Appuyez pour lancer la vague{/if}
+            <span class="kbd">{keyLabel(keys.wave)}</span>
+          </div>
+        </div>
+      {/if}
+    </div>
   {/each}
 
   <!-- menu radial -->
@@ -79,6 +128,7 @@
     {#if sel && (sel.kind === 'build' || sel.kind === 'tower')}<Radial />{/if}
   </div>
 
+  <div class="bottomleft">
   <!-- héros -->
   <div class="heroCard wood ui">
     <button class="portrait" class:dead={h.hero.dead} onclick={() => { g()?.selectHero(); g()?.focusHero(); }} title="Sélectionner ({keyLabel(keys.hero)})">
@@ -94,10 +144,14 @@
         {#each hero.skills as s, i}
           {@const locked = h.hero.level < s.unlock}
           {@const cd = h.hero.cds[i]}
-          <button class="skill" class:ult={i === 2} disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
+          <button class="skill" class:ult={i === 2} class:locked disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
             title="{s.name} — {s.desc} (recharge {s.cd} s){locked ? ` — niveau ${s.unlock} requis` : ''}">
-            <span class="sn">{s.name.split(' ')[0]}</span>
-            {#if locked}<span class="cd">{@html ICON.lock}</span>{:else if cd > 0}<span class="cd">{cd}</span>{/if}
+            {#if locked}
+              {@html LINE.lock}<span class="sn">Niv. {s.unlock}</span>
+            {:else}
+              {@html SKILL_ICON[s.icon] ?? ''}<span class="sn">{s.short}</span>
+              {#if cd > 0}<span class="cd">{cd}</span>{/if}
+            {/if}
             <span class="kbd">{keyLabel(i === 0 ? keys.skill1 : i === 1 ? keys.skill2 : keys.ult)}</span>
           </button>
         {/each}
@@ -114,6 +168,7 @@
         <span class="kbd">{keyLabel(i === 0 ? keys.spell1 : keys.spell2)}</span>
       </button>
     {/each}
+  </div>
   </div>
 
   <!-- joueurs (multi) -->
@@ -146,6 +201,8 @@
         <span>Vitesse {d.speed}</span><span>Vies {d.lives}</span>{#if d.flying}<span>Volant</span>{/if}
       </div>
     </div>
+  {:else if sel?.kind === 'tower' && sel.fam !== undefined && sel.mine}
+    <TowerPanel />
   {:else if sel?.kind === 'tower' && sel.fam !== undefined && !sel.mine}
     {@const t = TOWERS[FAMILIES[sel.fam]][sel.level ?? 0]}
     <div class="info panel ui">
@@ -176,25 +233,42 @@
   .stat b { font-weight: 800; }
   .stat .low { color: #ff8a80; }
   .stat.muted, .muted { color: var(--muted); font-size: 0.9em; }
-  .call { font-size: 0.85em; color: #ffe08a; animation: fade 1s ease infinite alternate; }
+  .call { font-size: 0.85em; color: #ffe08a; }
   .muts { position: absolute; top: 62px; left: 10px; display: flex; gap: 6px; }
   .muts .chip { background: rgba(80, 20, 60, 0.85); border: 1px solid #c084fc; cursor: help; }
   .topright { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
   .votes { font-size: 0.75em; opacity: 0.85; }
-  .targeting { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); background: rgba(20, 12, 6, 0.85); padding: 6px 16px; border-radius: 10px; border: 1px solid var(--gold-2); font-weight: 800; white-space: nowrap; }
-  .banner { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); text-align: center; animation: bannerIn 2.6s ease forwards; width: min(700px, 92vw); }
+  .targeting { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background: rgba(20, 12, 6, 0.85); padding: 6px 16px; border-radius: 10px; border: 1px solid var(--gold-2); font-weight: 800; white-space: nowrap; }
+  .banner { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); text-align: center; animation: bannerIn 2.6s ease forwards; width: min(700px, 92vw); }
   .bt { font-family: 'Cinzel', serif; font-size: clamp(30px, 5vw, 52px); font-weight: 800; color: #fff3c4; text-shadow: 0 3px 0 #4a2a0a, 0 6px 18px #000; }
   .bs { margin-top: 4px; font-weight: 800; color: #e9d5ff; text-shadow: 0 2px 4px #000; }
   @keyframes bannerIn { 0% { opacity: 0; transform: translate(-50%, 10px) scale(0.95); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+  .waveanchor { position: absolute; left: 0; top: 0; width: 0; height: 0; visibility: hidden; }
   .wavebtn {
-    position: absolute; left: 0; top: 0; margin: -26px 0 0 -26px; width: 52px; height: 52px; border-radius: 50%; cursor: pointer; visibility: hidden;
-    border: 3px solid #4a1410; background: radial-gradient(circle at 35% 30%, #ff8a65, #b71c1c); font-size: 26px; display: grid; place-items: center;
-    box-shadow: 0 0 0 4px rgba(255, 138, 101, 0.35), 0 6px 14px rgba(0, 0, 0, 0.5); animation: pulse 1.2s ease-in-out infinite;
+    position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+    border: 3px solid #4a1410; background: radial-gradient(circle at 35% 30%, #ff8a65, #b71c1c); color: #fff; font-size: 26px; display: grid; place-items: center;
+    box-shadow: 0 0 0 4px rgba(255, 138, 101, 0.35), 0 6px 14px rgba(0, 0, 0, 0.5);
   }
-  .wavebtn .sec { position: absolute; bottom: -10px; font-size: 12px; font-weight: 800; background: #2b1d12; padding: 0 6px; border-radius: 99px; }
+  .wavebtn.first { animation: pulse 1.2s ease-in-out infinite; }
+  .wavebtn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .wavebtn .sec { position: absolute; bottom: -11px; font-size: 12px; font-weight: 800; background: #2b1d12; padding: 0 6px; border-radius: 99px; white-space: nowrap; }
+  .wavecard { position: absolute; left: 40px; top: -30px; width: 270px; padding: 10px 12px; background: rgba(28, 20, 12, 0.95); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; gap: 8px; font-size: 14px; z-index: 6; }
+  .wavecard.flip { left: auto; right: 40px; }
+  .wh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .wh b { font-family: 'Cinzel', serif; font-size: 1.1em; }
+  .wh span { color: var(--muted); font-size: 0.9em; }
+  .wavecard ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .wavecard li { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .wavecard li b { font-variant-numeric: tabular-nums; }
+  .wavecard li.boss { color: #ffb4a8; font-weight: 800; }
+  .wavecard em { font-style: normal; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gold); margin-left: 6px; }
+  .wm { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: #e9d5ff; }
+  .wf { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.15); padding-top: 7px; font-size: 13px; color: var(--muted); }
+  .wf b { color: var(--gold); }
   @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(255, 138, 101, 0.08), 0 6px 14px rgba(0, 0, 0, 0.5); } }
   .radialAnchor { position: absolute; left: 0; top: 0; visibility: hidden; }
-  .heroCard { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 10px; padding: 8px 10px; align-items: center; }
+  .bottomleft { position: absolute; left: 10px; bottom: 10px; display: flex; align-items: flex-end; gap: 10px; }
+  .heroCard { display: flex; gap: 10px; padding: 8px 10px; align-items: center; }
   .portrait { position: relative; width: 74px; height: 74px; border-radius: 12px; border: 3px solid var(--gold-2); background: radial-gradient(circle at 50% 30%, #fff4cf, #a07040); cursor: pointer; padding: 0; overflow: hidden; }
   .portrait img { width: 100%; height: 100%; }
   .portrait.dead img { filter: grayscale(1) brightness(0.5); }
@@ -205,15 +279,18 @@
   .bar { height: 7px; background: rgba(0, 0, 0, 0.45); border-radius: 4px; overflow: hidden; }
   .bar i { display: block; height: 100%; transition: width 0.15s; }
   .bar.hp i { background: linear-gradient(90deg, #ef4444, #84cc16); }
-  .bar.xp { height: 4px; }
+  .bar.xp { height: 5px; }
   .bar.xp i { background: #60a5fa; }
   .skills { display: flex; gap: 5px; margin-top: 2px; }
-  .skill { position: relative; width: 60px; height: 46px; border-radius: 9px; border: 2px solid var(--wood-dark); background: linear-gradient(180deg, #4a6fa5, #243b63); color: #fff; cursor: pointer; font-size: 10px; font-weight: 800; padding: 2px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.05; }
+  .skill { position: relative; width: 68px; height: 52px; border-radius: 9px; border: 2px solid var(--wood-dark); background: linear-gradient(180deg, #4a6fa5, #243b63); color: #fff; cursor: pointer; font-size: 11.5px; font-weight: 800; padding: 3px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center; text-align: center; line-height: 1.05; }
+  .skill :global(.icon) { width: 20px; height: 20px; }
+  .skill.locked, .skill.ult.locked { background: rgba(0, 0, 0, 0.25); border-style: dashed; border-color: rgba(255, 255, 255, 0.3); color: var(--muted); filter: none; }
   .skill.ult { background: linear-gradient(180deg, #c58b16, #7a4d06); }
-  .skill:disabled { filter: grayscale(0.7) brightness(0.75); cursor: default; }
+  .skill:disabled:not(.locked) { filter: grayscale(0.7) brightness(0.75); cursor: default; }
+  .skill:disabled { cursor: default; }
   .skill .kbd, .spell .kbd { position: absolute; top: -7px; right: -6px; font-size: 11px; line-height: 16px; }
   .cd { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); border-radius: 7px; font-size: 17px; font-weight: 800; }
-  .spells { position: absolute; left: 350px; bottom: 10px; display: flex; gap: 8px; }
+  .spells { display: flex; gap: 8px; }
   .spell { position: relative; width: 62px; height: 62px; font-size: 34px; cursor: pointer; display: grid; place-items: center; padding: 0; }
   .players { position: absolute; right: 10px; top: 58px; display: flex; flex-direction: column; gap: 4px; }
   .pl { display: flex; gap: 8px; align-items: center; background: rgba(20, 12, 6, 0.8); border-left: 5px solid var(--c); border-radius: 8px; padding: 3px 8px; font-size: 0.85em; }
@@ -230,7 +307,7 @@
   .dmg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   .debug { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); padding: 3px 10px; border-radius: 6px; font-family: monospace; font-size: 12px; }
   @media (max-width: 820px) {
-    .spells { left: 10px; bottom: 112px; }
+    .bottomleft { flex-direction: column; align-items: flex-start; }
     .chatwrap { bottom: 190px; }
     .top { gap: 10px; font-size: 0.9em; }
   }

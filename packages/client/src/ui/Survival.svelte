@@ -2,12 +2,12 @@
   import { DIFFICULTY_NAMES, MAPS, SURVIVAL_MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
-  import { setHero, ui } from '../state.svelte';
+  import { setDifficulty, setHero, ui } from '../state.svelte';
   import HeroPicker from './HeroPicker.svelte';
   import { ICON } from './icons';
 
   let map = $state(SURVIVAL_MAPS[0]);
-  let diff = $state<Difficulty>(1);
+  const diff = $derived<Difficulty>(ui.difficulty);
   let top = $state<{ name: string; wave: number }[]>([]);
   const BIOME_DESC: Record<string, string> = {
     carrefour: 'Trois routes s’ouvrent au fil des vagues.',
@@ -38,7 +38,7 @@
     </div>
     <div class="row">
       {#each DIFFICULTY_NAMES as d, i}
-        <button class="btn small" class:gold={diff === i} onclick={() => (diff = i as Difficulty)}>{d}</button>
+        <button class="btn small" class:gold={diff === i} onclick={() => setDifficulty(i as Difficulty)}>{d}</button>
       {/each}
     </div>
     <HeroPicker value={ui.hero} onpick={setHero} />

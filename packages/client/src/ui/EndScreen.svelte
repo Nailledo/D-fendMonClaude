@@ -37,7 +37,7 @@
     </table>
     <div class="row btns">
       {#if hasNext && !multi}
-        <button class="btn gold big" onclick={() => app.startSolo('story', LEVELS[level + 1].mapId, e.difficulty, 'samuel', level + 1)}>Niveau suivant</button>
+        <button class="btn gold big" onclick={() => app.startSolo('story', LEVELS[level + 1].mapId, e.difficulty, app.game?.cfg.players[0].hero ?? ui.hero, level + 1)}>Niveau suivant</button>
       {/if}
       {#if !multi}<button class="btn" onclick={() => app.restart()}>Rejouer</button>{/if}
       <button class="btn" onclick={() => app.leaveGame()}>{multi ? 'Retour au salon' : 'Menu'}</button>

@@ -47,6 +47,8 @@ export const ui = $state({
   overlay: null as Overlay,
   name: loadRaw<string>('name', ''),
   hero: loadRaw<HeroId>('hero', 'samuel'),
+  /** dernière difficulté choisie ; Normal tant que le joueur n'a terminé aucun niveau */
+  difficulty: loadRaw<Difficulty>('difficulty', progress.unlocked === 0 ? 0 : 1),
   netStatus: 'closed' as 'connecting' | 'open' | 'closed',
   error: '',
   room: null as null | { code: string; you: number; players: LobbyPlayer[]; settings: RoomSettings; inGame: boolean },
@@ -102,6 +104,10 @@ export function banner(title: string, sub = '', ms = 2600) {
 export function setName(n: string) {
   ui.name = n.slice(0, 16);
   save('name', ui.name);
+}
+export function setDifficulty(d: Difficulty) {
+  ui.difficulty = d;
+  save('difficulty', d);
 }
 export function setHero(h: HeroId) {
   ui.hero = h;

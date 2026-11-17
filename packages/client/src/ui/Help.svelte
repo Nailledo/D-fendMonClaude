@@ -17,13 +17,13 @@
     </ul>
     <h3>Votre héros</h3>
     <ul>
-      <li>Clic droit n’importe où pour le déplacer (ou sélectionnez-le, puis cliquez au sol). Il bloque et combat les ennemis et gagne des niveaux.</li>
+      <li>Clic droit n’importe où pour le déplacer (au tactile : appui long), ou sélectionnez-le puis touchez le sol. Il bloque et combat les ennemis et gagne des niveaux.</li>
       <li>Ses compétences se débloquent aux niveaux 1, 3 et 5 : <span class="kbd">{keyLabel(keys.skill1)}</span> <span class="kbd">{keyLabel(keys.skill2)}</span> <span class="kbd">{keyLabel(keys.ult)}</span>.</li>
     </ul>
     <h3>Sorts et vagues</h3>
     <ul>
       <li><span class="kbd">{keyLabel(keys.spell1)}</span> Pluie de météores et <span class="kbd">{keyLabel(keys.spell2)}</span> Renforts : choisissez ensuite un point sur la carte.</li>
-      <li>Le bouton rouge au début du chemin appelle la vague suivante. L’appeler en avance rapporte de l’or et recharge les sorts.</li>
+      <li>Le bouton rouge au début du chemin appelle la vague suivante ; survolez-le (ou touchez-le une fois) pour voir les ennemis qui arrivent. L’appeler en avance rapporte de l’or à chaque joueur et recharge les sorts.</li>
     </ul>
     <h3>En coopération</h3>
     <ul>

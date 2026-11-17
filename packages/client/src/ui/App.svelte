@@ -40,7 +40,7 @@
 <style>
   .toasts {
     position: fixed;
-    top: 84px;
+    top: 64px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;

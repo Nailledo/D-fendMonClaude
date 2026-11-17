@@ -31,7 +31,7 @@
 
 <style>
   .picker { display: flex; flex-direction: column; gap: 10px; }
-  .list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
   .hero {
     cursor: pointer;
     background: rgba(0, 0, 0, 0.12);
@@ -45,7 +45,7 @@
     font-size: 0.85em;
     color: inherit;
   }
-  .hero img { width: 64px; height: 64px; }
+  .hero img { width: 100%; max-width: 64px; height: auto; aspect-ratio: 1; }
   .hero.on { border-color: var(--gold-2); background: rgba(242, 193, 78, 0.25); }
   .info { font-size: 0.88em; line-height: 1.35; }
   .info p { margin: 4px 0; }

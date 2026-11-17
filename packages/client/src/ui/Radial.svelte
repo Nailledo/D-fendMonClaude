@@ -1,13 +1,17 @@
 <script lang="ts">
-  import { FAMILIES, SELL_RATIO, TOWERS, investedCost } from '@dfend/shared';
+  import { FAMILIES, TOWERS } from '@dfend/shared';
   import { app } from '../app';
   import { ui } from '../state.svelte';
   import { keyLabel, keys } from '../settings';
-  import { FAMILY_ICON, FAMILY_NAME, ICON } from './icons';
+  import { FAMILY_ICON, ICON } from './icons';
+  import { sellValue as sellOf } from './towerStats';
 
   const sel = $derived(ui.sel!);
   const gold = $derived(ui.hud.gold);
   let tip = $state<{ title: string; text: string; cost?: number } | null>(null);
+  /** infobulle à gauche quand le menu est dans le tiers droit de l'écran */
+  let flip = $state(false);
+  const place = (e: PointerEvent) => (flip = (e.currentTarget as HTMLElement).getBoundingClientRect().left > window.innerWidth * 0.6);
   const g = () => app.game;
   const R = 74;
   const at = (angleDeg: number, r = R) => {
@@ -18,14 +22,7 @@
   const fam = $derived(sel.fam !== undefined ? FAMILIES[sel.fam] : 'archer');
   const lvl = $derived(sel.level ?? 0);
   const sk = $derived(sel.sk ?? [0, 0]);
-  const skillCost = (i: number) => {
-    const s = TOWERS[fam][lvl].skills?.[i];
-    if (!s) return 0;
-    let c = 0;
-    for (let r = 0; r < sk[i]; r++) c += s.costs[r];
-    return c;
-  };
-  const sellValue = $derived(Math.floor((investedCost(fam, lvl) + skillCost(0) + skillCost(1)) * SELL_RATIO));
+  const sellValue = $derived(sellOf(sel.fam ?? 0, lvl, sk as [number, number]));
   const statLine = (fi: string, l: number) => {
     const t = TOWERS[fi as keyof typeof TOWERS][l];
     if (t.soldiers) return `${t.soldiers.count} soldats · ${t.soldiers.hp} PV · ${t.soldiers.dmg[0]}-${t.soldiers.dmg[1]} dégâts · armure ${Math.round(t.soldiers.armor * 100)} %`;
@@ -34,7 +31,7 @@
   };
 </script>
 
-<div class="radial ui" role="menu" tabindex="-1" onpointerleave={() => { tip = null; if (app.game) app.game.hoverFam = -1; }}>
+<div class="radial ui" role="menu" tabindex="-1" onpointerover={place} onpointerleave={() => { tip = null; if (app.game) { app.game.hoverFam = -1; app.game.hoverLevel = -1; } }}>
   <div class="ring"></div>
   {#if sel.kind === 'build'}
     {#each FAMILIES as f, i}
@@ -51,7 +48,7 @@
     {#if lvl < 2}
       {@const next = TOWERS[fam][lvl + 1]}
       <button class="opt up" class:poor={gold < next.cost} style={at(-90)}
-        onpointerenter={() => (tip = { title: next.name, text: next.desc + ' ' + statLine(fam, lvl + 1), cost: next.cost })}
+        onpointerenter={() => { tip = { title: next.name, text: next.desc + ' ' + statLine(fam, lvl + 1), cost: next.cost }; if (app.game) app.game.hoverLevel = lvl + 1; }}
         onclick={() => g()?.upgrade()}>
         {@html ICON.up}<span class="cost">{next.cost}</span><span class="kbd">{keyLabel(keys.upgrade)}</span>
       </button>
@@ -59,7 +56,7 @@
       {#each [1, 2] as s}
         {@const spec = TOWERS[fam][2 + s]}
         <button class="opt spec" class:poor={gold < spec.cost} style={at(s === 1 ? -130 : -50)}
-          onpointerenter={() => (tip = { title: spec.name, text: spec.desc + ' ' + statLine(fam, 2 + s), cost: spec.cost })}
+          onpointerenter={() => { tip = { title: spec.name, text: spec.desc + ' ' + statLine(fam, 2 + s), cost: spec.cost }; if (app.game) app.game.hoverLevel = 2 + s; }}
           onclick={() => g()?.upgrade(s as 1 | 2)}>
           {#if ui.portraits[`t_${sel.fam}_${2 + s}`]}<img src={ui.portraits[`t_${sel.fam}_${2 + s}`]} alt="" />{:else}{@html FAMILY_ICON[sel.fam ?? 0]}{/if}
           <span class="cost">{spec.cost}</span>
@@ -88,7 +85,7 @@
     {/if}
   {/if}
   {#if tip}
-    <div class="tip panel">
+    <div class="tip panel" class:flip>
       <b>{tip.title}</b>{#if tip.cost !== undefined} <span class="tc" class:poor={gold < tip.cost}>{@html ICON.coin}{tip.cost}</span>{/if}
       <div>{tip.text}</div>
     </div>
@@ -117,8 +114,9 @@
   .pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0, 0, 0, 0.4); }
   .pips i.on { background: #fde047; }
   .cost { position: absolute; bottom: -12px; font-size: 12px; font-weight: 800; color: #ffe08a; background: #2b1d12; padding: 0 6px; border-radius: 99px; }
-  .opt .kbd { position: absolute; top: -6px; right: -6px; font-size: 10px; }
+  .opt .kbd { position: absolute; top: -6px; right: -6px; font-size: 11px; }
   .tip { position: absolute; left: 92px; top: -40px; width: 260px; padding: 8px 10px; font-size: 0.82em; z-index: 5; }
+  .tip.flip { left: auto; right: 92px; }
   .tc { display: inline-flex; align-items: center; gap: 2px; font-weight: 800; color: #7a4d06; }
   .tc.poor { color: var(--red); }
 </style>

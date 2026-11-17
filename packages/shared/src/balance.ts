@@ -46,6 +46,12 @@ export function computeScaling(nPlayers: number, diff: Difficulty, multiK = 1): 
   };
 }
 
+/** Or touché par CHAQUE joueur actif quand la vague est appelée avec `secondsLeft` secondes d'avance. */
+export function earlyCallBonus(secondsLeft: number, activePlayers: number): number {
+  const n = Math.max(1, Math.min(4, activePlayers));
+  return Math.floor(secondsLeft * BALANCE.earlyGoldPerSec * BALANCE.bountyShare[n - 1]);
+}
+
 export function starsFor(lives: number, maxLives: number): number {
   if (maxLives <= 1) return lives > 0 ? 3 : 0;
   if (lives >= 18) return 3;

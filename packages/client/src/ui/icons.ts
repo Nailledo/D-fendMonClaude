@@ -34,3 +34,32 @@ export const ICON = {
 
 export const FAMILY_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon];
 export const FAMILY_NAME = ['Archers', 'Caserne', 'Mages', 'Artillerie'];
+
+/** Icônes au trait (une couleur, `currentColor`) : base du jeu d'icônes de la refonte. */
+const line = (body: string) =>
+  `<svg class="icon line" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
+export const LINE = {
+  lock: line('<rect x="5.5" y="10.5" width="13" height="9.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>'),
+  skull: line('<path d="M12 3.5c-4.4 0-7.5 3-7.5 7 0 2.4 1.1 4 2.8 5v3.5h9.4v-3.5c1.7-1 2.8-2.6 2.8-5 0-4-3.1-7-7.5-7z"/><circle cx="9.2" cy="11" r="1.4"/><circle cx="14.8" cy="11" r="1.4"/>'),
+  coin: line('<circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.8h5M9.5 14.2h5"/>'),
+  up: line('<path d="M12 19.5v-15M6 10.5l6-6 6 6"/>'),
+  sell: line('<circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/>'),
+  flag: line('<path d="M6 21V3.5M6 4.5h11l-2.5 4 2.5 4H6"/>'),
+};
+
+/** Une icône par compétence de héros (clé `icon` des données). */
+export const SKILL_ICON: Record<string, string> = {
+  charge: line('<path d="M14.5 4.5h5v5L9 20l-5-5z"/><path d="M7 12l5 5M4 20l2-2"/>'),
+  rally: line('<path d="M4 10h3l7-4.5v13L7 14H4z"/><path d="M17.5 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11"/>'),
+  ultSword: line('<path d="M12 3l2 5.5 5.5-2-2.5 5.5 4 3-5.5.5L14 21l-2-4.5L10 21l-1.5-5.5L3 15l4-3-2.5-5.5 5.5 2z"/>'),
+  pierce: line('<path d="M3 12h15M15 8l4 4-4 4"/><path d="M7 8.5v7M11 8.5v7"/>'),
+  rain: line('<path d="M7 3v6M12 3v8M17 3v6M5 13l2 7M10 13l2 7M15 13l2 7"/>'),
+  dawn: line('<path d="M4 17h16M7 17a5 5 0 0 1 10 0"/><path d="M12 4v3M5 8l2 2M19 8l-2 2"/>'),
+  hammer: line('<path d="M4 9l5-5 4 4-5 5z"/><path d="M11 10l9 9"/>'),
+  turret: line('<rect x="6" y="13" width="12" height="7"/><path d="M9 13v-3h6v3M15 11.5h5"/>'),
+  flame: line('<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 3-5.5 3.5-9 2 1.5 3 3 3 5 1-1 1.5-2 1.5-3.5 2.5 2 4.5 4.5 4.5 7.5 0 3.4-2 6-6 6z"/>'),
+  bones: line('<path d="M6 18L18 6M6 6l12 12"/><circle cx="5" cy="5" r="1.6"/><circle cx="19" cy="19" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="19" r="1.6"/>'),
+  drain: line('<path d="M12 3.5c3 4 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-10z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>'),
+  army: line('<path d="M8 4.5c-2.5 0-4 1.6-4 3.8 0 1.3.6 2.2 1.5 2.7V13h5v-2c.9-.5 1.5-1.4 1.5-2.7 0-2.2-1.5-3.8-4-3.8z"/><path d="M16 10.5c-2.5 0-4 1.6-4 3.8 0 1.3.6 2.2 1.5 2.7V19h5v-2c.9-.5 1.5-1.4 1.5-2.7 0-2.2-1.5-3.8-4-3.8z"/>'),
+};
