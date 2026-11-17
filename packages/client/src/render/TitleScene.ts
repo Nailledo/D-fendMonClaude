@@ -46,7 +46,12 @@ export class TitleScene {
   private heroTarget: Foe | null = null;
   private towers: { pool: InstPool; x: number; z: number; y: number; kind: number; cd: number; fired: number; range: number }[] = [];
   private kessin: InstPool;
-  private kessinPos = new THREE.Vector3(-20, 6, -32);
+  private kessinPos = new THREE.Vector3(-20, 0, -32);
+  /** Kessin marche le long de l'horizon : avancement, cap, hauteur de la gueule */
+  private kPhase = 0;
+  private kYaw = 0;
+  private kMouth = 5;
+  private heightAt: (x: number, z: number) => number;
   private nextRoar = 4;
   private roar = -99;
   private crows: InstPool;
@@ -59,6 +64,7 @@ export class TitleScene {
     const w = buildWorld(map);
     this.group.add(w.group);
     r.applyTheme(w.theme);
+    this.heightAt = w.heightAt;
     this.path = map.paths[0];
     this.fx = new Fx(this.group);
     const pool = (key: string, fb: () => THREE.BufferGeometry, cap: number) => {
@@ -87,7 +93,11 @@ export class TitleScene {
       const y = m ? (m.meta.muzzleY ?? m.meta.height * 0.8) : tm!.muzzleY;
       this.towers.push({ pool: p, x: s.x, z: s.z, y, kind: fam === 0 ? 0 : fam === 2 ? 1 : 4, cd: fam === 0 ? 0.9 : fam === 2 ? 1.4 : 2.4, fired: -9, range: fam === 3 ? 9 : 8 });
     });
-    this.kessin = pool(K.enemy('kessin2'), () => enemyGeometry('kessin2'), 1);
+    // Kessin à pied (première forme) : il arpente les collines au loin
+    const kg = geoFor(K.enemy('kessin1'), () => enemyGeometry('kessin1'));
+    kg.geo.computeBoundingBox();
+    this.kMouth = kg.geo.boundingBox!.max.y * 0.82;
+    this.kessin = new InstPool(kg.geo, 1, this.group, settings.shadows, kg.map);
     this.crows = pool(K.enemy('corbeau'), () => enemyGeometry('corbeau'), 4);
     // une colonne déjà en route au lancement
     for (let i = 0; i < 6; i++) this.spawn(this.path.length * (0.05 + i * 0.07), -9);
@@ -207,31 +217,49 @@ export class TitleScene {
     for (const p of this.pools.values()) p.end();
 
     // ------------------------------------------------ Kessin, au loin
-    // il reste à l'arrière-plan, à l'opposé de la caméra qui tourne
-    const oa = t * 0.05;
-    const kp = this.kessinPos.set(this.focus.x - Math.sin(oa) * 26 + Math.cos(oa) * Math.sin(t * 0.23) * 4, 4.6, this.focus.z - Math.cos(oa) * 26 - Math.sin(oa) * Math.sin(t * 0.23) * 4);
-    const ky = kp.y + Math.sin(t * 0.9) * 0.6;
-    const kx = kp.x;
+    // il reste à l'arrière-plan, à l'opposé de la caméra qui tourne, et marche de long en large sur les collines
     if (t > this.nextRoar) {
       this.roar = t;
-      this.nextRoar = t + 6 + Math.random() * 4;
+      this.nextRoar = t + 7 + Math.random() * 4;
     }
     const rt = t - this.roar;
-    const roaring = rt < 1.4;
+    const roaring = rt < 1.8;
+    const oa = t * 0.05;
+    const rx = Math.sin(oa), rz = Math.cos(oa); // direction caméra → scène (radiale)
+    const tx0 = rz, tz0 = -rx; // tangente à l'horizon
+    if (!roaring) this.kPhase += dt * 0.11;
+    const along = Math.sin(this.kPhase) * 9, vel = Math.cos(this.kPhase) * 9 * 0.11;
+    const kx = this.focus.x - rx * 23 + tx0 * along, kz = this.focus.z - rz * 23 + tz0 * along;
+    const ky = Math.max(0, this.heightAt(kx, kz)) - 0.05;
+    this.kessinPos.set(kx, ky, kz);
+    const scale = 2.0;
+    // cap : dans le sens de la marche, ou face à la scène pour rugir
+    const faceScene = Math.atan2(this.focus.x - kx, this.focus.z - kz);
+    const walkYaw = Math.atan2(tx0 * Math.sign(vel), tz0 * Math.sign(vel));
+    let target = roaring || Math.abs(vel) < 0.25 ? faceScene : walkYaw;
+    let dy = target - this.kYaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    this.kYaw += dy * Math.min(1, dt * 2.5);
+    const walking = !roaring && Math.abs(vel) > 0.25;
     this.kessin.begin();
-    const kj = this.kessin.push(kx, ky, kp.z, Math.atan2(this.focus.x - kx, this.focus.z - kp.z) + Math.sin(t * 0.4) * 0.3, 2.6, 0, 1.2, 0, 2);
-    this.kessin.setPose(kj, roaring ? Math.min(1, rt / 1.4) : 0, 0, Math.sin(t * 0.5) * 0.15, 1);
+    const kj = this.kessin.push(kx, ky, kz, this.kYaw, scale, 0, walking ? 2.4 : 0, 0, 0);
+    // rugissement : il se cambre en arrière puis se penche en avant, bras immobiles (le trident ne bouge pas)
+    const lean = roaring ? Math.sin(Math.min(1, rt / 1.8) * Math.PI) * 0.55 : 0;
+    this.kessin.setPose(kj, 0, lean, 0, 1);
     this.kessin.end();
-    if (roaring) {
-      // souffle de feu vers l'avant
-      const dirx = this.focus.x - kx, dirz = this.focus.z - kp.z, l = Math.hypot(dirx, dirz) || 1;
-      for (let n = 0; n < 3; n++) fx.glow.spawn(kx + (dirx / l) * 1.5, ky + 2.4, kp.z + (dirz / l) * 1.5, (dirx / l) * 9 + (Math.random() - 0.5) * 2, -1 + Math.random() * 2, (dirz / l) * 9 + (Math.random() - 0.5) * 2, 0.5, 0.35, n ? 0xff6f00 : 0xffd54f, 0);
-      if (rt < dt * 1.5) {
-        fx.flashes.flash(kx, ky + 3, kp.z, 0xff5a00, 12, 1.2, 20);
+    if (roaring && rt > 0.35) {
+      // gueule : en haut du modèle, un peu en avant dans la direction du regard
+      const fwx = Math.sin(this.kYaw), fwz = Math.cos(this.kYaw);
+      const mx = kx + fwx * scale * 0.45, my = ky + this.kMouth * scale, mz = kz + fwz * scale * 0.45;
+      // souffle de feu
+      for (let n = 0; n < 3; n++) fx.glow.spawn(mx, my, mz, fwx * 9 + (Math.random() - 0.5) * 2, -1.5 + Math.random() * 2, fwz * 9 + (Math.random() - 0.5) * 2, 0.5, 0.35, n ? 0xff6f00 : 0xffd54f, 0);
+      if (rt - dt < 0.35) {
+        fx.flashes.flash(mx, my, mz, 0xff5a00, 12, 1.2, 20);
         // une boule de feu s'abat sur le chemin, loin devant Samuel
         this.path.at(this.path.length * (0.15 + Math.random() * 0.25), 0, this.tmp);
         const tx = this.tmp.x + (Math.random() - 0.5) * 3, tz = this.tmp.z + (Math.random() - 0.5) * 3;
-        fx.addShot({ kind: 11, sx: kx, sy: ky + 3, sz: kp.z, tx, ty: 0, tz, targetId: 0xffff, t0: tick + 6, dur: 28, arc: 3, x: kx, y: ky + 3, z: kp.z });
+        fx.addShot({ kind: 11, sx: mx, sy: my, sz: mz, tx, ty: 0, tz, targetId: 0xffff, t0: tick, dur: 28, arc: 3, x: mx, y: my, z: mz });
         setTimeout(() => {
           fx.burst(tx, 0.3, tz, 26, 0xff6f00, 6, 0.28, 0.8, true, -4);
           fx.debris(tx, tz, 8, 0x4e342e, 6);
@@ -240,17 +268,20 @@ export class TitleScene {
           fx.smoke(tx, 0.5, tz, 6, 0x3d3d3d, 1.2);
           fx.flashes.flash(tx, 2, tz, 0xff9a3c, 10, 0.4, 10);
           for (const f of this.foes) if ((f.x - tx) ** 2 + (f.z - tz) ** 2 < 5) this.damage(f, 9);
-        }, (34 / TICK) * 1000);
+        }, (28 / TICK) * 1000);
       }
     }
 
     // ------------------------------------------------ corbeaux et lucioles
     this.crows.begin();
     for (let c = 0; c < 3; c++) {
-      const a = t * (0.25 + c * 0.07) + c * 2.1, rad = 9 + c * 3;
+      const w = 0.25 + c * 0.07, a = t * w + c * 2.1, rad = 9 + c * 3;
       const x = this.focus.x + Math.cos(a) * rad, z = this.focus.z - 4 + Math.sin(a) * rad * 0.7;
-      const j = this.crows.push(x, 6 + c * 1.2 + Math.sin(t + c) * 0.5, z, a + Math.PI, 0.9, c, 1, 0, 2);
-      this.crows.setPose(j, 0, 0, 0.45, 1);
+      // cap = direction de la trajectoire ; penché vers l'intérieur du virage ; léger rebond à chaque battement
+      const yaw = Math.atan2(-Math.sin(a), Math.cos(a) * 0.7);
+      const y = 6 + c * 1.2 + Math.sin(t * 0.6 + c) * 0.5 + Math.sin(t * 7 + c) * 0.06;
+      const j = this.crows.push(x, y, z, yaw, 0.9, c, 1, 0, 0);
+      this.crows.setPose(j, 0, 0, 0.3, 1);
     }
     this.crows.end();
     if (Math.random() < dt * 6) fx.glow.spawn(this.focus.x + (Math.random() - 0.5) * 30, 0.3 + Math.random() * 2, this.focus.z + (Math.random() - 0.5) * 22, (Math.random() - 0.5) * 0.4, 0.25, (Math.random() - 0.5) * 0.4, 3, 0.05, 0xfff3a0, -0.05);

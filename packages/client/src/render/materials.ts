@@ -79,10 +79,12 @@ vec3 transformed = vec3(position);
     s = mix(s, -2.6, gesture);
     moved = rotX(transformed - pivot, s) + pivot;
   } else if (part > 4.5 && part < 6.5) {
-    float flap = sin(uTime * 9.0 + iAnim.x);
-    // battement asymétrique : descente rapide, remontée lente
-    flap = flap > 0.0 ? flap : flap * 0.6;
-    float s = (part < 5.5 ? 1.0 : -1.0) * (0.25 + flap * 0.6);
+    // battement plus lent, alternant avec des phases de vol plané (ailes tenues légèrement relevées)
+    float flap = sin(uTime * 7.0 + iAnim.x * 3.1);
+    // descente rapide, remontée lente
+    flap = flap > 0.0 ? flap : flap * 0.65;
+    float glide = smoothstep(-0.2, 0.4, sin(uTime * 0.8 + iAnim.x * 1.7));
+    float s = (part < 5.5 ? 1.0 : -1.0) * (0.12 + flap * mix(0.12, 0.6, glide));
     moved = rotZ(transformed - pivot, s) + pivot;
   } else if (part > 7.5 && part < 8.5) {
     moved.x += sin(uTime * 1.7 + iAnim.x + position.x) * 0.07 * max(position.y, 0.0);

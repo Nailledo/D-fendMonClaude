@@ -17,7 +17,8 @@
     "hf:example": "node --env-file=.env.local --import tsx tools/higgsfield/index.ts",
     "models:bake": "tsx tools/models/bake.ts",
     "models:prompts": "tsx tools/models/prompts.ts",
-    "models:kitbash": "tsx tools/models/kitbash.ts"
+    "models:kitbash": "tsx tools/models/kitbash.ts",
+    "models:fixparts": "tsx tools/models/fixparts.ts"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

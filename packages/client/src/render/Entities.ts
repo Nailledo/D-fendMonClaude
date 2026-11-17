@@ -199,6 +199,8 @@ export class Entities {
       const stunned = (flags & EF_STUNNED) !== 0;
       const fighting = (flags & EF_FIGHTING) !== 0;
       let y = f.eY[i];
+      // volants : petit rebond du corps au rythme des battements
+      if (def.flying) y += Math.sin(time * 7 + id * 1.37 * 3.1) * 0.06 * def.size;
       if (burrowed) y = -0.55 * def.size;
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.7;
       const speed = stunned ? 0 : def.speed * 4.5 / Math.max(0.6, def.size);

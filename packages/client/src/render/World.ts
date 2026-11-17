@@ -33,6 +33,8 @@ export interface WorldInfo {
   exit: { x: number; z: number };
   slotPool: InstPool;
   lockedPool: InstPool;
+  /** hauteur du terrain en (x, z) (interpolée sur la grille) */
+  heightAt: (x: number, z: number) => number;
 }
 
 /** Point où le chemin entre dans la zone jouable. */
@@ -241,5 +243,11 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   const lockedPool = new InstPool(slotGeometry(true), map.slots.length, group, false);
   slotPool.mesh.receiveShadow = true;
 
-  return { group, theme, entries, exit, slotPool, lockedPool };
+  const heightAt = (x: number, z: number) => {
+    const fx = Math.max(0, Math.min(SX - 1.001, (x + W / 2) / (W / SX))), fz = Math.max(0, Math.min(SZ - 1.001, (z + H / 2) / (H / SZ)));
+    const ix = Math.floor(fx), iz = Math.floor(fz), u = fx - ix, v = fz - iz;
+    const h = (i: number, j: number) => heights[j * (SX + 1) + i] ?? 0;
+    return (h(ix, iz) * (1 - u) + h(ix + 1, iz) * u) * (1 - v) + (h(ix, iz + 1) * (1 - u) + h(ix + 1, iz + 1) * u) * v;
+  };
+  return { group, theme, entries, exit, slotPool, lockedPool, heightAt };
 }

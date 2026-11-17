@@ -179,6 +179,8 @@ export class Prologue {
         let hit = 0;
         if (a === kg && line === 5) { gesture = 0.5 + 0.3 * Math.sin(time * 9); hit = 0.25 + 0.2 * Math.sin(time * 7); }
         if (a === e && (line === 3 || line === 4)) { hit = 0.5 + 0.5 * Math.sin(time * 14); gesture = 0.4 + 0.3 * Math.sin(time * 11); }
+        // Kessin tient un trident : pas de geste des bras (il tournoierait), il se cambre à la place
+        if (a === k) { hit = Math.max(hit, gesture * 0.9); gesture = 0; }
         const life = a.born >= 0 ? Math.min(1, Math.max(0.001, (time - a.born) / 0.6)) : 1;
         a.pool.setPose(j, Math.max(0, gesture), Math.max(0, hit), 0, life);
       }

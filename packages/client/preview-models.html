@@ -46,9 +46,35 @@ await Promise.all(keys.map(async (key, i) => {
   const gltf = await loader.loadAsync('/models/' + manifest[key].file);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(i % 2 ? 0x7a9a63 : 0x6f8f5a);
+  // ?parts=1 : chaque sommet coloré selon sa partie animée (corps gris, jambes rouge/orange, bras bleu/cyan, ailes vert/jaune)
+  const PART_COL = [[0.6, 0.6, 0.6], [0.9, 0.15, 0.15], [1, 0.6, 0.1], [0.15, 0.35, 0.95], [0.1, 0.85, 0.9], [0.2, 0.8, 0.2], [0.95, 0.9, 0.2], [1, 1, 1], [0.6, 0.3, 0.8], [0.5, 0.2, 0.1]];
   gltf.scene.traverse((o) => {
     if (o.isMesh) {
       const map = o.material.map ?? null;
+      const a = o.geometry.attributes._anim;
+      if (q.get('islands')) {
+        // ?islands=1 : chaque morceau séparé (îlot de triangles connectés) dans sa couleur
+        const g = o.geometry, pos = g.attributes.position, n = pos.count, idx = g.index.array;
+        const par = Array.from({ length: n }, (_, i) => i);
+        const find = (x) => (par[x] === x ? x : (par[x] = find(par[x])));
+        const uni = (x, y) => { par[find(x)] = find(y); };
+        const keys = new Map();
+        for (let i = 0; i < n; i++) { const k = Math.round(pos.getX(i) * 2000) + ',' + Math.round(pos.getY(i) * 2000) + ',' + Math.round(pos.getZ(i) * 2000); if (keys.has(k)) uni(i, keys.get(k)); else keys.set(k, i); }
+        for (let t = 0; t < idx.length; t += 3) { uni(idx[t], idx[t + 1]); uni(idx[t], idx[t + 2]); }
+        const roots = new Map(); const c = new Float32Array(n * 3);
+        const pal = [[0.95, 0.3, 0.3], [0.3, 0.6, 0.95], [0.3, 0.85, 0.35], [0.95, 0.85, 0.2], [0.8, 0.4, 0.9], [0.2, 0.9, 0.9], [1, 0.6, 0.2], [0.6, 0.6, 0.6], [0.5, 0.3, 0.1], [1, 1, 1], [0.1, 0.4, 0.2], [0.9, 0.5, 0.7]];
+        for (let i = 0; i < n; i++) { const r = find(i); if (!roots.has(r)) roots.set(r, roots.size); c.set(pal[roots.get(r) % pal.length], i * 3); }
+        g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+        o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        return;
+      }
+      if (q.get('parts') && a) {
+        const c = new Float32Array(a.count * 3);
+        for (let i = 0; i < a.count; i++) c.set(PART_COL[Math.round(a.getX(i))] ?? [0, 0, 0], i * 3);
+        o.geometry.setAttribute('color', new THREE.BufferAttribute(c, 3));
+        o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        return;
+      }
       o.material = new THREE.MeshLambertMaterial({ vertexColors: !!o.geometry.attributes.color, map, ...(manifest[key].cutout ? { alphaTest: 0.5, side: THREE.DoubleSide } : {}) });
     }
   });

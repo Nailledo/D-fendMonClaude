@@ -23,7 +23,7 @@ class App {
     autoDetect(this.renderer.gl.getContext());
     this.showTitle();
     // modèles importés de l'écran titre : on reconstruit le diorama une fois chargés
-    void loadManifest().then(() => ensureModels([K.hero('samuel'), ...['kessin2', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], [])])).then(() => {
+    void loadManifest().then(() => ensureModels([K.hero('samuel'), ...['kessin1', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], [])])).then(() => {
       if (this.title && !this.game) {
         this.title.dispose();
         this.title = new TitleScene(this.renderer);
