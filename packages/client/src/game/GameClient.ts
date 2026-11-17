@@ -6,7 +6,7 @@ import {
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
-import { Fx } from '../render/Fx';
+import { Decal, Fx } from '../render/Fx';
 import type { Renderer } from '../render/Renderer';
 import { buildWorld, type WorldInfo } from '../render/World';
 import type { Host } from '../net/host';
@@ -889,6 +889,14 @@ export class GameClient {
         const [, kind, srcType, srcId, target, tx, tz, flight] = ev;
         if (srcType === Src.Sky) { p.x = tx - 6; p.y = 24; p.z = tz - 7; }
         else if (!this.startPos(srcType, srcId, p)) return;
+        // gestes des tireurs : recul de la tour, bras levés de l'unité
+        if (srcType === Src.Tower) this.ents.towerFire.set(srcId, this.time);
+        else if (srcType === Src.Unit) this.ents.uFireTime[srcId] = this.time;
+        else if (srcType === Src.Hero) {
+          const s = this.interp.latest!;
+          const hi = s.heroIndex(srcId);
+          if (hi >= 0) this.ents.uFireTime[s.hUnit[hi]] = this.time;
+        }
         const dist = Math.sqrt((tx - p.x) ** 2 + (tz - p.z) ** 2);
         if (kind === 3) {
           // rayon arcanique
@@ -906,6 +914,7 @@ export class GameClient {
         else if (kind === FIRE_METEOR) arc = 0;
         const ti = target !== 0xffff ? f.enemyIdx(target) : -1;
         fx.addShot({ kind, sx: p.x, sy: p.y, sz: p.z, tx, ty: ti >= 0 ? f.eY[ti] + 0.7 : 0.2, tz, targetId: target, t0: tick, dur: Math.max(1, flight), arc, x: p.x, y: p.y, z: p.z });
+        if (kind === FIRE_METEOR) fx.ring(tx, tz, 2.4, 0xff3d00, Math.max(0.3, flight / TICK_RATE / Math.max(1, ui.hud.speed)), 0.3);
         if (kind === 0 || kind === FIRE_HERO_ARROW) audio.play('arrow', 0.8);
         else if (kind === 1 || kind === FIRE_HERO_BOLT) audio.play('bolt', 0.7);
         else if (kind === 2) audio.play('frost', 0.8);
@@ -936,87 +945,142 @@ export class GameClient {
             fx.burst(x, 0.3, z, kind === Impact.Frag ? 6 : 14, 0x6d4c41, 4, 0.2, 0.7);
             fx.burst(x, 0.4, z, 8, 0xffb74d, 3, 0.18, 0.3, true, 0);
             fx.ring(x, z, rad, 0xffcc80, 0.35);
+            if (kind === Impact.Shell) { fx.decals.add(x, z, rad * 0.55, Decal.Scorch, 2.5, 0xff8f00); fx.smoke(x, 0.4, z, 3, 0x6b6b6b, rad * 0.5); }
             audio.play('explosion', kind === Impact.Frag ? 0.4 : 0.7);
             break;
           case Impact.FireShell:
             fx.burst(x, 0.3, z, 18, 0xff6f00, 5, 0.22, 0.6, true, -3);
             fx.burst(x, 0.3, z, 10, 0x3e2723, 3, 0.25, 0.9);
             fx.ring(x, z, rad, 0xff8f00, 0.45);
+            fx.decals.add(x, z, rad * 0.75, Decal.Scorch, 3.5, 0xff6f00);
+            fx.flashes.flash(x, 1.2, z, 0xff8f00, 6, 0.3, rad * 4);
+            fx.smoke(x, 0.5, z, 5, 0x4a4a4a, rad * 0.6);
             audio.play('explosion', 0.8);
             break;
           case Impact.Meteor:
-            fx.burst(x, 0.3, z, 30, 0xff6f00, 7, 0.3, 0.8, true, -4);
-            fx.burst(x, 0.3, z, 20, 0x4e342e, 5, 0.3, 1.1);
-            fx.ring(x, z, rad * 1.3, 0xffab40, 0.6);
+            // impact : éclair, cratère fumant, onde de choc, rochers projetés, colonne de fumée
+            fx.burst(x, 0.3, z, 34, 0xff6f00, 7, 0.32, 0.8, true, -4);
+            fx.burst(x, 0.4, z, 14, 0xffe082, 9, 0.18, 0.4, true, -2);
+            fx.debris(x, z, 12, 0x4e342e, 7);
+            fx.shockwave(x, z, rad * 1.4, 0xffab40, 0x7a5a3a, 0.55);
+            fx.decals.add(x, z, rad * 0.95, Decal.Scorch, 6, 0xff5a00);
+            fx.flashes.flash(x, 2, z, 0xff9a3c, 14, 0.45, rad * 6);
+            fx.smoke(x, 0.6, z, 9, 0x3d3d3d, rad * 0.8);
             this.r.shake(0.35);
             audio.play('explosion', 1.2);
             break;
           case Impact.Frost:
+            // gel : cristaux de glace qui jaillissent, sol givré, brume froide
             fx.burst(x, 0.5, z, 30, 0xb3e5fc, 4, 0.15, 0.8, true, -1);
             fx.ring(x, z, rad, 0x80deea, 0.7);
+            fx.shards.burst(x, z, rad * 0.9, Math.round(8 + rad * 3), 0xbfefff, 1.6, 1.1);
+            fx.decals.add(x, z, rad, Decal.Pool, 3, 0xcff4ff);
+            fx.pillars.add(x, 0, z, rad * 0.3, rad, 1.4, 0.4, 0.5, 0x80deea, 0);
+            fx.flashes.flash(x, 1.5, z, 0x9be7ff, 6, 0.35, rad * 4);
             audio.play('frost', 1.2);
             break;
           case Impact.Arcane:
+            // colonne arcanique tournoyante et cercle runique
             fx.burst(x, 0.7, z, 24, 0xea80fc, 5, 0.14, 0.6, true, 2);
             fx.beams.add(x, 0, z, x, 8, z, 0.4, 0.4, 0xea80fc);
+            fx.pillar(x, z, Math.max(1, rad * 0.6), 7, 0xd27bff, 0.9);
+            fx.runes.add(x, z, rad, Decal.Rune, 1.1, 0xc77dff, 2.4);
+            fx.spiral(x, z, rad, 24, 0xea80fc);
+            fx.flashes.flash(x, 2, z, 0xd27bff, 8, 0.45, rad * 4);
             audio.play('arcane', 1.2);
             break;
           case Impact.Kamikaze:
             fx.burst(x, 0.4, z, 22, 0x8d9a3a, 5, 0.2, 0.7);
             fx.burst(x, 0.4, z, 12, 0xffb74d, 4, 0.2, 0.3, true, 0);
             fx.ring(x, z, rad, 0xc5e1a5, 0.4);
+            fx.decals.add(x, z, rad * 0.7, Decal.Pool, 3, 0x6f8a2a);
             audio.play('explosion', 0.7);
             break;
           case Impact.Hammer:
+            // marteau de Brom : le sol se fend, des pics de roche jaillissent
             fx.burst(x, 0.2, z, 24, 0x8d6e63, 5, 0.18, 0.7);
-            fx.ring(x, z, rad, 0xffcc80, 0.5);
-            this.r.shake(0.25);
+            fx.shockwave(x, z, rad, 0xffcc80, 0x8d6e63, 0.5);
+            fx.decals.add(x, z, rad * 1.1, Decal.Cracks, 3.5, 0xff9a3c);
+            fx.shards.burst(x, z, rad * 0.85, 10, 0x8a7560, 1.1, 0.9);
+            fx.debris(x, z, 8, 0x6d5a48, 5);
+            this.r.shake(0.3);
             audio.play('shell', 1.2);
             break;
           case Impact.Holy:
+            // lumière sacrée : colonne dorée, rayons, onde et cercle runique
             fx.burst(x, 0.5, z, 40, 0xfff59d, 6, 0.18, 0.9, true, 1);
-            fx.ring(x, z, rad, 0xfff176, 0.7);
-            fx.ring(x, z, rad * 0.6, 0xffffff, 0.5);
+            fx.pillar(x, z, Math.max(1.2, rad * 0.5), 10, 0xffe58a, 1.2);
+            fx.runes.add(x, z, rad, Decal.Rune, 1.5, 0xffe082, 1.2);
+            fx.shockwave(x, z, rad, 0xfff3c0, 0xfff3c0, 0.6);
+            fx.spiral(x, z, rad, 30, 0xfff59d, 1.4);
+            fx.flashes.flash(x, 3, z, 0xfff1b0, 14, 0.6, rad * 5);
             this.r.shake(0.3);
             audio.play('levelup');
             break;
           case Impact.Drain:
+            // drain de Nox : filaments verts aspirés vers le centre
             fx.burst(x, 0.8, z, 30, 0x76ff03, 3, 0.12, 0.8, true, 0);
             fx.ring(x, z, rad, 0x76ff03, 0.6, rad);
+            fx.runes.add(x, z, rad, Decal.Rune, 1.2, 0x6bff3a, -1.8);
+            for (let k = 0; k < 8; k++) {
+              const a = (k / 8) * Math.PI * 2 + Math.random() * 0.4;
+              fx.beams.add(x + Math.cos(a) * rad, 0.4, z + Math.sin(a) * rad, x, 1.2, z, 0.5, 0.06, 0x9cff57, 0.6);
+            }
+            for (let k = 0; k < 26; k++) {
+              const a = Math.random() * Math.PI * 2;
+              fx.glow.spawn(x + Math.cos(a) * rad, 0.3 + Math.random(), z + Math.sin(a) * rad, -Math.cos(a) * rad * 1.6, 1.2, -Math.sin(a) * rad * 1.6, 0.6, 0.1, 0x9cff57, 0);
+            }
+            fx.flashes.flash(x, 1.5, z, 0x76ff03, 6, 0.4, rad * 4);
             audio.play('arcane', 0.8);
             break;
           case Impact.Lava:
+            // flaque de lave qui bouillonne pendant toute sa durée
             fx.ring(x, z, rad, 0xff6f00, 5, rad * 0.98);
+            fx.decals.add(x, z, rad, Decal.Pool, 5, 0xff5a10);
+            fx.decals.add(x, z, rad * 1.15, Decal.Scorch, 6.5, 0xff3d00);
             for (let k = 0; k < 40; k++) {
               const a = Math.random() * Math.PI * 2, d = Math.random() * rad;
               fx.glow.spawn(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 1, 0, 1 + Math.random() * 4, 0.25, 0xff6f00, 0.2);
             }
+            fx.smoke(x, 0.3, z, 8, 0x4a3a30, rad);
+            fx.flashes.flash(x, 1, z, 0xff6a00, 8, 1.2, rad * 4);
             audio.play('explosion', 0.8);
             break;
           case Impact.ArrowRain:
             fx.ring(x, z, rad, 0xc5e1a5, 3, rad * 0.98);
+            fx.runes.add(x, z, rad, Decal.Rune, 3, 0xb9f6a0, 0.6);
             for (let k = 0; k < 36; k++) {
               const a = Math.random() * Math.PI * 2, d = Math.random() * rad;
               fx.addShot({ kind: 0, sx: x + Math.cos(a) * d - 2, sy: 9, sz: z + Math.sin(a) * d - 2, tx: x + Math.cos(a) * d, ty: 0, tz: z + Math.sin(a) * d, targetId: 0xffff, t0: tick + k * 1.6, dur: 8, arc: 0, x, y: 9, z });
             }
             break;
           case Impact.Dawn:
+            // aube de Samuel : explosion de lumière dorée
             fx.ring(x, z, rad, 0xffe082, 0.9);
             fx.burst(x, 1, z, 50, 0xffe082, 8, 0.12, 0.8, true, 0);
+            fx.pillar(x, z, 2, 12, 0xffd54f, 1.4);
+            fx.shockwave(x, z, rad, 0xffe7a0, 0xfff3c0, 0.7);
+            fx.runes.add(x, z, rad, Decal.Rune, 1.6, 0xffd54f, 1);
+            fx.flashes.flash(x, 3, z, 0xffe7a0, 16, 0.7, rad * 5);
+            this.r.shake(0.25);
             audio.play('spell');
             break;
           case Impact.Charge:
             fx.burst(x, 0.3, z, 18, 0x90caf9, 5, 0.15, 0.5, true, 0);
-            fx.ring(x, z, rad, 0x90caf9, 0.4);
+            fx.shockwave(x, z, rad, 0x90caf9, 0x9e8a70, 0.4);
             audio.play('hit', 1.5);
             break;
           case Impact.Summon:
             fx.burst(x, 0.3, z, 30, 0x76ff03, 3, 0.15, 0.9, true, 2);
             fx.ring(x, z, rad, 0x76ff03, 0.6);
+            fx.runes.add(x, z, rad, Decal.Rune, 1.4, 0x76ff03, -1.4);
+            fx.pillar(x, z, 0.9, 4, 0x6bff3a, 0.9);
+            fx.smoke(x, 0.2, z, 6, 0x2e3b22, rad * 0.6);
             audio.play('arcane', 0.7);
             break;
           case Impact.Turret:
             fx.burst(x, 0.3, z, 16, 0xffb74d, 4, 0.15, 0.5, true, -2);
+            fx.shockwave(x, z, 1.4, 0xffcc80, 0x8d6e63, 0.4);
             audio.play('build');
             break;
           case Impact.Rally:
@@ -1026,9 +1090,11 @@ export class GameClient {
         break;
       }
       case Ev.Death: {
-        const [, , type, x, z] = ev;
+        const [, id, type, x, z] = ev;
         const d = ENEMIES[type];
         if (!d) return;
+        const ei = f.enemyIdx(id);
+        this.ents.killEnemy(id, type, ei >= 0 ? f.eX[ei] : x, ei >= 0 ? f.eZ[ei] : z, ei >= 0 ? f.eY[ei] : d.flying ? 2.4 : 0, this.time);
         const y = d.flying ? 2.4 : 0.5;
         const c = d.flying ? 0x37474f : DEATH_COLORS[d.biome] ?? 0x9e9e9e;
         fx.burst(x, y, z, d.boss ? 60 : Math.round(6 + d.size * 6), c, d.boss ? 7 : 3.5, 0.13 * d.size + 0.05, 0.8);
@@ -1049,7 +1115,7 @@ export class GameClient {
         const sl = this.map.slots[ev[2]];
         if (sl) {
           fx.burst(sl.x, 0.3, sl.z, 18, 0xbcaaa4, 3, 0.2, 0.8);
-          fx.ring(sl.x, sl.z, 1.8, 0xfff8e1, 0.5);
+          fx.shockwave(sl.x, sl.z, 2, 0xfff8e1, 0xbcaaa4, 0.45);
         }
         audio.play('build');
         break;
@@ -1065,6 +1131,8 @@ export class GameClient {
         if (t) {
           fx.burst(t.x, t.y * 0.6, t.z, 26, 0xfff59d, 4, 0.12, 0.9, true, 1);
           fx.ring(t.x, t.z, 2, 0xfff176, 0.6);
+          fx.pillars.add(t.x, 0, t.z, 1, 1.6, 2, t.y + 3, 0.8, 0xfff176, 1.2);
+          fx.spiral(t.x, t.z, 1.4, 18, 0xfff59d, 1);
         }
         audio.play('upgrade');
         if (ev[3] === this.you && ev[2] !== this.you) {
@@ -1075,10 +1143,20 @@ export class GameClient {
       }
       case Ev.Spell: {
         const [, kind, owner, x, z] = ev;
+        const team = PLAYER_COLORS[owner] ?? 0xffffff;
         if (kind === 1) {
+          // renforts : colonne de lumière, cercle aux couleurs du joueur, poussière à l'atterrissage
           fx.burst(x, 0.3, z, 16, 0xfff8e1, 3, 0.18, 0.6);
-          fx.ring(x, z, 1.5, PLAYER_COLORS[owner] ?? 0xffffff, 0.6);
+          fx.pillar(x, z, 1.3, 9, 0xfff1b0, 1.1);
+          fx.runes.add(x, z, 2.2, Decal.Rune, 1.6, team, 1.6);
+          fx.shockwave(x, z, 2.4, 0xfff3c0, 0x9e8a70, 0.5);
+          for (let k = 0; k < 24; k++) fx.glow.spawn(x + (Math.random() - 0.5) * 2.4, 5 + Math.random() * 3, z + (Math.random() - 0.5) * 2.4, (Math.random() - 0.5) * 0.6, -2.5, (Math.random() - 0.5) * 0.6, 1.4, 0.07, 0xfff59d, 0.6);
+          fx.flashes.flash(x, 3, z, 0xfff1b0, 10, 0.6, 10);
           audio.play('spell');
+        } else {
+          // pluie de météores : zone d'impact marquée au sol
+          fx.runes.add(x, z, 3, Decal.Rune, 1.8, 0xff7a2a, -1.2);
+          fx.ring(x, z, 3, 0xff5722, 1.5, 3);
         }
         break;
       }
@@ -1086,15 +1164,33 @@ export class GameClient {
         const [, owner, skill, x, z, hx, hz] = ev;
         const s = this.interp.latest!;
         const hi = s.heroIndex(owner);
+        if (hi >= 0) this.ents.castTime[s.hUnit[hi]] = this.time;
         const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
         if (type === 'lyra' && skill === 0) {
+          // flèche perçante : trait lumineux et sillage de vent
           const dx = x - hx, dz = z - hz, l = Math.sqrt(dx * dx + dz * dz) || 1;
-          fx.beams.add(hx, 1.1, hz, hx + (dx / l) * 13, 1.1, hz + (dz / l) * 13, 0.35, 0.12, 0xc5e1a5);
+          const ex = hx + (dx / l) * 13, ez = hz + (dz / l) * 13;
+          fx.beams.add(hx, 1.1, hz, ex, 1.1, ez, 0.35, 0.12, 0xc5e1a5);
+          fx.beams.add(hx, 1.1, hz, ex, 1.1, ez, 0.25, 0.04, 0xffffff);
+          for (let k = 0; k < 26; k++) {
+            const t = k / 26;
+            fx.glow.spawn(hx + (ex - hx) * t, 1.1 + (Math.random() - 0.5) * 0.3, hz + (ez - hz) * t, (dx / l) * 2 + (Math.random() - 0.5), Math.random() * 0.8, (dz / l) * 2 + (Math.random() - 0.5), 0.35 + t * 0.3, 0.08, 0xd4f5b0, 0);
+          }
           audio.play('arrow', 1.5);
         } else if (type === 'samuel' && skill === 0) {
+          // charge : traînée bleutée et poussière le long du trajet
           fx.beams.add(hx, 0.6, hz, x, 0.6, z, 0.3, 0.3, 0x90caf9);
+          const l = Math.hypot(x - hx, z - hz);
+          for (let k = 0; k < Math.min(30, l * 3); k++) {
+            const t = Math.random();
+            fx.sparks.spawn(hx + (x - hx) * t, 0.15, hz + (z - hz) * t, (Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2, 0.6, 0.18, 0x9e8a70, -3);
+          }
         } else if (type === 'samuel' && skill === 1) {
+          // cri de ralliement : cercle doré, étincelles qui montent
           fx.ring(hx, hz, 4.5, 0xffcc80, 0.8);
+          fx.runes.add(hx, hz, 4.5, Decal.Rune, 1.4, 0xffcc80, 1.4);
+          fx.spiral(hx, hz, 3, 30, 0xffe082, 1.2);
+          fx.pillars.add(hx, 0, hz, 0.6, 1.2, 1, 3, 0.8, 0xffe082, 1);
           audio.play('heal');
         } else if (type === 'brom' && skill === 1) {
           // l'impact Turret suffit
@@ -1136,6 +1232,9 @@ export class GameClient {
         if (i >= 0) {
           fx.burst(f.uX[i], 1, f.uZ[i], 24, 0xfff176, 3, 0.1, 1, true, 2);
           fx.ring(f.uX[i], f.uZ[i], 1.5, 0xfff176, 0.6);
+          fx.pillar(f.uX[i], f.uZ[i], 0.9, 6, 0xfff176, 1.1);
+          fx.spiral(f.uX[i], f.uZ[i], 1, 20, 0xfff59d);
+          this.ents.castTime[s.hUnit[hi]] = this.time;
         }
         break;
       }

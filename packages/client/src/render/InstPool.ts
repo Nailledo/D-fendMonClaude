@@ -26,7 +26,9 @@ export class InstPool {
   private anim!: Float32Array;
   private tint!: Float32Array;
   private team!: Float32Array;
+  private pose!: Float32Array;
   private mat!: Float32Array;
+  private aPose!: THREE.InstancedBufferAttribute;
   private aAnim!: THREE.InstancedBufferAttribute;
   private aTint!: THREE.InstancedBufferAttribute;
   private aTeam!: THREE.InstancedBufferAttribute;
@@ -47,12 +49,15 @@ export class InstPool {
     this.anim = new Float32Array(cap * 4);
     this.tint = new Float32Array(cap * 4);
     this.team = new Float32Array(cap * 3);
+    this.pose = new Float32Array(cap * 4);
     this.aAnim = new THREE.InstancedBufferAttribute(this.anim, 4).setUsage(THREE.DynamicDrawUsage);
     this.aTint = new THREE.InstancedBufferAttribute(this.tint, 4).setUsage(THREE.DynamicDrawUsage);
     this.aTeam = new THREE.InstancedBufferAttribute(this.team, 3).setUsage(THREE.DynamicDrawUsage);
     this.geo.setAttribute('iAnim', this.aAnim);
     this.geo.setAttribute('iTint', this.aTint);
+    this.aPose = new THREE.InstancedBufferAttribute(this.pose, 4).setUsage(THREE.DynamicDrawUsage);
     this.geo.setAttribute('iTeam', this.aTeam);
+    this.geo.setAttribute('iPose', this.aPose);
     this.mesh = new THREE.InstancedMesh(this.geo, sharedAnimMaterial(this.map), cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
@@ -86,6 +91,31 @@ export class InstPool {
     const a = i * 4;
     this.anim[a] = phase; this.anim[a + 1] = speed; this.anim[a + 2] = flash; this.anim[a + 3] = mode;
     this.tint[a + 3] = 0;
+    this.pose[a] = 0; this.pose[a + 1] = 0; this.pose[a + 2] = 0; this.pose[a + 3] = 0;
+    return i;
+  }
+
+  /** Pose d'une instance vivante : geste (0..1), recul au coup (0..1), roulis (rad), vie (1 normal, 0..1 apparition, -1..0 mort). */
+  setPose(i: number, gesture: number, hit: number, roll: number, life: number) {
+    const o = i * 4;
+    this.pose[o] = gesture; this.pose[o + 1] = hit; this.pose[o + 2] = roll; this.pose[o + 3] = life;
+  }
+
+  /** Ajoute une instance orientée selon une direction (projectiles) : l'axe +z du modèle suit (dx, dy, dz). */
+  pushDir(x: number, y: number, z: number, dx: number, dy: number, dz: number, s: number): number {
+    const i = this.push(x, y, z, 0, s);
+    const l = Math.hypot(dx, dy, dz) || 1;
+    const fx = dx / l, fy = dy / l, fz = dz / l;
+    // droite = haut × avant (le haut du monde, sauf trajectoire verticale)
+    let rx = fz, rz = -fx;
+    const rl = Math.hypot(rx, rz);
+    if (rl < 1e-4) { rx = 1; rz = 0; } else { rx /= rl; rz /= rl; }
+    // haut = avant × droite
+    const ux = fy * rz, uy = fz * rx - fx * rz, uz = -fy * rx;
+    const m = this.mat, o = i * 16;
+    m[o] = rx * s; m[o + 1] = 0; m[o + 2] = rz * s;
+    m[o + 4] = ux * s; m[o + 5] = uy * s; m[o + 6] = uz * s;
+    m[o + 8] = fx * s; m[o + 9] = fy * s; m[o + 10] = fz * s;
     return i;
   }
 
@@ -114,7 +144,7 @@ export class InstPool {
     this.mesh.instanceMatrix.clearUpdateRanges();
     this.mesh.instanceMatrix.addUpdateRange(0, this.count * 16);
     this.mesh.instanceMatrix.needsUpdate = true;
-    for (const [attr, n] of [[this.aAnim, 4], [this.aTint, 4], [this.aTeam, 3]] as const) {
+    for (const [attr, n] of [[this.aAnim, 4], [this.aTint, 4], [this.aTeam, 3], [this.aPose, 4]] as const) {
       attr.clearUpdateRanges();
       attr.addUpdateRange(0, this.count * n);
       attr.needsUpdate = true;

@@ -37,6 +37,21 @@ export class Entities {
   private tYaw = new Float32Array(N);
   private tBorn = new Map<number, number>();
   hitTime = new Float32Array(N);
+  /** dernier tir / geste (ennemis, unités) et dernier tir des tours */
+  fireTime = new Float32Array(N);
+  uFireTime = new Float32Array(N);
+  castTime = new Float32Array(N);
+  towerFire = new Map<number, number>();
+  private eBorn = new Float32Array(N);
+  private eKnown = new Uint8Array(N);
+  private eDeadAt = new Float32Array(N).fill(-99);
+  private eRoll = new Float32Array(N);
+  private uBorn = new Float32Array(N);
+  private uKnown = new Uint8Array(N);
+  private uDead = new Uint8Array(N);
+  private uRoll = new Float32Array(N);
+  /** corps qui tombent : rendus avec l'animation de mort après la disparition de l'entité */
+  private corpses: { pool: InstPool; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number }[] = [];
   private frameNo = 0;
   /** hauteur du canon de chaque tour (pour l'origine des tirs) */
   towerMuzzle = new Map<number, { x: number; y: number; z: number; fam: number; level: number; owner: number; slot: number }>();
@@ -143,6 +158,16 @@ export class Entities {
     this.glow.visible = true;
   }
 
+  /** Mort d'un ennemi (événement) : son corps bascule et s'enfonce au lieu de disparaître. */
+  killEnemy(id: number, type: number, x: number, z: number, y: number, time: number) {
+    const def = ENEMIES[type];
+    const pool = this.enemyPools[type];
+    if (!def || !pool) return;
+    this.eDeadAt[id] = time;
+    this.eKnown[id] = 0;
+    this.corpses.push({ pool, x, y, z, yaw: this.eYaw[id], s: def.size, t0: time, team: 0xffffff, dur: def.boss ? 1.6 : 0.85 });
+  }
+
   update(f: Frame, snap: Snapshot, dt: number, time: number, hoverSlot: number, selectedTower: number) {
     this.frameNo++;
     const k = Math.min(1, dt * 10);
@@ -154,10 +179,20 @@ export class Entities {
       const def = ENEMIES[f.eType[i]];
       if (!def) continue;
       const flags = f.eFlags[i];
+      // mort déjà jouée par un corps : on ne redessine pas l'ennemi pendant le retard d'interpolation
+      if (time - this.eDeadAt[id] < 1.2) continue;
       const target = Math.atan2(f.eDx[i], f.eDz[i]);
       const fresh = this.eSeen[id] !== this.frameNo - 1;
       this.eSeen[id] = this.frameNo;
+      if (!this.eKnown[id]) { this.eKnown[id] = 1; this.eBorn[id] = time; }
+      const prevYaw = this.eYaw[id];
       this.eYaw[id] = fresh ? target : lerpAngle(this.eYaw[id], target, k);
+      // roulis : on se penche dans les virages (fort pour les volants)
+      let dy = this.eYaw[id] - prevYaw;
+      if (dy > Math.PI) dy -= Math.PI * 2; else if (dy < -Math.PI) dy += Math.PI * 2;
+      const rollMax = def.flying ? 0.55 : 0.2;
+      const rollT = fresh ? 0 : Math.max(-rollMax, Math.min(rollMax, (-dy / Math.max(dt, 1e-3)) * (def.flying ? 0.35 : 0.1)));
+      this.eRoll[id] += (rollT - this.eRoll[id]) * Math.min(1, dt * 6);
       const burrowed = (flags & EF_BURROWED) !== 0;
       const stunned = (flags & EF_STUNNED) !== 0;
       const fighting = (flags & EF_FIGHTING) !== 0;
@@ -167,6 +202,9 @@ export class Entities {
       const speed = stunned ? 0 : def.speed * 4.5 / Math.max(0.6, def.size);
       const pool = this.enemyPools[f.eType[i]];
       const j = pool.push(f.eX[i], y, f.eZ[i], this.eYaw[id], def.size, id * 1.37, speed, flash, fighting ? 1 : 0);
+      const hit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
+      const gest = time - this.fireTime[id] < 0.45 ? (time - this.fireTime[id]) / 0.45 : 0;
+      pool.setPose(j, gest, hit, this.eRoll[id], Math.min(1, Math.max(0.001, (time - this.eBorn[id]) / 0.45)));
       if (stunned) pool.setTint(j, 0.6, 0.85, 1, 0.45);
       else if (flags & EF_SLOWED) pool.setTint(j, 0.45, 0.75, 1, 0.35);
       else if (flags & EF_DOT) pool.setTint(j, 1, 0.55, 0.15, 0.25);
@@ -174,7 +212,6 @@ export class Entities {
       else if (flags & EF_SHIELDED) pool.setTint(j, 1, 0.9, 0.5, 0.18);
       if (!burrowed && (f.eHp[i] < 0.999 || def.boss)) this.hpBar(f.eX[i], y + def.size * 1.45 + 0.35, f.eZ[i], f.eHp[i], def.boss ? 2.2 : 0.9);
     }
-    for (const p of this.enemyPools) p.end();
 
     // ------------------------------------------------ unités et héros
     for (const p of this.soldierPools) p.begin();
@@ -182,15 +219,30 @@ export class Entities {
     this.glow.visible = false;
     for (let i = 0; i < f.uN; i++) {
       const flags = f.uFlags[i];
-      if (flags & UF_DEAD) continue;
       const id = f.uId[i];
       const kind = f.uKind[i];
+      if (flags & UF_DEAD) {
+        // première image de la mort : le corps tombe
+        if (!this.uDead[id] && this.uKnown[id]) {
+          this.uDead[id] = 1;
+          const hero = kind === HERO_UNIT;
+          const pool = hero ? this.heroPools[this.heroTypeByUnit.get(id) ?? 0] : this.soldierPools[kind] ?? this.soldierPools[0];
+          this.corpses.push({ pool, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
+        }
+        continue;
+      }
+      if (this.uDead[id] || !this.uKnown[id]) { this.uDead[id] = 0; this.uKnown[id] = 1; this.uBorn[id] = time; }
       let yawT = this.uYaw[id];
       const tg = f.uTarget[i];
       const ti = tg !== 0xffff ? f.enemyIdx(tg) : -1;
       if (ti >= 0) yawT = Math.atan2(f.eX[ti] - f.uX[i], f.eZ[ti] - f.uZ[i]);
       else if (f.uDx[i] * f.uDx[i] + f.uDz[i] * f.uDz[i] > 0.0004) yawT = Math.atan2(f.uDx[i], f.uDz[i]);
+      const prevYaw = this.uYaw[id];
       this.uYaw[id] = lerpAngle(this.uYaw[id], yawT, k);
+      let dyw = this.uYaw[id] - prevYaw;
+      if (dyw > Math.PI) dyw -= Math.PI * 2; else if (dyw < -Math.PI) dyw += Math.PI * 2;
+      const rollT = Math.max(-0.18, Math.min(0.18, (-dyw / Math.max(dt, 1e-3)) * 0.08));
+      this.uRoll[id] += (rollT - this.uRoll[id]) * Math.min(1, dt * 6);
       const moving = f.uDx[i] * f.uDx[i] + f.uDz[i] * f.uDz[i] > 0.0004;
       const fighting = (flags & UF_FIGHTING) !== 0;
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.5;
@@ -207,10 +259,27 @@ export class Entities {
       }
       const j = pool.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, moving || fighting ? 9 : 0, flash, fighting ? 1 : 0);
       pool.setTeam(j, team);
+      const uhit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
+      const cast = time - this.castTime[id] < 0.6 ? (time - this.castTime[id]) / 0.6 : time - this.uFireTime[id] < 0.35 ? (time - this.uFireTime[id]) / 0.35 : 0;
+      pool.setPose(j, cast, uhit, this.uRoll[id], Math.min(1, Math.max(0.001, (time - this.uBorn[id]) / 0.4)));
       if (flags & UF_SHIELD) pool.setTint(j, 1, 0.95, 0.6, 0.3);
       else if (flags & UF_BUFF) pool.setTint(j, 1, 0.7, 0.3, 0.2);
       if (kind === HERO_UNIT || f.uHp[i] < 0.999) this.hpBar(f.uX[i], 1.75 * scale, f.uZ[i], f.uHp[i], kind === HERO_UNIT ? 1.1 : 0.7);
     }
+    // ------------------------------------------------ corps (animation de mort)
+    let w = 0;
+    for (const c of this.corpses) {
+      const p = (time - c.t0) / c.dur;
+      if (p >= 1) continue;
+      this.corpses[w++] = c;
+      // les volants tombent au sol avant de basculer
+      const y = c.y > 0.05 ? c.y * Math.max(0, 1 - (p / 0.4) ** 2) : 0;
+      const j = c.pool.push(c.x, y, c.z, c.yaw, c.s, 0, 0, p < 0.08 ? 0.6 : 0, 0);
+      c.pool.setTeam(j, c.team);
+      c.pool.setPose(j, 0, 0, 0, -Math.max(0.001, p));
+    }
+    this.corpses.length = w;
+    for (const p of this.enemyPools) p.end();
     for (const p of this.soldierPools) p.end();
     for (const p of this.heroPools) p.end();
 
@@ -234,6 +303,9 @@ export class Entities {
       const base = this.towerPool(this.towerBase, key, model.base, model.map);
       const b = base.push(slot.x, 0, slot.z, 0, pop, id * 0.9, 0, id === selectedTower ? 0.18 : 0, 0);
       base.setTeam(b, team);
+      const ft = this.towerFire.get(id);
+      const recoil = ft !== undefined && time - ft < 0.3 ? Math.max(0.001, (time - ft) / 0.3) : 0;
+      if (recoil) base.setPose(b, recoil, 0, 0, 0);
       if (stunned) base.setTint(b, 0.55, 0.7, 0.55, 0.45);
       if (model.turret) {
         const aim = snap.tAim[i];
@@ -242,6 +314,7 @@ export class Entities {
         const top = this.towerPool(this.towerTop, key, model.turret);
         const t = top.push(slot.x, model.turretY * pop, slot.z, this.tYaw[id], pop, id, 0, 0, 0);
         top.setTeam(t, team);
+        if (recoil) top.setPose(t, recoil, 0, 0, 0);
         if (stunned) top.setTint(t, 0.55, 0.7, 0.55, 0.45);
       }
       this.towerMuzzle.set(id, { x: slot.x, y: model.muzzleY, z: slot.z, fam, level, owner: snap.tOwner[i], slot: snap.tSlot[i] });

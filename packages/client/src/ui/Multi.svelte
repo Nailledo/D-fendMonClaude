@@ -45,8 +45,9 @@
 </div>
 
 <style>
-  .wrap { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(12, 14, 16, 0.55); }
-  .box { width: min(440px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 22px; }
+  .wrap { position: fixed; inset: 0; display: flex; overflow-y: auto; padding: calc(12px + var(--sat)) 12px calc(12px + var(--sab)); background: rgba(12, 14, 16, 0.55); }
+  .wrap > :global(*) { margin: auto; }
+  .box { width: min(440px, 100%); min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 22px; }
   h2 { margin: 0; font-size: 2.2em; }
   .status { margin: 0; color: var(--muted); }
   .ok { color: var(--good); }

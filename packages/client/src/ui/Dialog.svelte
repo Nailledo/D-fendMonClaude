@@ -20,7 +20,8 @@
       {#key d.i}<p>{line.text}</p>{/key}
       <div class="foot">
         <span>{d.i + 1} / {d.lines.length}</span>
-        <span>Clic ou <span class="kbd">{keyLabel(keys.wave)}</span> pour continuer · <span class="kbd">{keyLabel(keys.menu)}</span> pour passer</span>
+        {#if ui.touch}<span>Touchez pour continuer</span>
+        {:else}<span>Clic ou <span class="kbd">{keyLabel(keys.wave)}</span> pour continuer · <span class="kbd">{keyLabel(keys.menu)}</span> pour passer</span>{/if}
       </div>
     </div>
   </div>

@@ -31,7 +31,17 @@ attribute float aWeight;
 attribute vec4 iAnim;
 attribute vec4 iTint;
 attribute vec3 iTeam;
+/** pose : x = geste ponctuel (0..1 : tir, sort), y = recul au coup (1 → 0), z = roulis (rad), w = vie (0 statique, 0..1 apparition, -1..0 mort) */
+attribute vec4 iPose;
 uniform float uTime;
+float easeBack(float p) { float q = p - 1.0; return 1.0 + 2.70158 * q * q * q + 1.70158 * q * q; }
+/** cycle d'attaque : élan lent, frappe rapide, retour (0 = repos, < 0 armé, > 0 frappe) */
+float strikeCurve(float ph) {
+  float wind = smoothstep(0.0, 0.55, ph);
+  float hit = smoothstep(0.55, 0.66, ph);
+  float back = smoothstep(0.66, 1.0, ph);
+  return mix(mix(-wind, 1.0, hit), 0.0, back);
+}
 vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
 vec3 rotZ(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x - s * p.y, s * p.x + c * p.y, p.z); }
 vec3 rotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
@@ -45,18 +55,34 @@ vec3 transformed = vec3(position);
   float spd = iAnim.y;
   float t = uTime * spd + iAnim.x;
   float mode = iAnim.w;
+  float life = iPose.w;
+  float alive = life != 0.0 ? 1.0 : 0.0;
   float walk = spd > 0.0 ? 1.0 : 0.0;
   if (mode > 0.5 && mode < 1.5) walk = 0.25;
+  // phase d'attaque propre à chaque instance
+  float atk = fract(uTime * 1.25 + iAnim.x * 0.37);
+  float strike = strikeCurve(atk);
+  float gesture = iPose.x > 0.0 && alive > 0.5 ? sin(3.14159 * clamp(iPose.x, 0.0, 1.0)) : 0.0;
   vec3 moved = transformed;
   if (part > 0.5 && part < 2.5) {
     float s = (part < 1.5 ? 1.0 : -1.0) * sin(t) * 0.6 * walk;
+    // fente pendant la frappe : jambe avant en avant, jambe arrière en arrière
+    if (mode > 0.5 && mode < 1.5) s += (part < 1.5 ? 0.35 : -0.25) * max(strike, 0.0);
     moved = rotX(transformed - pivot, s) + pivot;
   } else if (part > 2.5 && part < 4.5) {
     float s = (part < 3.5 ? -1.0 : 1.0) * sin(t) * 0.45 * walk;
-    if (mode > 0.5 && mode < 1.5) s = part < 3.5 ? -0.3 : -1.5 + 1.5 * abs(sin(uTime * 4.0 + iAnim.x));
+    if (mode > 0.5 && mode < 1.5) {
+      // bras droit : arme levée derrière la tête puis abattue ; bras gauche : garde
+      s = part < 3.5 ? -0.55 - 0.25 * max(-strike, 0.0) : mix(-0.5, -2.7, max(-strike, 0.0)) + 2.2 * max(strike, 0.0);
+    }
+    // sort ou geste : les deux bras se lèvent
+    s = mix(s, -2.6, gesture);
     moved = rotX(transformed - pivot, s) + pivot;
   } else if (part > 4.5 && part < 6.5) {
-    float s = (part < 5.5 ? 1.0 : -1.0) * (0.25 + sin(uTime * 9.0 + iAnim.x) * 0.55);
+    float flap = sin(uTime * 9.0 + iAnim.x);
+    // battement asymétrique : descente rapide, remontée lente
+    flap = flap > 0.0 ? flap : flap * 0.6;
+    float s = (part < 5.5 ? 1.0 : -1.0) * (0.25 + flap * 0.6);
     moved = rotZ(transformed - pivot, s) + pivot;
   } else if (part > 7.5 && part < 8.5) {
     moved.x += sin(uTime * 1.7 + iAnim.x + position.x) * 0.07 * max(position.y, 0.0);
@@ -68,6 +94,45 @@ vec3 transformed = vec3(position);
   // fondu aux articulations (modèles importés : aWeight < 1 près des jointures)
   transformed = mix(transformed, moved, aWeight);
   if (walk > 0.5 && part < 7.5) transformed.y += abs(sin(t)) * 0.07;
+
+  if (alive > 0.5) {
+    // respiration au repos, écrasement-étirement à chaque pas
+    if (spd == 0.0) transformed.y *= 1.0 + sin(uTime * 2.3 + iAnim.x) * 0.022;
+    else if (walk > 0.5) { float st = cos(2.0 * t) * 0.035; transformed.y *= 1.0 + st; transformed.xz *= 1.0 - st * 0.5; }
+    // tout le corps accompagne la frappe : recul à l'élan, plongée à l'impact
+    if (mode > 0.5 && mode < 1.5) transformed = rotX(transformed, strike * 0.22);
+    // recul quand on est touché : bascule en arrière et écrasement
+    float hit = iPose.y;
+    if (hit > 0.0) {
+      transformed = rotX(transformed, -hit * 0.32);
+      transformed.y *= 1.0 - hit * 0.12;
+      transformed.xz *= 1.0 + hit * 0.08;
+    }
+    // sort : petit bond
+    transformed.y += gesture * 0.18;
+    // roulis dans les virages
+    transformed = rotZ(transformed, iPose.z);
+    if (life > 0.0 && life < 1.0) {
+      // apparition : jaillit du sol avec un léger dépassement
+      float e = easeBack(life);
+      transformed *= max(e, 0.0);
+      transformed.y -= (1.0 - life) * 0.6;
+    } else if (life < 0.0) {
+      // mort : bascule en arrière, rebond, puis s'enfonce dans le sol
+      float p = -life;
+      float fall = clamp(p / 0.45, 0.0, 1.0);
+      float ang = fall * fall * 1.45 - sin(clamp((p - 0.45) / 0.2, 0.0, 1.0) * 3.14159) * 0.12;
+      transformed = rotX(transformed, -ang);
+      transformed.y -= smoothstep(0.55, 1.0, p) * 1.1;
+      transformed *= 1.0 - smoothstep(0.7, 1.0, p) * 0.4;
+    }
+  } else if (iPose.x > 0.0) {
+    // objets statiques (tours) : recul au tir, écrasement puis rebond
+    float p = clamp(iPose.x, 0.0, 1.0);
+    float k = sin(p * 3.14159) * (1.0 - p);
+    transformed.y *= 1.0 - k * 0.16;
+    transformed.xz *= 1.0 + k * 0.1;
+  }
 }
 `;
 
@@ -76,6 +141,9 @@ const COLOR_PATCH = /* glsl */ `
 if (aAnim.x > 6.5 && aAnim.x < 7.5) vColor.rgb = iTeam;
 vColor.rgb = mix(vColor.rgb, iTint.rgb, iTint.a);
 vColor.rgb = mix(vColor.rgb, vec3(1.6, 1.5, 1.4), iAnim.z);
+// mort : la couleur s'assombrit ; sort : lueur
+if (iPose.w < 0.0) vColor.rgb *= 1.0 - (-iPose.w) * 0.55;
+if (iPose.x > 0.0 && iPose.w != 0.0) vColor.rgb += vec3(0.35, 0.3, 0.15) * sin(3.14159 * clamp(iPose.x, 0.0, 1.0));
 `;
 
 /**

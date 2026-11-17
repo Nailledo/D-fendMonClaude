@@ -29,16 +29,17 @@ class TitleScene {
     heroes.begin();
     const h = heroes.push(9, 0, 3, -0.6, 1.6);
     heroes.setTeam(h, 0x3b82f6);
+    heroes.setPose(h, 0, 0, 0, 1);
     heroes.end();
     const kg = geoFor(K.enemy('kessin2'), () => enemyGeometry('kessin2'));
     const k = new InstPool(kg.geo, 1, this.group, settings.shadows, kg.map);
     k.begin();
-    k.push(-20, 5, -34, 0.5, 2.6, 0, 1.2, 0, 2);
+    k.setPose(k.push(-20, 5, -34, 0.5, 2.6, 0, 1.2, 0, 2), 0, 0, 0, 1);
     k.end();
     const gg = geoFor(K.enemy('gobelin'), () => enemyGeometry('gobelin'));
     const gob = new InstPool(gg.geo, 8, this.group, settings.shadows, gg.map);
     gob.begin();
-    for (let i = 0; i < 6; i++) gob.push(-6 + i * 1.3, 0, -3 + (i % 2), 0.9, 0.8, i, 6, 0, 0);
+    for (let i = 0; i < 6; i++) gob.setPose(gob.push(-6 + i * 1.3, 0, -3 + (i % 2), 0.9, 0.8, i, 6, 0, 0), 0, 0, 0, 1);
     gob.end();
     r.scene.add(this.group);
   }
