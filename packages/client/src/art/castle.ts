@@ -133,7 +133,18 @@ export function castleGeometry(biome: Biome, low = false): CastleGeometry {
   // seuil de planches (pont-levis abaissé)
   g.box(GATE_HW * 2 + 0.2, 0.12, 1.6, p.wood, 0, 0.06, 1.15);
   for (let b = 0; b < 6; b++) g.box(0.06, 0.13, 1.6, shade(p.wood, 0.7), -GATE_HW + 0.1 + b * 0.52, 0.065, 1.15);
-  for (const s of [-1, 1]) g.box(0.06, 0.06, 2.4, 0x37474f, s * (GATE_HW - 0.05), 1.3, 1.0, -0.95);
+  // chaînes du pont-levis : du bout du tablier (bas, côté carte) jusqu'au mur au-dessus de la porte (haut)
+  {
+    const z0 = 1.9, y0 = 0.14, z1 = 0.62, y1 = 3.75;
+    const len = Math.hypot(z0 - z1, y1 - y0), a = Math.atan2(y1 - y0, z0 - z1);
+    for (const s of [-1, 1]) {
+      const cx = s * (GATE_HW - 0.05);
+      // boîte orientée selon z, inclinée autour de x : son extrémité +z descend vers le tablier
+      g.box(0.06, 0.06, len, 0x37474f, cx, (y0 + y1) / 2, (z0 + z1) / 2, a);
+      g.box(0.16, 0.16, 0.08, 0x2b2f33, cx, y1, z1 - 0.02); // ancrage dans le mur
+      g.box(0.14, 0.1, 0.14, 0x2b2f33, cx, y0 + 0.02, z0); // anneau sur le tablier
+    }
+  }
 
   // ---------------- courtines et tours d'angle
   const wallH = 3.6 * k, cx = 8.6;

@@ -199,6 +199,14 @@ export class Renderer {
     this.anchor = null;
   }
 
+  /** Décale doucement la cible de la caméra (le lissage et les bords de carte s'appliquent). */
+  nudge(dx: number, dz: number) {
+    this.cam.tx += dx;
+    this.cam.tz += dz;
+    this.cam.vx = this.cam.vz = 0;
+    this.anchor = null;
+  }
+
   shake(amount: number) {
     if (settings.reduceShake) return;
     this.cam.shake = Math.min(1, this.cam.shake + amount);

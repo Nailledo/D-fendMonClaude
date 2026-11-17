@@ -452,16 +452,20 @@
 
   .touch .bottomleft { left: calc(8px + var(--sal)); right: calc(8px + var(--sar)); bottom: calc(8px + var(--sab)); justify-content: space-between; align-items: flex-end; gap: 8px; pointer-events: none;
     padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
-  .touch .heroCard { gap: 10px; padding: 6px 10px 6px 6px; border-radius: 99px; align-items: center; background: var(--toon-cream); border: var(--bw) solid var(--ink); box-shadow: var(--rim), var(--shadow-sm); }
+  .touch .heroCard { gap: 10px; padding: 7px 10px 5px 6px; border-radius: 99px; align-items: center; background: var(--toon-cream); border: var(--bw) solid var(--ink); box-shadow: var(--rim), var(--shadow-sm); }
   .touch .portrait { width: 60px; height: 60px; box-shadow: 0 3px 0 var(--ink); }
-  .touch .lvl { left: -5px; bottom: -5px; width: 26px; height: 26px; font-size: 14px; border-width: 2.5px; }
+  /* badge de niveau en haut à gauche : la barre de vie occupe le bas du portrait */
+  .touch .lvl { left: -5px; top: -5px; bottom: auto; width: 24px; height: 24px; font-size: 13px; border-width: 2.5px; }
   .touch .phbar { display: block; position: absolute; left: 8px; right: 8px; bottom: -4px; height: 9px; border: 2px solid var(--ink); border-radius: 99px; background: #5a3f33; overflow: hidden; }
   .touch .phbar i { display: block; height: 100%; background: var(--life); transition: width 0.15s; }
   .touch .hcol { min-width: 0; gap: 0; }
   .touch .hname, .touch .bar { display: none; }
   .touch .skills { margin: 0; gap: 8px; }
   .touch .skill { width: 50px; height: 50px; }
-  .touch .skill .si :global(.ico3d) { width: 52px; height: 52px; }
+  /* compétence verrouillée : cadenas et niveau requis tiennent dans le rond (rien ne déborde de la barre) */
+  .touch .skill.locked { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
+  .touch .skill.locked :global(.icon) { width: 20px; height: 20px; }
+  .touch .skill.locked .sn { position: static; transform: none; padding: 0; background: none; color: var(--ink); font-size: 9.5px; line-height: 1; margin-top: 1px; }
   .touch .cd { font-size: 17px; }
   .touch .spells { gap: 10px; pointer-events: auto; padding: 6px; border: var(--bw) solid var(--ink); border-radius: 99px; background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); align-self: auto; }
   .touch .spell { width: 56px; height: 56px; }
@@ -494,7 +498,6 @@
     .touch .heroCard { gap: 8px; padding-right: 8px; }
     .touch .skills { gap: 6px; }
     .touch .skill { width: 44px; height: 44px; }
-    .touch .skill .si :global(.ico3d) { width: 46px; height: 46px; }
     .touch .portrait { width: 52px; height: 52px; }
     .touch .spells { gap: 6px; padding: 4px; }
     .touch .spell { width: 50px; height: 50px; }

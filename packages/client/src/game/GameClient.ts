@@ -804,6 +804,9 @@ export class GameClient {
   /** niveau survolé dans le panneau de tour ou le menu radial (aperçu de la portée future) */
   hoverLevel = -1;
 
+  /** emplacement pour lequel la caméra a déjà été recentrée (menu radial) */
+  private radialSlot = -1;
+
   private positionDom(snap: NonNullable<Interp['latest']>) {
     const s = ui.sel;
     if (dom.radial) {
@@ -814,9 +817,19 @@ export class GameClient {
         const W = this.r.width, H = this.r.height;
         const R = ui.touch ? (ui.short ? 70 : 82) : 74, face = ui.touch ? (ui.short ? 58 : 66) : 62;
         const ext = R + face / 2 + 4;
-        const top = ui.touch ? 60 : 64, bottom = ui.touch ? 84 : 16;
-        const x = Math.max(ext + 4, Math.min(W - ext - 4, this.proj.x));
-        const y = Math.max(top + ext, Math.min(H - bottom - ext - 14, this.proj.y));
+        const top = ui.touch ? (ui.short ? 52 : 60) : 64, bottom = ui.touch ? (ui.short ? 76 : 84) : 16;
+        const clampAxis = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
+        const x = clampAxis(this.proj.x, ext + 4, W - ext - 4);
+        const y = clampAxis(this.proj.y, top + ext, H - bottom - ext - 14);
+        // emplacement trop près d'un bord (fréquent sur téléphone) : plutôt que de décaler le menu loin de sa case,
+        // la caméra glisse pour amener la case là où le menu tient (le menu suit la case pendant le glissement)
+        if (this.radialSlot !== s.slot) {
+          this.radialSlot = s.slot;
+          if (Math.hypot(x - this.proj.x, y - this.proj.y) > 6) {
+            const from = this.r.pick(this.proj.x, this.proj.y), to = this.r.pick(x, y);
+            if (from && to) this.r.nudge(from.x - to.x, from.z - to.z);
+          }
+        }
         // tiroir d'informations du côté opposé au menu
         if (ui.touch) {
           const side = W > H ? (x > W / 2 ? 'left' : 'right') : (y > H * 0.5 ? 'top' : 'bottom');
@@ -825,6 +838,7 @@ export class GameClient {
         dom.radial.style.transform = `translate(${x | 0}px, ${y | 0}px)`;
         dom.radial.style.visibility = 'visible';
       } else {
+        this.radialSlot = -1;
         dom.radial.style.visibility = 'hidden';
         const side = this.r.width > this.r.height ? 'right' : 'bottom';
         if (ui.touch && ui.sheet !== side) ui.sheet = side;
