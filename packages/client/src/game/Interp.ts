@@ -73,10 +73,12 @@ export class Interp {
   private lastA: Snapshot | null = null;
   pendingEvents: { tick: number; ev: number[] }[] = [];
   delayTicks: number;
+  /** temps écoulé depuis l'arrivée du dernier snapshot (s) */
+  private since = 0;
 
   constructor(private map: RuntimeMap, local: boolean) {
     for (let i = 0; i < POOL; i++) this.pool.push(new Snapshot());
-    this.delayTicks = local ? 1.3 : 2.2;
+    this.delayTicks = local ? 1.8 : 2.4;
   }
 
   push(data: ArrayBuffer) {
@@ -91,6 +93,7 @@ export class Interp {
     }
     this.buf.push(s);
     this.latest = s;
+    this.since = 0;
     for (const ev of s.events) this.pendingEvents.push({ tick: s.tick, ev });
     if (this.buf.length === 1) this.renderTick = s.tick - this.delayTicks;
   }
@@ -100,11 +103,17 @@ export class Interp {
     const L = this.latest;
     if (!L) return null;
     const speed = L.speed || 1;
-    if (!paused) this.renderTick += dt * 20 * speed;
-    const target = L.tick - this.delayTicks * speed;
+    if (!paused) {
+      this.renderTick += dt * 20 * speed;
+      this.since += dt;
+    }
+    // tick serveur estimé : le dernier reçu + le temps écoulé depuis son arrivée. Se recaler sur le tick brut
+    // (qui avance par sauts à chaque snapshot) faisait accélérer et ralentir le rendu en dents de scie.
+    const est = L.tick + Math.min(this.since * 20 * speed, 2);
+    const target = est - this.delayTicks * speed;
     const diff = target - this.renderTick;
     if (Math.abs(diff) > 8) this.renderTick = target;
-    else this.renderTick += diff * Math.min(1, dt * 3);
+    else if (!paused) this.renderTick += diff * Math.min(1, dt * 0.8);
     if (this.renderTick > L.tick) this.renderTick = L.tick;
 
     let A = this.buf[0], B: Snapshot | null = null;

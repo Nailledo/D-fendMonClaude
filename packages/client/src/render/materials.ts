@@ -56,8 +56,9 @@ vec3 transformed = vec3(position);
 {
   float part = aAnim.x;
   vec3 pivot = aAnim.yzw;
+  // phase de marche cumulée côté CPU (stride.ts) : 0 = immobile
   float spd = iAnim.y;
-  float t = uTime * spd + iAnim.x;
+  float t = spd;
   float mode = iAnim.w;
   float life = iPose.w;
   float alive = life != 0.0 ? 1.0 : 0.0;

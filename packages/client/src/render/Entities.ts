@@ -11,6 +11,7 @@ import { HERO_STYLE, heroWeapon } from '../art/weapons';
 import type { Frame } from '../game/Interp';
 import { settings } from '../settings';
 import { drape } from './drape';
+import { GroundSpeed, stride } from './stride';
 import { InstPool } from './InstPool';
 import { hpBarMaterial } from './materials';
 
@@ -63,6 +64,11 @@ export class Entities {
   /** corps qui tombent : rendus avec l'animation de mort après la disparition de l'entité */
   private corpses: { pool: InstPool; weapon?: InstPool | null; style?: number; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number }[] = [];
   private frameNo = 0;
+  /** phase de marche et vitesse au sol mesurée, par ennemi et par unité */
+  private ePhase = new Float32Array(N);
+  private uPhase = new Float32Array(N);
+  private eGround = new GroundSpeed(N);
+  private uGround = new GroundSpeed(N);
   /** hauteur du canon de chaque tour (pour l'origine des tirs) */
   towerMuzzle = new Map<number, { x: number; y: number; z: number; fam: number; level: number; owner: number; slot: number }>();
   heroTypeByUnit = new Map<number, number>();
@@ -253,7 +259,12 @@ export class Entities {
       if (def.flying) y += Math.sin(time * 7 + id * 1.37 * 3.1) * 0.06 * def.size;
       if (burrowed) y = -0.55 * def.size;
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.7;
-      const speed = stunned ? 0 : def.speed * 4.5 / Math.max(0.6, def.size);
+      // cadence des pas = vitesse réellement parcourue (ralentis, arrêts, reprises sans à-coup)
+      const v = this.eGround.measure(id, f.eX[i], f.eZ[i], dt, this.frameNo, def.speed * 3);
+      const base = (def.speed * 4.5) / Math.max(0.6, def.size);
+      const cadence = stunned ? 0 : def.flying || fighting ? base : (v * 4.5) / Math.max(0.6, def.size);
+      this.ePhase[id] = stride(this.ePhase[id], cadence, dt);
+      const speed = this.ePhase[id];
       if (!this.inView(f.eX[i], y + def.size * 0.7, f.eZ[i], def.size * 1.6 + 2)) continue;
       if (this.inTunnel(f.eX[i], f.eZ[i])) continue;
       const pool = this.enemyPools[f.eType[i]];
@@ -312,6 +323,7 @@ export class Entities {
       const rollT = Math.max(-0.18, Math.min(0.18, (-dyw / Math.max(dt, 1e-3)) * 0.08));
       this.uRoll[id] += (rollT - this.uRoll[id]) * Math.min(1, dt * 6);
       const moving = walking;
+      const uv = this.uGround.measure(id, f.uX[i], f.uZ[i], dt, this.frameNo, 12);
       const fighting = (flags & UF_FIGHTING) !== 0;
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.5;
       const team = PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff;
@@ -341,8 +353,10 @@ export class Entities {
         cast = ct < castDur ? 1 + Math.max(0.001, ct / castDur) : ft < fireDur ? Math.max(0.001, ft / fireDur) : 0;
       } else cast = time - this.castTime[id] < 0.6 ? (time - this.castTime[id]) / 0.6 : time - this.uFireTime[id] < 0.35 ? (time - this.uFireTime[id]) / 0.35 : 0;
       const life = Math.min(1, Math.max(0.001, (time - this.uBorn[id]) / 0.4));
+      // pas au rythme de la vitesse mesurée ; en combat, piétinement régulier
+      this.uPhase[id] = stride(this.uPhase[id], fighting ? 9 : moving || uv > 0.3 ? Math.max(5, (uv * 3.6) / scale) : 0, dt);
       for (const p of weapon ? [pool, weapon] : [pool]) {
-        const j = p.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, moving || fighting ? 9 : 0, flash, mode);
+        const j = p.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, this.uPhase[id], flash, mode);
         p.setTeam(j, team);
         p.setPose(j, cast, uhit, this.uRoll[id], life);
         if (flags & UF_SHIELD) p.setTint(j, 1, 0.95, 0.6, 0.3);

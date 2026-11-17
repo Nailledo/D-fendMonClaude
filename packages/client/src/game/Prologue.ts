@@ -5,6 +5,7 @@ import { heroGeometry } from '../art/units';
 import { Decal, type Fx } from '../render/Fx';
 import { InstPool } from '../render/InstPool';
 import type { Renderer } from '../render/Renderer';
+import { stride } from '../render/stride';
 import { settings } from '../settings';
 import { audio } from '../audio/Audio';
 
@@ -20,6 +21,8 @@ interface Actor {
   born: number;
   visible: boolean;
   speed: number;
+  /** phase de marche cumulée */
+  phase: number;
   team: number;
 }
 
@@ -63,7 +66,7 @@ export class Prologue {
     const at = (u: number, v: number) => ({ x: this.cx + this.px * u + this.ix * v, z: this.cz + this.pz * u + this.iz * v });
     const a = (u: number, v: number, key: string, fb: () => THREE.BufferGeometry, s: number, yawOff: number, team = 0xffffff): Actor => {
       const p = at(u, v);
-      return { pool: pool(key, fb), x: p.x, y: 0, z: p.z, yaw: face + yawOff, s, born: -1, visible: true, speed: 0, team };
+      return { pool: pool(key, fb), x: p.x, y: 0, z: p.z, yaw: face + yawOff, s, born: -1, visible: true, speed: 0, phase: 0, team };
     };
     this.king = a(1.3, 0, K.hero('roi'), () => heroGeometry('roi'), 1.55, -0.45, 0xb3262e);
     this.ethan = a(-1.1, 0.2, K.hero('ethan'), () => heroGeometry('ethan'), 1.4, 0.45);
@@ -190,7 +193,8 @@ export class Prologue {
     const draw = (a: Actor, who: string) => {
       a.pool.begin();
       if (a.visible) {
-        const j = a.pool.push(a.x, a.y, a.z, a.yaw, a.s, a.x * 1.7, a.speed, 0, a === k ? 2 : 0);
+        a.phase = stride(a.phase, a.speed, dt);
+        const j = a.pool.push(a.x, a.y, a.z, a.yaw, a.s, a.x * 1.7, a.phase, 0, a === k ? 2 : 0);
         a.pool.setTeam(j, a.team);
         const talking = speaker === who;
         // geste quand le personnage parle ; le roi s'agite quand on enlève sa fille, Ethan se débat

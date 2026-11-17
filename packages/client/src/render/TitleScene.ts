@@ -9,6 +9,7 @@ import { settings } from '../settings';
 import { Decal, Fx } from './Fx';
 import { InstPool, forgetPools } from './InstPool';
 import type { Renderer } from './Renderer';
+import { stride } from './stride';
 import { buildWorld } from './World';
 
 /**
@@ -30,6 +31,8 @@ interface Foe {
   hit: number;
   fighting: boolean;
   wait: number;
+  /** phase de marche cumulée */
+  ph: number;
 }
 
 const TICK = 20;
@@ -48,6 +51,7 @@ export class TitleScene {
   private post = { x: 0, z: 0 };
   private heroPos = { x: 0, z: 0, yaw: 0 };
   private heroMoving = false;
+  private heroPhase = 0;
   /** avancement sur le chemin du poste de Samuel, et cap de base de la caméra */
   private postD = 40;
   private camBase = 0;
@@ -137,7 +141,7 @@ export class TitleScene {
     const roll = Math.random();
     const id = roll < 0.65 ? 'gobelin' : roll < 0.88 ? 'loup' : 'brute';
     const type = ENEMIES.findIndex((e) => e.id === id);
-    this.foes.push({ type, d, lane: (Math.random() - 0.5) * 1.2, hp: id === 'brute' ? 6 : id === 'loup' ? 2 : 3, x: 0, z: 0, yaw: 0, born, dead: -1, hit: -9, fighting: false, wait: 0 });
+    this.foes.push({ type, d, lane: (Math.random() - 0.5) * 1.2, hp: id === 'brute' ? 6 : id === 'loup' ? 2 : 3, x: 0, z: 0, yaw: 0, born, dead: -1, hit: -9, fighting: false, wait: 0, ph: 0 });
   }
 
   private damage(f: Foe, n = 1) {
@@ -226,9 +230,10 @@ export class TitleScene {
       }
     } else this.heroAtk = atk;
     const mode = (fighting ? 1 : 0) + this.heroStyle * 2;
+    this.heroPhase = stride(this.heroPhase, this.heroMoving || fighting ? 9 : 0, dt);
     for (const p of this.heroWeapon ? [this.hero, this.heroWeapon] : [this.hero]) {
       p.begin();
-      const hj = p.push(hp.x, 0, hp.z, hp.yaw, 1.5, phase0, this.heroMoving || fighting ? 9 : 0, 0, mode);
+      const hj = p.push(hp.x, 0, hp.z, hp.yaw, 1.5, phase0, this.heroPhase, 0, mode);
       p.setTeam(hj, 0x3b82f6);
       p.setPose(hj, 0, 0, 0, 1);
       p.end();
@@ -272,7 +277,8 @@ export class TitleScene {
       if (f.d < this.tunnelD) continue;
       const life = f.dead >= 0 ? -Math.min(0.999, Math.max(0.001, (t - f.dead) / 0.9)) : Math.min(1, Math.max(0.001, (t - f.born) / 0.5));
       const flash = Math.max(0, 1 - (t - f.hit) / 0.1) * 0.35;
-      const j = p.push(f.x, 0, f.z, f.yaw, def.size, f.d * 3.1, f.dead >= 0 || f.fighting ? 0 : def.speed * 4.5 / Math.max(0.6, def.size), flash, f.fighting ? 1 : 0);
+      f.ph = stride(f.ph, f.dead >= 0 || f.fighting ? 0 : (def.speed * 4.5) / Math.max(0.6, def.size), dt);
+      const j = p.push(f.x, 0, f.z, f.yaw, def.size, f.d * 3.1, f.ph, flash, f.fighting ? 1 : 0);
       p.setPose(j, 0, Math.max(0, 1 - (t - f.hit) / 0.22), 0, life);
     }
     for (const p of this.pools.values()) p.end();
