@@ -73,11 +73,11 @@
   .head { display: flex; justify-content: space-between; align-items: center; }
   h2 { margin: 0; font-size: 2em; display: flex; align-items: center; gap: 10px; }
   h3 { margin: 14px 0 8px; font-size: 1.45em; display: flex; align-items: center; gap: 10px; }
-  h3::before { content: ''; width: 14px; height: 14px; background: var(--fc, var(--gold)); }
+  h3::before { content: ''; width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--ink); background: var(--fc, var(--gold-fill)); }
   .body { flex: 1; padding-right: 6px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
-  .card { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; padding: 10px; background: var(--raised); }
-  .card img { width: 96px; height: 96px; background: #d9cfb8; border-radius: var(--r-sm); }
+  .card { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; padding: 10px; background: var(--toon-cream); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); }
+  .card img { width: 96px; height: 96px; background: linear-gradient(180deg, #a9d3f2 0 55%, #7cc242 55%); border: 2.5px solid var(--ink); border-radius: 50%; }
   .card b { font-size: 1.02em; }
   .card.unknown img { filter: brightness(0) opacity(0.5); }
   .small { font-size: 0.83em; color: var(--muted); line-height: 1.35; }

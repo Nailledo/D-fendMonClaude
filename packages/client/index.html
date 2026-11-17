@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#14181b" />
+    <meta name="theme-color" content="#8fd0f0" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,9 +14,9 @@
   <body>
     <canvas id="scene"></canvas>
     <!-- écran affiché avant le chargement du script (remplacé par l'écran de chargement du jeu) -->
-    <div id="boot" style="position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:radial-gradient(ellipse at 50% 40%,#26302b 0%,#14181b 70%);color:#f3eee2;font:700 15px system-ui,sans-serif">
-      <div style="font:700 clamp(56px,13vw,104px) Georgia,serif;letter-spacing:0.02em">D-Fend</div>
-      <div style="width:min(440px,80vw);height:12px;border-radius:999px;background:#171c20;overflow:hidden"><div style="width:30%;height:100%;border-radius:999px;background:#f2b33d;animation:bootbar 1.2s ease-in-out infinite alternate"></div></div>
+    <div id="boot" style="position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:radial-gradient(ellipse at 50% 120%,#7cc242 0 28%,transparent 28.2%),radial-gradient(ellipse at 50% 30%,#bfe5f7 0%,#8fd0f0 55%,#6fb6de 100%);font:900 15px system-ui,sans-serif">
+      <div style="font:900 clamp(64px,14vw,112px) system-ui,sans-serif;text-transform:uppercase;color:#ffc53a;-webkit-text-stroke:10px #2b1a12;paint-order:stroke fill;text-shadow:0 7px 0 #2b1a12;transform:rotate(-3deg)">D-Fend</div>
+      <div style="width:min(440px,80vw);height:24px;border-radius:999px;background:#5a3f33;border:3px solid #2b1a12;box-shadow:0 4px 0 #2b1a12;overflow:hidden"><div style="width:30%;height:100%;border-radius:999px;background:#ffc53a;animation:bootbar 1.2s ease-in-out infinite alternate"></div></div>
       <style>@keyframes bootbar{from{margin-left:0}to{margin-left:70%}}</style>
     </div>
     <div id="app"></div>

@@ -34,10 +34,10 @@
 <style>
   .picker { display: flex; flex-direction: column; gap: 10px; }
   .list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-  .hero { cursor: pointer; background: var(--raised); border: 0; padding: 4px 4px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-weight: 700; font-size: 0.85em; color: var(--text); box-shadow: inset 0 0 0 2px transparent; }
-  .hero:hover { background: var(--raised-2); }
-  .hero img { width: 100%; max-width: 64px; height: auto; aspect-ratio: 1; background: #d9cfb8; }
-  .hero.on { box-shadow: inset 0 0 0 2px var(--gold); color: var(--gold); }
+  .hero { cursor: pointer; background: var(--toon-cream); border: 2.5px solid var(--ink); border-radius: var(--r-sm); padding: 5px 4px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-weight: 900; font-size: 0.85em; color: var(--text); box-shadow: 0 3px 0 var(--ink); transition: transform 0.08s; }
+  .hero:hover { filter: brightness(1.05); }
+  .hero img { width: 100%; max-width: 64px; height: auto; aspect-ratio: 1; background: linear-gradient(180deg, #78acf7 0 50%, #3f7ee0 50%); border: 2px solid var(--ink); border-radius: 50%; }
+  .hero.on { background: var(--toon-gold); transform: translateY(-2px); box-shadow: 0 5px 0 var(--ink); }
   .info { font-size: 0.9em; line-height: 1.4; }
   .info p { margin: 4px 0; color: var(--muted); }
   .info ul { margin: 4px 0 0; padding-left: 0; list-style: none; }

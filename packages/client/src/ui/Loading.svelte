@@ -48,15 +48,18 @@
 
 <style>
   .loading { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: calc(24px + var(--sat)) 16px calc(24px + var(--sab));
-    background: radial-gradient(ellipse at 50% 40%, #26302b 0%, #14181b 70%); transition: opacity 0.35s ease; }
+    background: radial-gradient(ellipse at 50% 120%, #7cc242 0 28%, transparent 28.2%), radial-gradient(ellipse at 50% 30%, #bfe5f7 0%, #8fd0f0 55%, #6fb6de 100%); transition: opacity 0.35s ease; }
   .fading { opacity: 0; pointer-events: none; }
-  .center { width: min(440px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .logo { font-family: var(--font-logo); font-size: clamp(64px, 14vw, 112px); line-height: 0.9; filter: drop-shadow(0 4px 0 rgba(8, 10, 12, 0.65)); }
-  .sub, .map { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); font-size: clamp(14px, 2.4vw, 20px); text-align: center; }
-  .bar { width: 100%; height: 12px; margin-top: 18px; background: var(--sunken); border-radius: 999px; box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.35); overflow: hidden; }
-  .fill { height: 100%; background: linear-gradient(180deg, #ffd476, var(--gold)); border-radius: 999px; transition: width 0.25s ease; }
-  .label { width: 100%; display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 14px; }
-  .pct { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
-  .tip { position: absolute; bottom: calc(28px + var(--sab)); left: 16px; right: 16px; margin: 0 auto; max-width: 560px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.4; }
-  .tip b { color: var(--gold); margin-right: 6px; }
+  .center { width: min(460px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .logo { font-family: var(--font-logo); font-size: clamp(70px, 15vw, 124px); line-height: 0.95; text-transform: uppercase; color: var(--gold-fill); transform: rotate(-3deg);
+    -webkit-text-stroke: 11px var(--ink); paint-order: stroke fill; text-shadow: 0 8px 0 var(--ink), 0 14px 0 var(--hue-shadow); }
+  .sub, .map { font-family: var(--font-display); color: #fff; font-size: clamp(16px, 2.6vw, 22px); text-align: center; padding: 3px 16px 5px; background: var(--toon-blue); border: var(--bw) solid var(--ink); border-radius: 12px; box-shadow: 0 4px 0 var(--ink);
+    -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+  .bar { width: 100%; height: 26px; margin-top: 22px; background: #5a3f33; border: var(--bw) solid var(--ink); border-radius: 999px; box-shadow: 0 4px 0 var(--ink); overflow: hidden; }
+  .fill { height: 100%; background: var(--toon-gold); border-right: var(--bw) solid var(--ink); border-radius: 999px; transition: width 0.25s ease; }
+  .label { width: 100%; display: flex; justify-content: space-between; gap: 12px; font-family: var(--font-display); color: #fff; font-size: 16px; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+  .pct { font-variant-numeric: tabular-nums; }
+  .tip { position: absolute; bottom: calc(26px + var(--sab)); left: 16px; right: 16px; margin: 0 auto; max-width: 560px; text-align: center; color: var(--ink); font-size: 14.5px; font-weight: 800; line-height: 1.4;
+    background: var(--panel); border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: 8px 14px; }
+  .tip b { display: inline-block; margin-right: 8px; padding: 0 8px; background: var(--toon-gold); border: 2px solid var(--ink); border-radius: 99px; }
 </style>

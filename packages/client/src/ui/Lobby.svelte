@@ -102,20 +102,20 @@
 {/if}
 
 <style>
-  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 580px) minmax(0, 420px); justify-content: center; align-content: start; gap: 16px; padding: 24px 16px; overflow: auto; background: rgba(12, 14, 16, 0.6); }
+  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 580px) minmax(0, 420px); justify-content: center; align-content: start; gap: 16px; padding: 24px 16px; overflow: auto; background: rgba(43, 26, 18, 0.45); }
   .main { display: flex; flex-direction: column; gap: 12px; padding: 22px; }
   .side { display: flex; flex-direction: column; gap: 12px; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   h2 { margin: 0; font-size: 2.2em; }
   h3 { margin: 6px 0 0; font-size: 1.35em; }
-  .code { cursor: pointer; font-family: var(--font-ui); font-weight: 700; font-size: 1.6em; letter-spacing: 0.22em; padding: 6px 12px 6px 16px; border: 2px dashed var(--gold); background: var(--sunken); color: var(--gold); font-variant-numeric: tabular-nums; }
+  .code { cursor: pointer; font-family: var(--font-ui); font-weight: 700; font-size: 1.6em; letter-spacing: 0.22em; padding: 6px 12px 6px 16px; border: 3px dashed var(--ink); border-radius: var(--r-sm); background: var(--panel-hi); color: var(--gold); font-variant-numeric: tabular-nums; }
   .code:hover { background: var(--raised); }
   .muted { color: var(--muted); margin: 0; font-size: 0.9em; }
   .players { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .pl { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--raised); box-shadow: inset 4px 0 0 var(--c); min-width: 0; }
-  .pl img { width: 46px; height: 46px; background: #d9cfb8; flex: none; }
+  .pl { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--toon-cream); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: inset 8px 0 0 var(--c), 0 3px 0 var(--ink); min-width: 0; }
+  .pl img { width: 46px; height: 46px; background: #a9d3f2; border: 2px solid var(--ink); border-radius: 50%; flex: none; }
   .pl b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-  .pl.empty { justify-content: center; color: var(--faint); box-shadow: none; background: transparent; outline: 1px dashed rgba(243, 238, 226, 0.2); outline-offset: -1px; min-height: 62px; }
+  .pl.empty { justify-content: center; color: var(--faint); box-shadow: none; background: transparent; outline: 1px dashed rgba(43, 26, 18, 0.2); outline-offset: -1px; min-height: 62px; }
   .small { font-size: 0.82em; color: var(--muted); }
   .rdy { font-weight: 700; font-size: 0.82em; color: var(--faint); white-space: nowrap; }
   .rdy.ok { color: var(--good); }

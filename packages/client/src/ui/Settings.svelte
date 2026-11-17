@@ -126,9 +126,9 @@
   .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
   .krow { display: flex; align-items: center; gap: 6px; font-size: 0.92em; }
   .krow span { flex: 1; }
-  .kb { min-width: 96px; cursor: pointer; padding: 5px 8px; border: 2px solid var(--edge); background: var(--sunken); color: var(--text); font-weight: 700; }
-  .kb:hover { border-color: var(--muted); }
-  .kb.cap { border-color: var(--gold); color: var(--gold); }
-  .kb.conf { border-color: var(--life); color: var(--bad); }
+  .kb { min-width: 96px; cursor: pointer; padding: 5px 8px; border: 2.5px solid var(--ink); border-radius: var(--r-xs); background: var(--panel-hi); box-shadow: 0 2px 0 var(--ink); color: var(--text); font-weight: 900; }
+  .kb:hover { background: #fff; }
+  .kb.cap { background: var(--toon-gold); }
+  .kb.conf { background: #ffd9d3; color: var(--bad); }
   @media (max-width: 600px) { .keys { grid-template-columns: 1fr; } }
 </style>
