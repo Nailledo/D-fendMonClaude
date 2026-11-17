@@ -4,6 +4,12 @@
   import { ui } from '../state.svelte';
 
   const local = $derived(!!app.game?.host.local);
+  const canFull = typeof document !== 'undefined' && !!document.fullscreenEnabled;
+  let isFull = $state(typeof document !== 'undefined' && !!document.fullscreenElement);
+  function toggleFull() {
+    if (document.fullscreenElement) void document.exitFullscreen().then(() => (isFull = false));
+    else void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => (isFull = true)).catch(() => {});
+  }
   function resume() {
     if (local) app.game?.setPaused(false);
     else ui.paused = false;
@@ -16,6 +22,7 @@
     {#if !local}<p class="muted">La partie continue pendant que ce menu est ouvert.</p>{/if}
     <button class="btn gold big" onclick={resume}>Reprendre</button>
     {#if local}<button class="btn" onclick={() => app.restart()}>Recommencer</button>{/if}
+    {#if canFull}<button class="btn" onclick={toggleFull}>{isFull ? 'Quitter le plein écran' : 'Plein écran'}</button>{/if}
     <button class="btn" onclick={() => (ui.overlay = 'settings')}>Paramètres</button>
     <button class="btn" onclick={() => (ui.overlay = 'help')}>Comment jouer</button>
     <button class="btn red" onclick={() => { if (!local) { net.send({ t: 'leave' }); ui.room = null; } app.leaveGame(); if (!local) ui.screen = 'multi'; }}>

@@ -76,7 +76,7 @@
   .body { flex: 1; padding-right: 6px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
   .card { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; padding: 10px; background: var(--raised); }
-  .card img { width: 96px; height: 96px; background: #d9cfb8; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .card img { width: 96px; height: 96px; background: #d9cfb8; border-radius: var(--r-sm); }
   .card b { font-size: 1.02em; }
   .card.unknown img { filter: brightness(0) opacity(0.5); }
   .small { font-size: 0.83em; color: var(--muted); line-height: 1.35; }

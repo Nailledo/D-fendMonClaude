@@ -81,18 +81,18 @@
   .sub { margin: 6px 0 0 6px; font-family: var(--font-display); font-weight: 700; font-size: clamp(18px, 2.4vw, 27px); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
   .menu { display: flex; flex-direction: column; gap: 10px; width: min(430px, 100%); animation: rise 0.5s ease 0.05s both; filter: var(--drop); }
   .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 3px 14px; padding: 13px 18px; border: 0; text-align: left; cursor: pointer; color: var(--text);
-    background: linear-gradient(135deg, transparent var(--cut), var(--panel) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut), var(--panel) 0) right / 50.5% 100% no-repeat; }
+    background: var(--panel); border-radius: var(--r); }
   .row:hover { filter: brightness(1.15); }
   .row:active { transform: translateY(2px); }
   .row b { font-family: var(--font-display); font-size: 1.75em; line-height: 1; }
   .row span { grid-column: 1; font-size: 0.93em; color: var(--muted); }
   .row :global(.icon) { grid-row: 1 / span 2; grid-column: 2; width: 26px; height: 26px; color: var(--muted); }
   .row.main { color: var(--gold-ink);
-    background: linear-gradient(135deg, transparent var(--cut), var(--gold) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut), var(--gold) 0) right / 50.5% 100% no-repeat; }
+    background: var(--gold); border-radius: var(--r); }
   .row.main span, .row.main :global(.icon) { color: #4a3510; }
   .small { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
   .small button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px; border: 0; cursor: pointer; font-size: 0.86em; font-weight: 700; color: var(--text);
-    background: linear-gradient(135deg, transparent var(--cut-sm), var(--panel) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut-sm), var(--panel) 0) right / 50.5% 100% no-repeat; }
+    background: var(--panel); border-radius: var(--r-sm); }
   .small button:hover { filter: brightness(1.18); }
   .small :global(.icon) { width: 22px; height: 22px; color: var(--muted); }
   .profile { position: absolute; top: 16px; right: 16px; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; }

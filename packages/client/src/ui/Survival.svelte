@@ -65,7 +65,7 @@
   .muted { color: var(--muted); margin: 0; }
   .maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .map { cursor: pointer; text-align: left; padding: 12px; border: 0; color: #fff; display: flex; flex-direction: column; gap: 6px; min-height: 104px; background: var(--b);
-    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
+    border-radius: var(--r-sm); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
   .map b { font-family: var(--font-display); font-size: 1.3em; line-height: 1; }
   .map span { font-size: 0.84em; opacity: 0.92; }
   .map.vallee { --b: #5f8f3e; }

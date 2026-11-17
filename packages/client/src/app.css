@@ -1,6 +1,5 @@
 /* =========================================================================
-   Facette : l'interface taillée comme le décor low-poly.
-   Aplats uniquement, coins biseautés, une ombre dure, aucune texture ni dégradé décoratif.
+   Interface en aplats aux coins arrondis, une ombre franche + une ombre douce.
    La couleur porte l'information : or = argent, rouge = vies, une couleur par famille de tours.
    ========================================================================= */
 :root {
@@ -29,10 +28,19 @@
   --f-mag: #9b6bdf;
   --f-art: #e07b39;
   /* forme */
-  --cut: 10px;
-  --cut-sm: 7px;
+  --r: 14px;
+  --r-sm: 10px;
+  --r-xs: 6px;
+  --shadow: 0 3px 0 rgba(8, 10, 12, 0.55), 0 8px 22px rgba(0, 0, 0, 0.28);
+  --shadow-sm: 0 2px 0 rgba(8, 10, 12, 0.55), 0 4px 10px rgba(0, 0, 0, 0.22);
+  --rim: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --drop: drop-shadow(0 3px 0 rgba(8, 10, 12, 0.6));
   --drop-sm: drop-shadow(0 2px 0 rgba(8, 10, 12, 0.6));
+  /* marges de sécurité (encoche, barre système) */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
   /* typographie */
   --font-logo: 'Grenze Gotisch', 'Grenze', Georgia, serif;
   --font-display: 'Grenze', Georgia, serif;
@@ -54,13 +62,18 @@ html, body {
   line-height: 1.35;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 #scene {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: block;
   outline: none;
   touch-action: none;
@@ -75,21 +88,17 @@ h1, h2, h3, .title { font-family: var(--font-display); font-weight: 700; line-he
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-/* ---------- Panneaux biseautés ----------
-   Le fond est dessiné par deux demi-dégradés à bord franc : coin haut-gauche et coin bas-droit coupés.
-   L'ombre portée suit la découpe (filter), le contenu n'est jamais rogné (infobulles, badges). */
+/* ---------- Panneaux ----------
+   Aplat arrondi, liseré de lumière en haut, bandeau d'accent optionnel (--accent). */
 .panel, .wood {
   --pbg: var(--panel);
   pointer-events: auto;
   color: var(--text);
   border: 0;
-  border-radius: 0;
+  border-radius: var(--r);
   padding: 16px 18px;
-  background:
-    linear-gradient(var(--accent, transparent), var(--accent, transparent)) var(--cut) 0 / calc(100% - var(--cut)) 4px no-repeat,
-    linear-gradient(135deg, transparent var(--cut), var(--pbg) 0) left / 50.5% 100% no-repeat,
-    linear-gradient(-45deg, transparent var(--cut), var(--pbg) 0) right / 50.5% 100% no-repeat;
-  filter: var(--drop);
+  background: var(--pbg);
+  box-shadow: inset 0 4px 0 var(--accent, transparent), var(--rim), var(--shadow);
 }
 .wood { padding: 0; }
 .panel.raised { --pbg: var(--raised); }
@@ -105,33 +114,33 @@ button { font: inherit; color: inherit; }
   justify-content: center;
   gap: 8px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--r-sm);
   padding: 9px 18px;
   font-weight: 700;
   color: var(--bfg);
-  background:
-    linear-gradient(135deg, transparent var(--cut-sm), var(--bbg) 0) left / 50.5% 100% no-repeat,
-    linear-gradient(-45deg, transparent var(--cut-sm), var(--bbg) 0) right / 50.5% 100% no-repeat;
-  filter: var(--drop-sm);
-  transition: transform 0.08s;
+  background: var(--bbg);
+  box-shadow: var(--rim), var(--shadow-sm);
+  transition: transform 0.08s, box-shadow 0.08s, background-color 0.12s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .btn:hover:not(:disabled) { --bbg: var(--raised-2); }
-.btn:active:not(:disabled) { transform: translateY(2px); filter: none; }
+.btn:active:not(:disabled) { transform: translateY(2px); box-shadow: var(--rim), 0 0 0 rgba(0, 0, 0, 0); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.gold { --bbg: var(--gold); --bfg: var(--gold-ink); }
 .btn.gold:hover:not(:disabled) { --bbg: #f7c35e; }
 .btn.red { --bbg: #b8403b; --bfg: #fff; }
 .btn.red:hover:not(:disabled) { --bbg: #cc4a44; }
 .btn.green { --bbg: #3f7d32; --bfg: #fff; }
-.btn.ghost { --bbg: rgba(255, 255, 255, 0.06); filter: none; }
+.btn.ghost { --bbg: rgba(255, 255, 255, 0.06); box-shadow: none; }
 .btn.ghost:hover:not(:disabled) { --bbg: rgba(255, 255, 255, 0.12); }
-.btn.big { font-family: var(--font-display); font-size: 1.35em; padding: 10px 24px; }
+.btn.big { font-family: var(--font-display); font-size: 1.35em; padding: 10px 24px; border-radius: var(--r); }
 .btn.small { padding: 6px 11px; font-size: 0.88em; }
 .btn .icon { width: 1.2em; height: 1.2em; }
 
 /* sélecteur segmenté (difficulté, mode…) */
-.seg { display: flex; flex-wrap: wrap; gap: 0; background: var(--line); padding: 2px; }
-.seg > button { flex: 1; cursor: pointer; border: 0; padding: 8px 10px; font-weight: 700; font-size: 0.9em; background: var(--raised); color: var(--text); }
+.seg { display: flex; flex-wrap: wrap; gap: 0; background: var(--line); padding: 3px; border-radius: var(--r-sm); }
+.seg > button { flex: 1; cursor: pointer; border: 0; border-radius: 7px; padding: 8px 10px; font-weight: 700; font-size: 0.9em; background: var(--raised); color: var(--text); }
 .seg > button + button { margin-left: 2px; }
 .seg > button:hover:not(:disabled) { background: var(--raised-2); }
 .seg > button.on { background: var(--text); color: var(--panel); }
@@ -143,7 +152,7 @@ input[type='text'], select {
   pointer-events: auto;
   font: inherit;
   padding: 8px 10px;
-  border-radius: 0;
+  border-radius: var(--r-sm);
   border: 2px solid var(--edge);
   background: var(--sunken);
   color: var(--text);
@@ -187,7 +196,8 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold); width:
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
+  padding: 2px 9px;
+  border-radius: 99px;
   border: 1px solid rgba(243, 238, 226, 0.3);
   font-size: 11.5px;
   font-weight: 700;
@@ -201,6 +211,7 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold); width:
   padding: 0 4px;
   background: var(--line);
   border: 1px solid var(--edge);
+  border-radius: 5px;
   color: var(--text);
   font-size: max(11px, 0.72em);
   font-weight: 700;
@@ -242,8 +253,8 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold); width:
 
 .scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
 
-/* hexagone : options de construction, appel de vague, nœuds de carte */
-.hex { clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+/* pastille ronde : options de construction, appel de vague, nœuds de carte */
+.hex { border-radius: 50%; }
 
 @media (max-width: 720px) {
   html, body { font-size: calc(14px * var(--scale)); }

@@ -46,7 +46,7 @@
   ol { list-style: none; margin: 6px 0 0; padding: 0; }
   li { display: flex; gap: 12px; align-items: center; padding: 7px 4px; border-bottom: 1px solid rgba(243, 238, 226, 0.1); font-variant-numeric: tabular-nums; }
   li.podium { font-weight: 700; }
-  .rank { width: 30px; height: 27px; display: grid; place-items: center; background: var(--raised); font-weight: 700; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+  .rank { width: 30px; height: 27px; display: grid; place-items: center; background: var(--raised); font-weight: 700; border-radius: 50%; }
   li.podium .rank { background: var(--gold); color: var(--gold-ink); }
   .d { color: var(--faint); font-size: 0.82em; }
   .muted { color: var(--muted); margin: 0; }

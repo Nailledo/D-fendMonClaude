@@ -65,7 +65,7 @@ export class GameClient {
     this.world = buildWorld(this.map);
     r.scene.add(this.world.group);
     r.applyTheme(this.world.theme);
-    r.setBounds(this.map.def.hw, this.map.def.hh);
+    r.setBounds(this.map.def.hw, this.map.def.hh, this.world.exit);
     this.ents = new Entities(r.scene, this.map);
     this.fx = new Fx(r.scene);
     this.interp = new Interp(this.map, host.local);
@@ -197,7 +197,7 @@ export class GameClient {
     if (ui.hud.spells[s] > 0) { audio.play('deny'); return; }
     this.targeting = { kind: 'spell', s };
     ui.sel = null;
-    ui.hud.targeting = SPELLS[s].name + ' : cliquez sur la carte';
+    ui.hud.targeting = SPELLS[s].name + (ui.touch ? ' : touchez la carte' : ' : cliquez sur la carte');
   }
 
   heroSkill(i: 0 | 1 | 2) {
@@ -211,7 +211,7 @@ export class GameClient {
       return;
     }
     this.targeting = { kind: 'hskill', i };
-    ui.hud.targeting = sk.name + ' : cliquez sur la carte';
+    ui.hud.targeting = sk.name + (ui.touch ? ' : touchez la carte' : ' : cliquez sur la carte');
   }
 
   selectHero() {
@@ -219,7 +219,7 @@ export class GameClient {
     if (!hp) return;
     ui.sel = { kind: 'hero' };
     this.targeting = { kind: 'hmove' };
-    ui.hud.targeting = 'Cliquez pour déplacer votre héros';
+    ui.hud.targeting = ui.touch ? 'Touchez la carte pour déplacer votre héros' : 'Cliquez pour déplacer votre héros';
   }
 
   focusHero() {
@@ -265,57 +265,150 @@ export class GameClient {
       this.disposers.push(() => t.removeEventListener(type, fn as EventListener));
     };
     on(c, 'contextmenu', (e) => e.preventDefault());
+    // iOS : bloque le zoom de page par pincement (gesturestart n'est pas un PointerEvent)
+    on(document, 'gesturestart' as keyof WindowEventMap, (e) => e.preventDefault(), { passive: false });
     let longPress: ReturnType<typeof setTimeout> | null = null;
     const stopLongPress = () => {
       if (longPress) clearTimeout(longPress);
       longPress = null;
     };
     this.disposers.push(stopLongPress);
+    /** pointeurs posés sur la carte (souris ou doigts) */
+    const pts = new Map<number, { x: number; y: number; type: string }>();
+    /** geste en cours : glisser à un pointeur (ancre au sol) ou pincement à deux */
+    let drag: { id: number; wx: number; wz: number } | null = null;
+    let pinch: { d0: number; dist0: number; wx: number; wz: number } | null = null;
+    /** un pincement a eu lieu depuis le premier appui : aucun clic à la fin du geste */
+    let gestured = false;
+    let vel = { x: 0, z: 0, t: 0 };
+    let lastTap = { t: 0, x: 0, y: 0 };
+    const r = this.r;
+    const startDrag = (id: number, x: number, y: number) => {
+      const p = r.pick(x, y);
+      if (!p) return;
+      r.beginDrag();
+      drag = { id, wx: p.x, wz: p.z };
+      vel = { x: 0, z: 0, t: performance.now() };
+    };
+    const startPinch = () => {
+      const [a, b] = [...pts.values()];
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const p = r.pick(mx, my);
+      if (!p) return;
+      r.beginDrag();
+      pinch = { d0: Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), dist0: r.cam.dist, wx: p.x, wz: p.z };
+      drag = null;
+    };
+    const release = () => {
+      const fresh = performance.now() - vel.t < 80;
+      r.endDrag(fresh ? vel.x : 0, fresh ? vel.z : 0);
+      drag = null;
+      pinch = null;
+    };
+    const canPan = (type: string) => type === 'touch' || this.mouse.button === 1 || this.mouse.button === 2 || (this.mouse.button === 0 && !this.targeting);
+
     on(c, 'pointerdown', (e) => {
       audio.unlock();
-      this.mouse.down = true;
-      this.mouse.button = e.button;
-      this.mouse.sx = e.clientX;
-      this.mouse.sy = e.clientY;
-      this.mouse.moved = false;
+      try { c.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
+      this.mouse.x = e.clientX;
+      this.mouse.y = e.clientY;
+      if (pts.size === 1) {
+        gestured = false;
+        this.mouse.down = true;
+        this.mouse.button = e.button;
+        this.mouse.sx = e.clientX;
+        this.mouse.sy = e.clientY;
+        this.mouse.moved = false;
+        if (r.cam.vx || r.cam.vz) { r.beginDrag(); r.endDrag(0, 0); } // un appui arrête l'inertie
+      } else if (pts.size === 2) {
+        gestured = true;
+        this.mouse.moved = true;
+        stopLongPress();
+        startPinch();
+        return;
+      }
       // tactile : un appui long remplace le clic droit (déplacer le héros, annuler une visée)
       stopLongPress();
       if (e.pointerType === 'touch') {
         const x = e.clientX, y = e.clientY;
         longPress = setTimeout(() => {
           longPress = null;
-          if (!this.mouse.down || this.mouse.moved) return;
+          if (!this.mouse.down || this.mouse.moved || pts.size !== 1) return;
           this.mouse.down = false;
+          gestured = true;
           navigator.vibrate?.(15);
           this.rightClick(x, y);
         }, 450);
       }
     });
     on(window, 'pointermove', (e) => {
-      const dx = e.clientX - this.mouse.x, dy = e.clientY - this.mouse.y;
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
-      if (this.mouse.down && (Math.abs(e.clientX - this.mouse.sx) + Math.abs(e.clientY - this.mouse.sy) > 6)) {
+      const pt = pts.get(e.pointerId);
+      if (!pt) return;
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      if (pinch && pts.size >= 2) {
+        const [a, b] = [...pts.values()];
+        const d = Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
+        r.dragTo((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.wx, pinch.wz, pinch.dist0 * (pinch.d0 / d));
+        vel.t = 0; // pas d'inertie après un pincement
+        return;
+      }
+      if (!this.mouse.down) return;
+      const slop = e.pointerType === 'touch' ? 10 : 6;
+      if (!this.mouse.moved && Math.hypot(e.clientX - this.mouse.sx, e.clientY - this.mouse.sy) > slop) {
         this.mouse.moved = true;
         stopLongPress();
+        if (canPan(e.pointerType)) startDrag(e.pointerId, this.mouse.sx, this.mouse.sy);
       }
-      if (this.mouse.down && this.mouse.moved && (this.mouse.button === 1 || this.mouse.button === 2 || (this.mouse.button === 0 && !this.targeting))) {
-        const k = this.r.cam.dist / this.r.height * 1.25;
-        this.r.cam.tx -= dx * k;
-        this.r.cam.tz -= dy * k * 1.2;
+      if (drag && drag.id === e.pointerId) {
+        const m = r.dragTo(e.clientX, e.clientY, drag.wx, drag.wz);
+        const now = performance.now(), dt = Math.max(1, now - vel.t) / 1000;
+        const k = Math.min(1, dt * 25);
+        vel = { x: vel.x + (m.dx / dt - vel.x) * k, z: vel.z + (m.dz / dt - vel.z) * k, t: now };
       }
     });
-    on(window, 'pointerup', (e) => {
+    const up = (e: PointerEvent) => {
+      const had = pts.delete(e.pointerId);
+      if (!had) return;
+      try { c.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
+      if (pts.size === 1) {
+        // fin du pincement : le doigt restant reprend le glisser sans saut
+        pinch = null;
+        const [[id, p]] = [...pts.entries()];
+        startDrag(id, p.x, p.y);
+        vel.t = 0;
+        return;
+      }
+      if (pts.size > 0) return;
       stopLongPress();
+      if (drag || pinch) release();
       if (!this.mouse.down) return;
       this.mouse.down = false;
-      if (this.mouse.moved || e.target !== c) return;
-      if (e.button === 0) this.click(e.clientX, e.clientY, e.altKey);
-      else if (e.button === 2) this.rightClick(e.clientX, e.clientY);
-    });
+      if (this.mouse.moved || gestured || e.type === 'pointercancel') return;
+      if (e.button === 0 || e.pointerType === 'touch') {
+        const hit = this.click(e.clientX, e.clientY, e.altKey);
+        // double appui sur le terrain : zoom avant / retour à la vue d'ensemble
+        if (e.pointerType === 'touch') {
+          const now = performance.now();
+          if (!hit && now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
+            const cam = r.cam;
+            if (cam.tdist > cam.fit * 0.7) r.zoomTo(cam.fit * 0.45, e.clientX, e.clientY);
+            else r.zoomTo(cam.fit, e.clientX, e.clientY);
+            lastTap.t = 0;
+          } else lastTap = { t: hit ? 0 : now, x: e.clientX, y: e.clientY };
+        }
+      } else if (e.button === 2) this.rightClick(e.clientX, e.clientY);
+    };
+    on(window, 'pointerup', up);
+    on(window, 'pointercancel', up);
     on(c, 'wheel', (e) => {
       e.preventDefault();
-      this.r.zoom(Math.sign(e.deltaY) * 0.12);
+      // pavé tactile (ctrl + molette = pincement) : pas plus fin ; souris : pas fixe
+      const step = e.ctrlKey ? Math.max(-0.25, Math.min(0.25, e.deltaY * 0.01)) : Math.sign(e.deltaY) * 0.14;
+      r.zoom(step, e.clientX, e.clientY);
     }, { passive: false });
     on(document, 'mouseleave' as keyof WindowEventMap, () => (this.mouse.inside = false));
     on(document, 'mouseenter' as keyof WindowEventMap, () => (this.mouse.inside = true));
@@ -413,8 +506,14 @@ export class GameClient {
     };
   }
 
-  private slotAt(x: number, z: number): number {
-    let best = -1, bd = 1.5 * 1.5;
+  /** Rayon de sélection : au moins `px` pixels à l'écran (un doigt est moins précis qu'une souris). */
+  private tapRadius(base: number, px = ui.touch ? 26 : 10) {
+    const perPx = (this.r.cam.dist * 2 * Math.tan((this.r.camera.fov * Math.PI) / 360)) / Math.max(1, this.r.height);
+    return Math.max(base, px * perPx);
+  }
+
+  private slotAt(x: number, z: number, rad = 1.5): number {
+    let best = -1, bd = rad * rad;
     this.map.slots.forEach((s, i) => {
       const d = (s.x - x) ** 2 + (s.z - z) ** 2;
       if (d < bd) { bd = d; best = i; }
@@ -422,55 +521,60 @@ export class GameClient {
     return best;
   }
 
-  private click(sx: number, sy: number, alt: boolean) {
+  /** Clic ou appui sur la carte. Retourne vrai s'il a visé quelque chose (pas le terrain nu). */
+  private click(sx: number, sy: number, alt: boolean): boolean {
     const p = this.r.pick(sx, sy);
-    if (!p) return;
+    if (!p) return false;
     if (alt && !this.host.local) {
       (window as unknown as { __ping?: (x: number, z: number) => void }).__ping?.(p.x, p.z);
-      return;
+      return true;
     }
+    const slotRad = this.tapRadius(1.5);
     const t = this.targeting;
     if (t) {
       this.targeting = null;
       ui.hud.targeting = '';
-      if (t.kind === 'spell') { this.send({ k: 'spell', s: t.s, x: p.x, z: p.z }); return; }
-      if (t.kind === 'hskill') { this.send({ k: 'hskill', i: t.i, x: p.x, z: p.z }); return; }
-      if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; return; }
+      if (t.kind === 'spell') { this.send({ k: 'spell', s: t.s, x: p.x, z: p.z }); this.fx.ring(p.x, p.z, 1.2, 0xffffff, 0.35); return true; }
+      if (t.kind === 'hskill') { this.send({ k: 'hskill', i: t.i, x: p.x, z: p.z }); return true; }
+      if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; this.fx.ring(p.x, p.z, 1, 0xfff59d, 0.5); return true; }
       if (t.kind === 'hmove') {
         // un clic sur un emplacement reste prioritaire
-        if (this.slotAt(p.x, p.z) < 0) {
+        if (this.slotAt(p.x, p.z, slotRad) < 0) {
           this.send({ k: 'hmove', x: p.x, z: p.z });
           this.fx.ring(p.x, p.z, 0.8, 0x93c5fd, 0.5);
           ui.sel = null;
-          return;
+          return true;
         }
       }
     }
     // héros
     const hp = this.heroPos();
-    if (hp && (hp.x - p.x) ** 2 + (hp.z - p.z) ** 2 < 1.3) { this.selectHero(); audio.play('click'); return; }
+    const hr = this.tapRadius(1.14);
+    if (hp && (hp.x - p.x) ** 2 + (hp.z - p.z) ** 2 < hr * hr) { this.selectHero(); audio.play('click'); return true; }
     // emplacement / tour
-    const slot = this.slotAt(p.x, p.z);
+    const slot = this.slotAt(p.x, p.z, slotRad);
     if (slot >= 0) {
       audio.play('click');
       const ti = this.towerAtSlot(slot);
       if (ti >= 0) this.selectTowerIndex(ti);
       else if (this.map.slots[slot].locked) { toast('Emplacement en ruines : il s’ouvre avec plus de joueurs.', 'info', 2000); ui.sel = null; }
       else ui.sel = { kind: 'build', slot };
-      return;
+      return true;
     }
     // ennemi
     const f = this.interp.frame;
-    let best = -1, bd = 1.6;
+    const er = this.tapRadius(1.26);
+    let best = -1, bd = er * er;
     for (let i = 0; i < f.eN; i++) {
       const d = (f.eX[i] - p.x) ** 2 + (f.eZ[i] - p.z) ** 2;
       if (d < bd) { bd = d; best = i; }
     }
     if (best >= 0) {
       ui.sel = { kind: 'enemy', enemyType: f.eType[best], hp: f.eHp[best] };
-      return;
+      return true;
     }
     ui.sel = null;
+    return false;
   }
 
   private rightClick(sx: number, sy: number) {
@@ -577,7 +681,8 @@ export class GameClient {
   }
 
   private updateHover() {
-    const p = this.r.pick(this.mouse.x, this.mouse.y);
+    // au tactile, il n'y a de survol que pendant qu'un doigt est posé
+    const p = ui.touch && !this.mouse.down ? null : this.r.pick(this.mouse.x, this.mouse.y);
     this.hoverSlot = p ? this.slotAt(p.x, p.z) : -1;
     const t = this.targeting;
     this.aimRing.visible = false;
@@ -647,9 +752,25 @@ export class GameClient {
       if (s && (s.kind === 'build' || s.kind === 'tower') && s.slot !== undefined) {
         const sl = this.map.slots[s.slot];
         this.r.project(sl.x, 1.2, sl.z, this.proj);
-        dom.radial.style.transform = `translate(${this.proj.x | 0}px, ${this.proj.y | 0}px)`;
+        // le menu reste entièrement à l'écran (bords, barre du haut, barre du bas au tactile)
+        const W = this.r.width, H = this.r.height;
+        const R = ui.touch ? (ui.short ? 70 : 82) : 74, face = ui.touch ? (ui.short ? 58 : 66) : 62;
+        const ext = R + face / 2 + 4;
+        const top = ui.touch ? 60 : 64, bottom = ui.touch ? 84 : 16;
+        const x = Math.max(ext + 4, Math.min(W - ext - 4, this.proj.x));
+        const y = Math.max(top + ext, Math.min(H - bottom - ext - 14, this.proj.y));
+        // tiroir d'informations du côté opposé au menu
+        if (ui.touch) {
+          const side = W > H ? (x > W / 2 ? 'left' : 'right') : (y > H * 0.5 ? 'top' : 'bottom');
+          if (ui.sheet !== side) ui.sheet = side;
+        }
+        dom.radial.style.transform = `translate(${x | 0}px, ${y | 0}px)`;
         dom.radial.style.visibility = 'visible';
-      } else dom.radial.style.visibility = 'hidden';
+      } else {
+        dom.radial.style.visibility = 'hidden';
+        const side = this.r.width > this.r.height ? 'right' : 'bottom';
+        if (ui.touch && ui.sheet !== side) ui.sheet = side;
+      }
     }
     const showWave = snap.state === GameState.Waiting || snap.nextWaveT > 0;
     const from = this.map.def.pathFrom;

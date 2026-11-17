@@ -31,7 +31,7 @@
   .box { display: flex; gap: 18px; align-items: center; width: min(800px, 100%); animation: rise 0.2s ease; padding: 16px 20px; }
   .box.right { flex-direction: row-reverse; }
   .por { flex: none; width: 100px; height: 100px; background: #d9cfb8; display: grid; place-items: center; overflow: hidden; font-family: var(--font-display); font-size: 44px; font-weight: 700; color: var(--line);
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); box-shadow: inset 0 -5px 0 var(--c); }
+    border-radius: var(--r-sm); box-shadow: inset 0 -5px 0 var(--c); }
   .por img { width: 100%; height: 100%; }
   .txt { flex: 1; min-width: 0; }
   .txt b { font-family: var(--font-display); font-size: 1.45em; line-height: 1; }

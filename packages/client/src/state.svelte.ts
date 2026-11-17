@@ -80,7 +80,26 @@ export const ui = $state({
   debug: { on: false, fps: 0, calls: 0, tris: 0, ents: 0, ping: 0, kb: 0 },
   portraits: {} as Record<string, string>,
   submitted: false,
+  /** écran tactile : interface agrandie, confirmations en deux appuis */
+  touch: typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches,
+  /** infobulle de l'option armée du menu radial (affichée dans le tiroir au tactile) */
+  radialTip: null as null | { title: string; text: string; cost?: number },
+  /** panneau de tour déplié (tactile : replié par défaut) */
+  panelOpen: false,
+  /** côté du tiroir d'informations au tactile : à l'opposé du menu radial */
+  sheet: 'bottom' as 'bottom' | 'top' | 'left' | 'right',
+  /** écran bas (téléphone en paysage) : menu radial resserré */
+  short: typeof innerHeight !== 'undefined' && innerHeight < 520,
 });
+
+// un appareil hybride bascule selon le dernier pointeur utilisé
+if (typeof window !== 'undefined') {
+  addEventListener('pointerdown', (e: PointerEvent) => {
+    const t = e.pointerType === 'touch' || e.pointerType === 'pen';
+    if (e.pointerType && t !== ui.touch) ui.touch = t;
+  }, { capture: true, passive: true });
+  addEventListener('resize', () => { ui.short = innerHeight < 520; });
+}
 
 let toastId = 0;
 export function toast(text: string, kind = 'info', ms = 3200) {

@@ -153,19 +153,19 @@
   .blabel { position: absolute; transform: translate(0, -50%); font-family: var(--font-display); font-weight: 700; font-size: clamp(13px, 1.4vw, 18px); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 255, 255, 0.82); pointer-events: none; white-space: nowrap; }
   .node { position: absolute; transform: translate(-50%, -50%); width: 60px; height: 54px; padding: 0; border: 0; background: none; cursor: pointer; filter: var(--drop); }
   .hx { position: absolute; inset: 0; display: grid; place-items: center; background: #3a4349; color: var(--muted); font-family: var(--font-display); font-weight: 700; font-size: 24px;
-    clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+    border-radius: 50%; }
   .node.done .hx { background: var(--gold); color: var(--gold-ink); }
   .node:not(.locked):not(.done) .hx { background: var(--text); color: var(--gold-ink); }
-  .node.on::before { content: ''; position: absolute; inset: -9px; background: var(--gold); clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%, 25% 2%, 27.5% 9%, 7% 50%, 27.5% 91%, 72.5% 91%, 93% 50%, 72.5% 9%, 27.5% 9%); }
+  .node.on::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 4px solid var(--gold); }
   .node:hover:not(:disabled) .hx { filter: brightness(1.1); }
   .node.locked { cursor: not-allowed; }
   .hx :global(.icon) { width: 22px; height: 22px; }
-  .bossmark { position: absolute; right: -4px; top: -6px; width: 18px; height: 16px; background: var(--life); clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+  .bossmark { position: absolute; right: -4px; top: -6px; width: 18px; height: 16px; background: var(--life); border-radius: 50%; }
   .stars { position: absolute; left: 50%; bottom: -20px; transform: translateX(-50%); display: flex; gap: 1px; }
   .stars :global(.icon) { width: 17px; height: 17px; }
   .top { position: absolute; left: 16px; top: 16px; display: flex; gap: 8px; align-items: stretch; }
   .total { display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .side { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 22px 22px 18px; margin: 16px 16px 16px 0; --cut: 12px; }
+  .side { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 22px 22px 18px; margin: 16px 16px 16px 0; }
   .eyebrow { margin: 0 0 6px; }
   h2 { margin: 0; font-size: 2.1em; }
   .meta { display: flex; gap: 6px; flex-wrap: wrap; }

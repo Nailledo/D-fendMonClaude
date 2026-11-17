@@ -24,11 +24,17 @@
   };
 </script>
 
-<div class="tp panel ui" role="region" aria-label="Tour sélectionnée" style="--fc:{FAMILY_COLOR[fi]}; --accent:{FAMILY_COLOR[fi]}" onpointerleave={() => hover(-1)}>
+<div class="tp panel ui sheet-{ui.touch ? ui.sheet : 'none'}" class:open={!ui.touch || ui.panelOpen} role="region" aria-label="Tour sélectionnée" style="--fc:{FAMILY_COLOR[fi]}; --accent:{FAMILY_COLOR[fi]}" onpointerleave={() => hover(-1)}>
   <div class="th">
     <small>{FAMILY_NAME[fi]} · {LEVEL_LABEL[lvl]}{#if !mine} · à {ownerName}{/if}</small>
     <b>{cur.name}</b>
+    {#if ui.touch}
+      <button class="btn small ghost more" class:open={ui.panelOpen} aria-expanded={ui.panelOpen} onclick={() => (ui.panelOpen = !ui.panelOpen)}>
+        {ui.panelOpen ? 'Moins' : 'Détails'}{@html ICON.down}
+      </button>
+    {/if}
   </div>
+  {#if !ui.touch || ui.panelOpen}
 
   {#if next}
     <div class="cmp">
@@ -80,11 +86,15 @@
   {:else}
     <p class="undo">Vous payez avec votre or ; seul {ownerName} peut vendre la tour.</p>
   {/if}
+  {/if}
 </div>
 
 <style>
   .tp { position: absolute; right: 10px; bottom: 10px; width: min(360px, calc(100vw - 20px)); padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 10px; font-size: 0.93em; max-height: calc(100vh - 140px); overflow: auto; }
-  .th { display: flex; flex-direction: column; gap: 3px; }
+  .th { position: relative; display: flex; flex-direction: column; gap: 3px; }
+  .more { position: absolute; right: -4px; top: 50%; transform: translateY(-50%); padding: 6px 10px; min-height: 36px; gap: 4px; }
+  .more :global(.icon) { transition: transform 0.15s; }
+  .more.open :global(.icon) { transform: rotate(180deg); }
   .th small { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fc); }
   .th b { font-family: var(--font-display); font-size: 1.6em; line-height: 1; }
   .cmp, .stats { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 10px; font-variant-numeric: tabular-nums; align-items: baseline; }
@@ -95,7 +105,7 @@
   .to.better { color: var(--good); }
   .to.worse { color: var(--bad); }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .tags span { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 7px; border: 1px solid rgba(243, 238, 226, 0.3); }
+  .tags span { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(243, 238, 226, 0.3); }
   .btns { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
   .btns.one { grid-template-columns: 1fr; }
   .btns .btn, .rally { padding: 9px 10px; font-size: 0.95em; }
@@ -103,7 +113,7 @@
   .hint { margin: 0; color: var(--muted); }
   .specs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .spec, .sk { cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 5px; padding: 10px; border: 0; color: var(--text); font: inherit;
-    background: linear-gradient(135deg, transparent var(--cut-sm), var(--raised) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut-sm), var(--raised) 0) right / 50.5% 100% no-repeat; }
+    background: var(--raised); border-radius: var(--r-sm); }
   .spec { box-shadow: inset 0 3px 0 var(--fc); }
   .spec:hover, .sk:hover:not(:disabled), .spec:focus-visible, .sk:focus-visible { filter: brightness(1.18); }
   .sk:disabled { cursor: default; opacity: 0.7; }
@@ -115,7 +125,7 @@
   .skills { display: grid; grid-template-columns: 1fr; gap: 6px; }
   .sn { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .pips { display: flex; gap: 3px; }
-  .pips i { width: 9px; height: 9px; background: var(--line); }
+  .pips i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
   .pips i.on { background: var(--gold); }
   .undo { margin: 0; font-size: 12px; color: var(--faint); }
   .kbd { margin-left: 2px; }
