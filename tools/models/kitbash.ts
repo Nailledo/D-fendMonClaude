@@ -69,6 +69,7 @@ class Mesh {
     this.pos = arr('POSITION'); this.nrm = arr('NORMAL'); this.col = arr('COLOR_0'); this.uv = arr('TEXCOORD_0');
     this.anim = arr('_ANIM'); this.weight = arr('_WEIGHT');
     this.idx = Array.from(p.getIndices()!.getArray() as ArrayLike<number>);
+    this.baseTris = this.idx.length / 3;
     // couleurs RGBA éventuelles → RGB
     const n = this.pos.length / 3;
     if (this.col.length === n * 4) this.col = this.col.filter((_, i) => i % 4 !== 3);
@@ -85,6 +86,54 @@ class Mesh {
       c++;
     }
     return { x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0, c };
+  }
+  /**
+   * Lancer de rayon sur les triangles d'origine (Möller–Trumbore) : distance du premier impact, ou -1.
+   * Sert à poser les accessoires au contact de la surface (couronne sur les cheveux, barbe sur le visage).
+   */
+  ray(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxTri = this.baseTris): number {
+    let best = -1;
+    const P = this.pos;
+    for (let t = 0; t < maxTri; t++) {
+      const a = this.idx[t * 3] * 3, b = this.idx[t * 3 + 1] * 3, c = this.idx[t * 3 + 2] * 3;
+      const e1x = P[b] - P[a], e1y = P[b + 1] - P[a + 1], e1z = P[b + 2] - P[a + 2];
+      const e2x = P[c] - P[a], e2y = P[c + 1] - P[a + 1], e2z = P[c + 2] - P[a + 2];
+      const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+      const det = e1x * px + e1y * py + e1z * pz;
+      if (Math.abs(det) < 1e-9) continue;
+      const inv = 1 / det;
+      const tx = ox - P[a], ty = oy - P[a + 1], tz = oz - P[a + 2];
+      const u = (tx * px + ty * py + tz * pz) * inv;
+      if (u < 0 || u > 1) continue;
+      const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+      const v = (dx * qx + dy * qy + dz * qz) * inv;
+      if (v < 0 || u + v > 1) continue;
+      const d = (e2x * qx + e2y * qy + e2z * qz) * inv;
+      if (d > 1e-5 && (best < 0 || d < best)) best = d;
+    }
+    return best;
+  }
+  /** nombre de triangles du modèle d'origine (les accessoires ajoutés ne comptent pas pour les rayons) */
+  baseTris = 0;
+  /** rayon de la surface autour de l'axe vertical (cx, cz) à la hauteur y (moyenne sur n directions) */
+  radiusAt(cx: number, cz: number, y: number, n = 12) {
+    let s = 0, c = 0;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+      const d = this.ray(cx + dx * 2, y, cz + dz * 2, -dx, 0, -dz);
+      if (d > 0) { s += 2 - d; c++; }
+    }
+    return c ? s / c : 0;
+  }
+  /** rayon maximal de la surface autour de l'axe vertical à la hauteur y */
+  radiusMax(cx: number, cz: number, y: number, n = 24) {
+    let r = 0;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+      const d = this.ray(cx + dx * 2, y, cz + dz * 2, -dx, 0, -dz);
+      if (d > 0) r = Math.max(r, 2 - d);
+    }
+    return r;
   }
   /** étendue des jambes (sans les bras) */
   legs() {
@@ -246,15 +295,17 @@ await make('hero-lyra.glb', 'hero-ethan.glb', (m, img, white) => {
   m.frustum(lg.cx, lg.cz, 0.03, hip + 0.12, rw * 1.45, rw * 0.95, 14, PINK, white, false);
   m.frustum(lg.cx, lg.cz, 0.0, 0.07, rw * 1.5, rw * 1.45, 14, WHITE, white, false);
   m.frustum(lg.cx, lg.cz, hip + 0.08, hip + 0.14, rw * 1.0, rw * 0.97, 14, GOLD, white, false);
-  // diadème doré posé sur le haut de la tête, grande pierre bleue sur le devant
-  const hr = Math.max(head.w, head.d) / 2;
-  const ty = 1.3;
-  m.frustum(head.cx, head.cz, ty, ty + 0.06, hr * 0.62, hr * 0.6, 14, GOLD, white, false);
+  // diadème doré posé sur les cheveux (hauteur et rayon mesurés), grande pierre bleue sur le devant
+  const tTop = 2 - m.ray(head.cx, 2, head.cz, 0, -1, 0);
+  const ty = tTop - 0.1, tr = m.radiusAt(head.cx, head.cz, ty) * 0.98;
+  console.log('  diadème', ty.toFixed(3), tr.toFixed(3));
+  m.frustum(head.cx, head.cz, ty, ty + 0.07, tr, tr * 1.04, 16, GOLD, white, false);
+  m.frustum(head.cx, head.cz, ty, ty + 0.07, tr * 0.9, tr * 0.96, 16, hex(0xc9871e), white, false);
   for (let k = 0; k < 7; k++) {
     const a = Math.PI / 2 + (k - 3) * 0.36;
-    m.spike(head.cx + Math.cos(a) * hr * 0.61, ty + 0.055, head.cz + Math.sin(a) * hr * 0.61, 0.04, k === 3 ? 0.2 : k % 2 ? 0.1 : 0.14, 4, GOLD, white);
+    m.spike(head.cx + Math.cos(a) * tr * 1.02, ty + 0.06, head.cz + Math.sin(a) * tr * 1.02, 0.04, k === 3 ? 0.2 : k % 2 ? 0.1 : 0.14, 4, GOLD, white);
   }
-  m.gem(head.cx, ty + 0.08, head.cz + hr * 0.64, 0.05, BLUE, white);
+  m.gem(head.cx, ty + 0.06, head.cz + tr * 1.07, 0.05, BLUE, white);
 });
 
 // ------------------------------------------------------------------ Le roi Gontran (base : milicien)
@@ -275,26 +326,72 @@ await make('soldier-0.glb', 'hero-roi.glb', (m, img, white) => {
     return null;
   });
   const head = m.slab(1.0, 1.25), neck = m.slab(hip + 0.32, hip + 0.42), chest = m.slab(hip + 0.1, hip + 0.35);
-  const hr = Math.max(head.w, head.d) / 2;
-  // couronne : bandeau, fleurons, rubis
-  const cy = 1.22;
-  m.frustum(head.cx, head.cz, cy, cy + 0.09, hr * 0.7, hr * 0.74, 12, GOLD, white, true);
+  // sommet du crâne (cheveux) mesuré par un rayon vertical
+  const hx = head.cx, hz = head.cz;
+  const topY = 2 - m.ray(hx, 2, hz, 0, -1, 0);
+  // couronne : sa base épouse les cheveux (rayon mesuré à cette hauteur), elle s'évase vers le haut
+  const yb = topY - 0.11, rb = m.radiusAt(hx, hz, yb) * 0.97;
+  const yt = yb + 0.13;
+  console.log('  crâne', topY.toFixed(3), 'couronne r', rb.toFixed(3));
+  m.frustum(hx, hz, yb, yt, rb, rb * 1.08, 14, GOLD, white, false);
+  m.frustum(hx, hz, yb, yt, rb * 0.92, rb * 1.0, 14, hex(0xc9871e), white, false);
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
-    m.spike(head.cx + Math.cos(a) * hr * 0.72, cy + 0.085, head.cz + Math.sin(a) * hr * 0.72, 0.04, 0.11, 4, GOLD, white);
-    if (k % 2 === 0) m.gem(head.cx + Math.cos(a) * hr * 0.75, cy + 0.045, head.cz + Math.sin(a) * hr * 0.75, 0.028, RUBY, white);
+    m.spike(hx + Math.cos(a) * rb * 1.06, yt - 0.01, hz + Math.sin(a) * rb * 1.06, 0.045, k % 2 ? 0.08 : 0.12, 4, GOLD, white);
+    if (k % 2 === 0) m.gem(hx + Math.cos(a) * rb * 1.1, yb + 0.06, hz + Math.sin(a) * rb * 1.1, 0.03, RUBY, white);
   }
-  // barbe blanche fournie sous le visage
-  const fz = head.z1;
-  m.frustum(head.cx, fz - 0.07, hip + 0.38, hip + 0.56, 0.05, hr * 0.62, 8, WHITE, white, true, 1, 0.55);
-  m.spike(head.cx, hip + 0.42, fz - 0.03, 0.09, -0.14, 6, WHITE, white);
+  // barbe : coque posée sur le bas du visage (points mesurés par des rayons de face), plus épaisse au menton
+  const cols = 7, rows = 6, bx = 0.15, yTop = 0.86, yChin = 0.72, yTip = 0.6;
+  const grid: number[][][] = [];
+  let lastZ = 0.2;
+  for (let j = 0; j <= rows; j++) {
+    const t = j / rows, y = yTop + (yTip - yTop) * t;
+    const row: number[][] = [];
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols * 2 - 1;
+      // la barbe se resserre en pointe vers le bas
+      const x = hx + u * bx * (1 - Math.max(0, (yChin - y) / (yChin - yTip)) * 0.75) * (y > 0.82 ? 0.8 + (yTop - y) * 4 : 1);
+      const d = m.ray(x, y, 2, 0, 0, -1);
+      // sous le menton le rayon touche le torse : on prolonge la surface du visage
+      let z = d > 0 ? 2 - d : lastZ;
+      if (y < yChin) z = Math.max(z, lastZ - 0.02);
+      if (i === cols / 2 || Math.abs(u) < 0.2) lastZ = z;
+      const thick = 0.025 + Math.max(0, Math.min(1, (yTop - y) / (yTop - yChin))) * 0.06 * (1 - u * u * 0.6);
+      row.push([x, y, z - 0.03, z + thick]);
+    }
+    grid.push(row);
+  }
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const p = (jj: number, ii: number, outer: boolean) => { const g = grid[jj][ii]; return [g[0], g[1], outer ? g[3] : g[2]]; };
+    m.quad(p(j, i, true), p(j + 1, i, true), p(j + 1, i + 1, true), p(j, i + 1, true), WHITE, white);
+    if (i === 0) m.quad(p(j, 0, false), p(j + 1, 0, false), p(j + 1, 0, true), p(j, 0, true), WHITE, white);
+    if (i === cols - 1) m.quad(p(j, cols, true), p(j + 1, cols, true), p(j + 1, cols, false), p(j, cols, false), WHITE, white);
+    if (j === rows - 1) m.quad(p(rows, i, false), p(rows, i + 1, false), p(rows, i + 1, true), p(rows, i, true), WHITE, white);
+  }
+  // moustache : deux mèches posées sous le nez
+  for (const sgn of [-1, 1]) {
+    const y = yTop - 0.005, x = hx + sgn * 0.045;
+    const d = m.ray(x, y, 2, 0, 0, -1);
+    const z = d > 0 ? 2 - d : 0.25;
+    m.box(Math.min(x, x + sgn * 0.075), y - 0.03, z - 0.03, Math.max(x, x + sgn * 0.075), y + 0.015, z + 0.03, WHITE, white);
+  }
+  // col d'hermine : anneau qui épouse le haut du torse (rayon maximal mesuré à chaque hauteur), recouvre le foulard
+  const ncx = neck.cx, ncz = neck.cz;
+  const levels = [0.6, 0.66, 0.72, 0.77];
+  const radii = levels.map((y) => m.radiusMax(ncx, ncz, y) + 0.025);
+  console.log('  col', radii.map((r) => r.toFixed(3)).join(' '));
+  for (let k = 0; k < levels.length - 1; k++) m.frustum(ncx, ncz, levels[k], levels[k + 1], radii[k], radii[k + 1], 16, WHITE, white, false);
+  // dessus du col : rebord qui rentre vers le cou
+  m.frustum(ncx, ncz, levels[3], levels[3] + 0.02, radii[3], radii[3] * 0.75, 16, WHITE, white, false);
   // cape rouge doublée d'or, col d'hermine
   const cw = Math.max(chest.w, 0.3) / 2;
-  m.cape(chest.cz, hip + 0.42, 0.04, cw * 1.05, cw * 1.6, Math.max(chest.d, 0.2) / 2 * 0.9, RED_D, GOLD, white);
-  m.frustum(neck.cx, neck.cz - 0.02, hip + 0.36, hip + 0.44, Math.max(neck.w, 0.24) / 2 * 1.45, Math.max(neck.w, 0.24) / 2 * 1.2, 12, WHITE, white, false);
-  for (let k = 0; k < 6; k++) {
-    const a = Math.PI * 0.25 + (k / 5) * Math.PI * 1.5;
-    m.box(neck.cx + Math.cos(a) * 0.17 - 0.012, hip + 0.39, neck.cz - 0.02 + Math.sin(a) * 0.17 - 0.012, neck.cx + Math.cos(a) * 0.17 + 0.012, hip + 0.42, neck.cz - 0.02 + Math.sin(a) * 0.17 + 0.012, hex(0x222222), white);
+  m.cape(chest.cz, 0.74, 0.04, cw * 1.05, cw * 1.6, Math.max(...radii) * 0.97, RED_D, GOLD, white);
+  // mouchetures noires de l'hermine, posées sur le col
+  for (let k = 0; k < 9; k++) {
+    const a = Math.PI * 0.15 + (k / 8) * Math.PI * 1.7, y = k % 2 ? 0.7 : 0.65;
+    const r = (k % 2 ? radii[2] : radii[1]) + 0.004;
+    const x = ncx + Math.cos(a) * r, z = ncz + Math.sin(a) * r;
+    m.box(x - 0.014, y - 0.02, z - 0.014, x + 0.014, y + 0.02, z + 0.014, hex(0x222222), white);
   }
 });
 

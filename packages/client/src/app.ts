@@ -154,7 +154,8 @@ class App {
     const biome = buildRuntimeMap(cfg.mapId, cfg.players.length).def.biome;
     // charge les modèles importés nécessaires (manifeste vide : aucune attente)
     loadManifest()
-      .then(() => ensureModels(gameModelKeys(biome, ENEMIES.map((e) => e.id), [...HERO_IDS])))
+      // en histoire, la princesse et le roi jouent dans le prologue
+      .then(() => ensureModels(gameModelKeys(biome, ENEMIES.map((e) => e.id), cfg.mode === 'story' ? [...HERO_IDS, 'ethan', 'roi'] : [...HERO_IDS])))
       .catch(() => undefined)
       .then(() => {
         if (gen !== this.launchGen) return;

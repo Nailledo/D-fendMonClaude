@@ -142,6 +142,9 @@
     <div class="cta">
       <button class="btn gold big" onclick={play}>Jouer</button>
       <button class="btn" onclick={coop}>{@html ICON.users} Jouer en coop</button>
+      {#if sel === 0 && progress.seenPrologue}
+        <button class="btn ghost" onclick={() => { ui.replayPrologue = true; play(); }}>{@html ICON.play} Revoir le prologue</button>
+      {/if}
     </div>
   </aside>
 </div>

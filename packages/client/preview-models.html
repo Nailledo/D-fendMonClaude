@@ -12,7 +12,7 @@
 </style>
 </head>
 <body>
-<!-- Outil de contrôle : affiche les GLB de public/models/ en grille.  ?g=enemy|hero|soldier|tower|decor|gate|spawn  &yaw=degrés -->
+<!-- Outil de contrôle : affiche les GLB de public/models/ en grille.  ?g=enemy|hero|soldier|tower|decor|gate|spawn  &yaw=degrés  &k=clé,clé  &yaws=0,90,180 -->
 <nav id="nav"></nav>
 <script type="module">
 import * as THREE from 'three';
@@ -26,7 +26,11 @@ const nav = document.getElementById('nav');
 for (const g of ['hero', 'soldier', 'enemy', 'tower', 'decor', 'gate', 'spawn']) nav.innerHTML += `<a href="?g=${g}">${g}</a>`;
 
 const manifest = (await (await fetch('/models/manifest.json')).json()).models;
-const keys = Object.keys(manifest).filter((k) => k.startsWith(group + ':'));
+// ?k=hero:roi,hero:ethan : seulement ces modèles ; ?yaws=0,90,180 : un modèle sous plusieurs angles
+const only = q.get('k')?.split(',');
+const yawList = q.get('yaws')?.split(',').map((v) => (Number(v) * Math.PI) / 180);
+let keys = Object.keys(manifest).filter((k) => (only ? only.includes(k) : k.startsWith(group + ':')));
+if (yawList) keys = keys.flatMap((k) => yawList.map(() => k));
 const W = innerWidth, H = innerHeight;
 const rows = Math.ceil(keys.length / cols);
 const cw = W / cols, ch = (H - 20) / rows;
@@ -58,7 +62,9 @@ await Promise.all(keys.map(async (key, i) => {
   const r = Math.max(size.x, size.y, size.z) * 0.62;
   const cam = new THREE.PerspectiveCamera(30, cw / ch, 0.01, 1000);
   const d = r / Math.tan((15 * Math.PI) / 180) * 1.05;
-  cam.position.set(c.x + Math.sin(yaw) * d, c.y + d * 0.28, c.z + Math.cos(yaw) * d);
+  const yw = yawList ? yawList[i % yawList.length] : yaw;
+  const zoom = Number(q.get('zoom') ?? 1);
+  cam.position.set(c.x + Math.sin(yw) * d / zoom, c.y + d * 0.28 / zoom, c.z + Math.cos(yw) * d / zoom);
   cam.lookAt(c);
   cells[i] = { scene, cam };
   const lab = document.createElement('div');

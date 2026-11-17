@@ -84,6 +84,8 @@ export const ui = $state({
   touch: typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches,
   /** infobulle de l'option armée du menu radial (affichée dans le tiroir au tactile) */
   radialTip: null as null | { title: string; text: string; cost?: number },
+  /** rejouer le prologue au prochain lancement du niveau 1 */
+  replayPrologue: false,
   /** incrémenté quand une partie est créée : `app.game` n'est pas réactif, l'interface s'y abonne via ce compteur */
   gameId: 0,
   /** panneau de tour déplié (tactile : replié par défaut) */

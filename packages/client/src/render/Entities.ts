@@ -58,6 +58,8 @@ export class Entities {
   heroTypeByUnit = new Map<number, number>();
   /** joueur local : son héros reçoit un halo pour qu'on le repère d'un coup d'œil */
   you = -1;
+  /** pendant une cinématique, les héros de la partie sont masqués (les acteurs prennent leur place) */
+  hideHeroes = false;
   private glow: THREE.Group;
   private glowHalo: THREE.MeshBasicMaterial;
   private glowRing: THREE.MeshBasicMaterial;
@@ -232,6 +234,7 @@ export class Entities {
         continue;
       }
       if (this.uDead[id] || !this.uKnown[id]) { this.uDead[id] = 0; this.uKnown[id] = 1; this.uBorn[id] = time; }
+      if (this.hideHeroes && kind === HERO_UNIT) { this.uBorn[id] = time; continue; }
       let yawT = this.uYaw[id];
       const tg = f.uTarget[i];
       const ti = tg !== 0xffff ? f.enemyIdx(tg) : -1;

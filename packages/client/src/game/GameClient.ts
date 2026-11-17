@@ -13,6 +13,7 @@ import type { Host } from '../net/host';
 import { ACTION_LABELS, keys, settings, type Action } from '../settings';
 import { banner, progress, saveProgress, toast, ui } from '../state.svelte';
 import { PROLOGUE, STORY } from '../story/dialogs';
+import { Prologue } from './Prologue';
 import { Interp } from './Interp';
 
 /** Éléments DOM positionnés à chaque frame (sans passer par la réactivité). */
@@ -46,6 +47,8 @@ export class GameClient {
   private proj = { x: 0, y: 0, visible: false };
   private seenTypes = new Set<string>(progress.seen);
   private dialogPaused = false;
+  /** mise en scène 3D du prologue (première partie de l'histoire) */
+  private prologue: Prologue | null = null;
   private lastWave = 0;
   private ended = false;
   private dmgIdx = 0;
@@ -114,10 +117,13 @@ export class GameClient {
     const story = STORY[lv];
     if (!story) return;
     const lines = [...story.intro];
-    if (lv === 0 && !progress.seenPrologue) {
+    if (lv === 0 && (!progress.seenPrologue || ui.replayPrologue)) {
       progress.seenPrologue = true;
+      ui.replayPrologue = false;
       saveProgress();
       lines.unshift(...PROLOGUE);
+      this.prologue = new Prologue(this.r, this.fx, this.world.exit);
+      this.ents.hideHeroes = true;
     }
     this.showDialog(lines);
   }
@@ -621,6 +627,11 @@ export class GameClient {
 
     const selTower = ui.sel?.kind === 'tower' ? ui.sel.tower ?? -1 : -1;
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
+    if (this.prologue) {
+      const d = ui.dialog;
+      if (!d || d.i >= PROLOGUE.length) this.endPrologue();
+      else this.prologue.update(dt, this.time, d.i, d.lines[d.i].who);
+    }
     this.fx.update(dt, this.interp.renderTick, (id, out) => {
       const i = f.enemyIdx(id);
       if (i < 0) return false;
@@ -1318,7 +1329,14 @@ export class GameClient {
     void this.onLeaveRequest;
   }
 
+  private endPrologue() {
+    this.prologue?.dispose();
+    this.prologue = null;
+    this.ents.hideHeroes = false;
+  }
+
   dispose() {
+    this.endPrologue();
     for (const d of this.disposers) d();
     this.host.dispose();
     const scene = this.r.scene;
