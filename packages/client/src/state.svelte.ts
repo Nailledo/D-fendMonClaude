@@ -54,7 +54,8 @@ export const ui = $state({
   room: null as null | { code: string; you: number; players: LobbyPlayer[]; settings: RoomSettings; inGame: boolean },
   game: null as null | { mode: Mode; mapId: string; difficulty: Difficulty; you: number; multi: boolean; level: number },
   paused: false,
-  loading: false,
+  /** écran de chargement : actif, avancement (0..1), étape en cours */
+  loading: { active: true, progress: 0, label: 'Démarrage…', title: '' },
   hud: {
     gold: 0,
     lives: 20,
@@ -77,7 +78,7 @@ export const ui = $state({
   chatOpen: false,
   toasts: [] as { id: number; text: string; kind: string }[],
   banner: null as null | { title: string; sub: string; id: number },
-  debug: { on: false, fps: 0, calls: 0, tris: 0, ents: 0, ping: 0, kb: 0 },
+  debug: { on: false, fps: 0, calls: 0, tris: 0, ents: 0, ping: 0, kb: 0, res: 100 },
   portraits: {} as Record<string, string>,
   /** icônes 3D générées au démarrage (clé → image) */
   icons: {} as Record<string, string>,

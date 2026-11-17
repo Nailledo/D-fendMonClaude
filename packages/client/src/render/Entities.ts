@@ -69,6 +69,16 @@ export class Entities {
   you = -1;
   /** pendant une cinématique, les héros de la partie sont masqués (les acteurs prennent leur place) */
   hideHeroes = false;
+  /** champ de la caméra : les entités hors de l'écran (et de la portée de leur ombre) ne sont pas dessinées */
+  readonly frustum = new THREE.Frustum();
+  cullOn = false;
+  private sphere = new THREE.Sphere();
+  private inView(x: number, y: number, z: number, r: number) {
+    if (!this.cullOn) return true;
+    this.sphere.center.set(x, y, z);
+    this.sphere.radius = r;
+    return this.frustum.intersectsSphere(this.sphere);
+  }
   private glow: THREE.Group;
   private glowHalo: THREE.MeshBasicMaterial;
   private glowRing: THREE.MeshBasicMaterial;
@@ -228,6 +238,7 @@ export class Entities {
       if (burrowed) y = -0.55 * def.size;
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.7;
       const speed = stunned ? 0 : def.speed * 4.5 / Math.max(0.6, def.size);
+      if (!this.inView(f.eX[i], y + def.size * 0.7, f.eZ[i], def.size * 1.6 + 2)) continue;
       const pool = this.enemyPools[f.eType[i]];
       const j = pool.push(f.eX[i], y, f.eZ[i], this.eYaw[id], def.size, id * 1.37, speed, flash, fighting ? 1 : 0);
       const hit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
@@ -302,6 +313,7 @@ export class Entities {
         pool = this.soldierPools[kind] ?? this.soldierPools[0];
         if (kind === 7) scale = 1.1;
       }
+      if (!this.inView(f.uX[i], 0.8, f.uZ[i], 3.5)) continue;
       const mode = (fighting ? 1 : 0) + style * 2;
       const uhit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
       let cast: number;
@@ -327,6 +339,7 @@ export class Entities {
       const p = (time - c.t0) / c.dur;
       if (p >= 1) continue;
       this.corpses[w++] = c;
+      if (!this.inView(c.x, c.y + 0.6, c.z, c.s * 1.6 + 2)) continue;
       // les volants tombent au sol avant de basculer
       const y = c.y > 0.05 ? c.y * Math.max(0, 1 - (p / 0.4) ** 2) : 0;
       for (const pool of c.weapon ? [c.pool, c.weapon] : [c.pool]) {
@@ -358,6 +371,10 @@ export class Entities {
       const pop = age < 0.35 ? 0.6 + 0.4 * Math.sin((age / 0.35) * Math.PI * 0.5) + Math.sin((age / 0.35) * Math.PI) * 0.12 : 1;
       const team = PLAYER_COLORS[snap.tOwner[i]] ?? 0xffffff;
       const stunned = snap.tStun[i] > 0;
+      if (!this.inView(slot.x, 2, slot.z, 6)) {
+        this.towerMuzzle.set(id, { x: slot.x, y: model.muzzleY, z: slot.z, fam, level, owner: snap.tOwner[i], slot: snap.tSlot[i] });
+        continue;
+      }
       const base = this.towerPool(this.towerBase, key, model.base, model.map);
       const b = base.push(slot.x, 0, slot.z, 0, pop, id * 0.9, 0, id === selectedTower ? 0.18 : 0, 0);
       base.setTeam(b, team);

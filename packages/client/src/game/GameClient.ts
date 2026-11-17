@@ -6,6 +6,7 @@ import {
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
+import { forgetPools } from '../render/InstPool';
 import { Decal, Fx } from '../render/Fx';
 import type { Renderer } from '../render/Renderer';
 import { buildWorld, type WorldInfo } from '../render/World';
@@ -55,6 +56,7 @@ export class GameClient {
   private fpsAcc = 0;
   private fpsN = 0;
   private tpos = { x: 0, y: 0, z: 0 };
+  private projScreen = new THREE.Matrix4();
   snapshotBytes = 0;
 
   constructor(
@@ -143,6 +145,11 @@ export class GameClient {
       this.dialogPaused = false;
       if (!ui.paused) this.host.pause(false);
     }
+  }
+
+  /** Fin de l'écran de chargement : la simulation locale repart (sauf dialogue ou pause en cours). */
+  resumeAfterLoad() {
+    if (this.host.local && !this.dialogPaused && !ui.paused) this.host.pause(false);
   }
 
   setPaused(v: boolean) {
@@ -626,6 +633,10 @@ export class GameClient {
     for (const e of this.interp.dueEvents(this.scratch)) this.handleEvent(e.tick, e.ev);
 
     const selTower = ui.sel?.kind === 'tower' ? ui.sel.tower ?? -1 : -1;
+    // culling des entités : seulement quand on est zoomé (vue d'ensemble : tout est à l'écran)
+    const cam = r.camera;
+    this.ents.cullOn = r.cam.dist < r.cam.fit * 0.85;
+    if (this.ents.cullOn) this.ents.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
     if (this.prologue) {
       const d = ui.dialog;
@@ -1349,7 +1360,7 @@ export class GameClient {
     for (const d of this.disposers) d();
     this.host.dispose();
     const scene = this.r.scene;
-    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.rangeRing, this.hoverRing, this.aimRing, this.rallyFlag]) scene.remove(obj);
+    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.rangeRing, this.hoverRing, this.aimRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
     scene.traverse(() => {});
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => {
       const m = c as THREE.Mesh;

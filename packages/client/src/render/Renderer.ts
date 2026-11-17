@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { settings } from '../settings';
+import { settings, tuning } from '../settings';
 import type { BiomeTheme } from '../art/decor';
 import { uniforms } from './materials';
 
@@ -35,6 +35,8 @@ export class Renderer {
   private fogBase = { near: 55, far: 120 };
   width = 1;
   height = 1;
+  /** échelle de résolution dynamique (1 = pleine résolution réglée) */
+  dynScale = 1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: settings.antialias, powerPreference: 'high-performance', stencil: false });
@@ -48,7 +50,7 @@ export class Renderer {
     this.sun = new THREE.DirectionalLight(0xffffff, 2.4);
     this.sun.position.set(-18, 34, 16);
     this.sun.castShadow = settings.shadows;
-    const sz = settings.quality === 'ultra' ? 4096 : settings.quality === 'haut' ? 2048 : 1024;
+    const sz = tuning().shadowMap;
     this.sun.shadow.mapSize.set(sz, sz);
     const sc = this.sun.shadow.camera;
     sc.left = -34; sc.right = 34; sc.top = 26; sc.bottom = -26; sc.near = 5; sc.far = 90;
@@ -72,14 +74,30 @@ export class Renderer {
     const wasPortrait = this.portrait;
     this.width = w;
     this.height = h;
-    const pr = Math.min(devicePixelRatio || 1, 2) * settings.resScale;
-    this.gl.setPixelRatio(Math.max(0.5, Math.min(pr, 2.5)));
-    this.gl.setSize(w, h, false);
+    this.applyPixelRatio();
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.cam.tyaw = this.targetYaw();
     if (wasPortrait !== this.portrait) this.cam.yaw = this.cam.tyaw;
     this.fitMap();
+  }
+
+  /** Densité de pixels : écran (plafonnée selon la qualité) × échelle réglée × échelle dynamique. */
+  applyPixelRatio() {
+    const pr = Math.min(devicePixelRatio || 1, tuning().prCap) * settings.resScale * this.dynScale;
+    const v = Math.max(0.5, Math.min(pr, 2.5));
+    if (Math.abs(v - this.gl.getPixelRatio()) > 0.001) this.gl.setPixelRatio(v);
+    this.gl.setSize(this.width, this.height, false);
+  }
+
+  /** Pixels (réels) par unité de monde au centre de la vue : sert au choix des niveaux de détail. */
+  pixelsPerUnit() {
+    this.ndc.set(0, 0);
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(this.ground, this.v);
+    const d = hit ? Math.max(4, Math.min(200, hit.distanceTo(this.camera.position))) : 60;
+    const vfov = (this.camera.fov * Math.PI) / 180;
+    return (this.height * this.gl.getPixelRatio()) / (2 * d * Math.tan(vfov / 2));
   }
 
   private targetYaw() {

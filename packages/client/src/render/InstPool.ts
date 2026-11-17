@@ -16,6 +16,32 @@ function sharedDepthMat() {
   return (sharedDepth ??= animDepthMaterial());
 }
 
+/** Lots dont le modèle a des niveaux de détail (voir `applyLods`). */
+const withLods = new Set<InstPool>();
+let globalLod = 0;
+
+/**
+ * Choisit le niveau de détail de tous les modèles selon leur taille à l'écran :
+ * `ppu` = pixels par unité de monde au centre de la vue, `bias` < 1 favorise les modèles simplifiés.
+ */
+export function applyLods(ppu: number, bias = 1) {
+  const p = ppu * bias;
+  // un personnage fait ~1,5 unité : modèle complet au-delà de ~110 px, version légère sous ~50 px
+  const want = p > 72 ? 0 : p > 34 ? 1 : 2;
+  // hystérésis : on ne repasse au niveau supérieur qu'avec une marge (pas de clignotement en zoomant)
+  if (want < globalLod && p < [72, 34][want] * 1.12) return globalLod;
+  globalLod = want;
+  for (const pool of withLods) pool.setLod(globalLod);
+  return globalLod;
+}
+
+/** Oublie les lots rattachés à `root` (scène quittée), pour qu'ils ne restent pas en mémoire. */
+export function forgetPools(root: THREE.Object3D) {
+  for (const pool of withLods) {
+    for (let o: THREE.Object3D | null = pool.mesh; o; o = o.parent) if (o === root) { withLods.delete(pool); break; }
+  }
+}
+
 /**
  * Lot d'instances d'un même modèle. Une seule draw call par modèle,
  * attributs par instance (animation, teinte, couleur d'équipe), aucune allocation par frame.
@@ -34,9 +60,25 @@ export class InstPool {
   private aTeam!: THREE.InstancedBufferAttribute;
   count = 0;
   cap = 0;
+  private lods: THREE.BufferAttribute[] | null;
+  private lod = 0;
 
   constructor(private src: THREE.BufferGeometry, cap: number, private parent: THREE.Object3D, private shadow = true, private map: THREE.Texture | null = null) {
+    this.lods = (src.userData.lods as THREE.BufferAttribute[] | undefined) ?? null;
     this.alloc(cap);
+    if (this.lods && this.lods.length > 1) {
+      withLods.add(this);
+      this.setLod(globalLod);
+    }
+  }
+
+  /** Niveau de détail : même sommets, index simplifié (aussi utilisé pour les ombres). */
+  setLod(l: number) {
+    if (!this.lods) return;
+    const lv = Math.min(l, this.lods.length - 1);
+    if (lv === this.lod && this.geo.index === this.lods[lv]) return;
+    this.lod = lv;
+    this.geo.setIndex(this.lods[lv]);
   }
 
   private alloc(cap: number) {
@@ -44,7 +86,7 @@ export class InstPool {
     this.cap = cap;
     this.geo = new THREE.BufferGeometry();
     for (const k of Object.keys(this.src.attributes)) this.geo.setAttribute(k, this.src.attributes[k]);
-    if (this.src.index) this.geo.setIndex(this.src.index);
+    if (this.src.index) this.geo.setIndex(this.lods?.[this.lod] ?? this.src.index);
     this.geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
     this.anim = new Float32Array(cap * 4);
     this.tint = new Float32Array(cap * 4);
@@ -152,6 +194,7 @@ export class InstPool {
   }
 
   dispose() {
+    withLods.delete(this);
     this.parent.remove(this.mesh);
     this.geo.dispose();
     this.mesh.dispose();

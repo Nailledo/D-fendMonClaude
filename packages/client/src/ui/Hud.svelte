@@ -269,7 +269,7 @@
 
   {#if ui.debug.on}
     <div class="debug">
-      {ui.debug.fps} FPS · {ui.debug.calls} draw calls · {Math.round(ui.debug.tris / 1000)}k tris · {ui.debug.ents} entités · {ui.debug.kb} Ko/s{multi ? ` · ${ui.debug.ping} ms` : ''}
+      {ui.debug.fps} FPS · {ui.debug.calls} draw calls · {Math.round(ui.debug.tris / 1000)}k tris · {ui.debug.ents} entités · résolution {ui.debug.res} % · {ui.debug.kb} Ko/s{multi ? ` · ${ui.debug.ping} ms` : ''}
     </div>
   {/if}
 

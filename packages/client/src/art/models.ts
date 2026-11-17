@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptSimplifier } from 'meshoptimizer/simplifier';
 import { ENEMIES, type Biome } from '@dfend/shared';
 
 /**
@@ -90,13 +91,19 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
   return { geo, map, meta };
 }
 
-/** Charge (une fois) les modèles demandés qui existent dans le manifeste. */
-export async function ensureModels(keys: Iterable<string>): Promise<void> {
+/**
+ * Charge (une fois) les modèles demandés qui existent dans le manifeste.
+ * `onProgress(fait, total)` suit l'avancement (modèles déjà chargés comptés comme faits).
+ */
+export async function ensureModels(keys: Iterable<string>, onProgress?: (done: number, total: number) => void): Promise<void> {
   const man = await loadManifest();
   const jobs: Promise<void>[] = [];
-  for (const key of keys) {
+  const list = [...new Set(keys)].filter((k) => man[k]);
+  let done = list.filter((k) => loaded.has(k)).length;
+  onProgress?.(done, list.length);
+  for (const key of list) {
     const meta = man[key];
-    if (!meta || loaded.has(key)) continue;
+    if (loaded.has(key)) continue;
     let p = pending.get(key);
     if (!p) {
       p = loader
@@ -109,9 +116,66 @@ export async function ensureModels(keys: Iterable<string>): Promise<void> {
         .finally(() => pending.delete(key));
       pending.set(key, p);
     }
-    jobs.push(p);
+    jobs.push(p.then(() => onProgress?.(++done, list.length)));
   }
   await Promise.all(jobs);
+}
+
+// ---------------------------------------------------------------- niveaux de détail
+
+/** proportion de triangles gardés par niveau de détail (0 = modèle complet) */
+const LOD_RATIOS = [1, 0.45, 0.2];
+const LOD_ERRORS = [0, 0.012, 0.035];
+let simplifierReady: Promise<boolean> | null = null;
+function simplifier() {
+  return (simplifierReady ??= MeshoptSimplifier.supported ? MeshoptSimplifier.ready.then(() => true, () => false) : Promise.resolve(false));
+}
+
+/**
+ * Niveaux de détail d'une géométrie indexée : même tampon de sommets (couleurs, parties animées, UV),
+ * seul l'index change. Rangés dans `geo.userData.lods` (le premier est l'index d'origine).
+ */
+export function makeLods(geo: THREE.BufferGeometry) {
+  if (geo.userData.lods || !geo.index) return;
+  const pos = geo.attributes.position;
+  const src = geo.index.array;
+  const idx = src instanceof Uint32Array ? src : new Uint32Array(src);
+  const flat = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) { flat[i * 3] = pos.getX(i); flat[i * 3 + 1] = pos.getY(i); flat[i * 3 + 2] = pos.getZ(i); }
+  const lods: THREE.BufferAttribute[] = [geo.index];
+  let prev = idx;
+  for (let l = 1; l < LOD_RATIOS.length; l++) {
+    // sous ~300 triangles, simplifier n'apporte rien et abîme la silhouette
+    if (idx.length / 3 < 300) { lods.push(lods[l - 1]); continue; }
+    const target = Math.max(3 * 60, Math.floor((idx.length * LOD_RATIOS[l]) / 3) * 3);
+    const [out, n] = MeshoptSimplifier.simplify(idx, flat, 3, target, LOD_ERRORS[l]);
+    const arr = n > 0 && out.length < prev.length * 0.92 ? out : prev;
+    const attr = arr === prev ? lods[l - 1] : new THREE.BufferAttribute(pos.count < 65536 ? new Uint16Array(arr) : arr, 1);
+    lods.push(attr);
+    prev = arr;
+  }
+  geo.userData.lods = lods;
+}
+
+/** Prépare les niveaux de détail des modèles chargés (par lots, pour ne pas figer l'écran de chargement). */
+export async function buildLods(keys: Iterable<string>, onProgress?: (done: number, total: number) => void) {
+  if (!(await simplifier())) return;
+  const list = [...new Set(keys)].map((k) => loaded.get(k)).filter((m): m is LoadedModel => !!m && !m.geo.userData.lods);
+  let t0 = performance.now();
+  for (let i = 0; i < list.length; i++) {
+    try {
+      makeLods(list[i].geo);
+    } catch (e) {
+      console.warn('LOD impossible :', e);
+      list[i].geo.userData.lods = [list[i].geo.index];
+    }
+    if (performance.now() - t0 > 12) {
+      onProgress?.(i + 1, list.length);
+      await new Promise((r) => setTimeout(r, 0));
+      t0 = performance.now();
+    }
+  }
+  onProgress?.(list.length, list.length);
 }
 
 /** Modèle importé s'il est chargé, sinon undefined (l'appelant retombe sur l'art en code). */

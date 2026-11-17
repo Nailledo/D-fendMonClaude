@@ -19,7 +19,24 @@ export interface Settings {
   reduceShake: boolean;
   /** badges de raccourcis toujours visibles (sinon : au survol, ou en maintenant Alt) */
   showKeys: boolean;
+  /** baisse temporairement la résolution quand les images par seconde chutent */
+  dynRes: boolean;
   autoDetected: boolean;
+}
+
+/**
+ * Réglages dérivés de la qualité (non modifiables un par un) :
+ * densité de pixels maximale, préférence pour les modèles détaillés, quantité de particules, taille des ombres.
+ */
+export const QUALITY_TUNING: Record<Quality, { prCap: number; lodBias: number; fx: number; shadowMap: number }> = {
+  bas: { prCap: 1.25, lodBias: 0.55, fx: 0.5, shadowMap: 1024 },
+  moyen: { prCap: 1.75, lodBias: 1, fx: 0.8, shadowMap: 1024 },
+  haut: { prCap: 2, lodBias: 1.4, fx: 1, shadowMap: 2048 },
+  ultra: { prCap: 2.5, lodBias: 2.4, fx: 1, shadowMap: 4096 },
+};
+
+export function tuning() {
+  return QUALITY_TUNING[settings.quality] ?? QUALITY_TUNING.moyen;
 }
 
 export const QUALITY_PRESETS: Record<Quality, Pick<Settings, 'resScale' | 'shadows' | 'antialias' | 'decorDensity'>> = {
@@ -32,7 +49,7 @@ export const QUALITY_PRESETS: Record<Quality, Pick<Settings, 'resScale' | 'shado
 const DEFAULTS: Settings = {
   quality: 'moyen', ...QUALITY_PRESETS.moyen, fpsCap: 0,
   volMaster: 0.8, volMusic: 0.5, volSfx: 0.8, edgeScroll: false, damageNumbers: false,
-  textScale: 1, colorblind: false, reduceShake: false, showKeys: false, autoDetected: false,
+  textScale: 1, colorblind: false, reduceShake: false, showKeys: false, dynRes: true, autoDetected: false,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);

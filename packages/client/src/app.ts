@@ -2,13 +2,17 @@ import {
   ENEMIES, HERO_IDS, LEVELS, buildRuntimeMap, type Difficulty, type EndInfo, type GameConfig, type HeroId, type Mode, type ServerMsg,
 } from '@dfend/shared';
 import { audio } from './audio/Audio';
-import { K, ensureModels, gameModelKeys, loadManifest } from './art/models';
+import { K, buildLods, ensureModels, gameModelKeys, loadManifest, portraitModelKeys } from './art/models';
+import { endLoading, nextFrame, setLoading, span, startLoading, warmup } from './loading';
+import { renderIcons3DProgressive } from './render/icons3d';
+import { renderPortraits } from './render/portraits';
 import { GameClient } from './game/GameClient';
 import { LocalHost } from './net/host';
 import { RemoteHost, net } from './net/Net';
+import { applyLods } from './render/InstPool';
 import { Renderer } from './render/Renderer';
 import { TitleScene } from './render/TitleScene';
-import { autoDetect, settings } from './settings';
+import { autoDetect, settings, tuning } from './settings';
 import { toast, ui } from './state.svelte';
 
 class App {
@@ -21,14 +25,6 @@ class App {
   init(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
     autoDetect(this.renderer.gl.getContext());
-    this.showTitle();
-    // modèles importés de l'écran titre : on reconstruit le diorama une fois chargés
-    void loadManifest().then(() => ensureModels([K.hero('samuel'), ...['kessin1', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], [])])).then(() => {
-      if (this.title && !this.game) {
-        this.title.dispose();
-        this.title = new TitleScene(this.renderer);
-      }
-    });
     net.onStatus = (s) => (ui.netStatus = s);
     net.on((m) => this.onServer(m));
     document.addEventListener('visibilitychange', () => {
@@ -46,11 +42,74 @@ class App {
       if (!document.hidden) {
         if (this.game) this.game.update(dt);
         else if (this.title) this.title.update(dt);
+        applyLods(this.renderer.pixelsPerUnit(), tuning().lodBias);
         this.renderer.render();
+        this.dynamicResolution((now - this.frameStart) / 1000);
       }
+      this.frameStart = now;
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  /**
+   * Chargement initial, derrière l'écran de chargement : modèles de l'accueil et des portraits,
+   * niveaux de détail, portraits, icônes 3D, puis préchauffage des shaders de la scène d'accueil.
+   * L'accueil n'apparaît qu'une fois tout prêt (plus de modèles qui changent sous les yeux).
+   */
+  async boot() {
+    startLoading('Chargement…');
+    try {
+      await loadManifest();
+      setLoading(0.04, 'Chargement des modèles 3D…');
+      const keys = [K.hero('samuel'), ...['kessin1', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], []), ...portraitModelKeys()];
+      await ensureModels(keys, span(0.04, 0.6));
+      await buildLods(keys, span(0.6, 0.7, 'Optimisation des modèles…'));
+      setLoading(0.7, 'Portraits des héros…');
+      await nextFrame();
+      ui.portraits = renderPortraits();
+      await renderIcons3DProgressive((chunk) => (ui.icons = { ...ui.icons, ...chunk }), 160, 6, span(0.72, 0.9, 'Icônes…'));
+    } catch (e) {
+      console.warn('Chargement incomplet :', e);
+    }
+    setLoading(0.9, 'Préparation de la scène…');
+    await nextFrame();
+    if (!this.game) {
+      this.showTitle();
+      this.title!.update(1 / 60);
+      await warmup(this.renderer.gl, this.renderer.scene, this.renderer.camera);
+    }
+    await endLoading();
+  }
+
+  private frameStart = performance.now();
+  private dyn = { acc: 0, n: 0, good: 0 };
+
+  /**
+   * Résolution dynamique : si les images ralentissent nettement pendant ~1,5 s, on baisse la densité de pixels
+   * (jusqu'à 55 %), puis on la remonte doucement quand la marge revient. Coupée pendant les chargements.
+   */
+  private dynamicResolution(frame: number) {
+    const r = this.renderer, d = this.dyn;
+    if (!settings.dynRes || ui.loading.active || frame > 0.25) {
+      if (!settings.dynRes && r.dynScale !== 1) { r.dynScale = 1; r.applyPixelRatio(); }
+      d.acc = d.n = 0;
+      return;
+    }
+    d.acc += frame;
+    d.n++;
+    if (d.acc < 1.5) return;
+    const avg = d.acc / d.n;
+    d.acc = d.n = 0;
+    const target = settings.fpsCap > 0 ? 1 / settings.fpsCap : 1 / 60;
+    let s = r.dynScale;
+    if (avg > target * 1.3 + 0.002) { s = Math.max(0.55, s - 0.1); d.good = 0; }
+    else if (avg < target * 1.08 && ++d.good >= 2) { s = Math.min(1, s + 0.05); d.good = 0; }
+    if (s !== r.dynScale) {
+      r.dynScale = s;
+      r.applyPixelRatio();
+    }
+    ui.debug.res = Math.round(r.gl.getPixelRatio() * 100);
   }
 
   showTitle() {
@@ -102,25 +161,42 @@ class App {
     ui.sel = null;
     ui.submitted = false;
     ui.screen = 'game';
-    ui.loading = true;
     const gen = ++this.launchGen;
-    const biome = buildRuntimeMap(cfg.mapId, cfg.players.length).def.biome;
-    // charge les modèles importés nécessaires (manifeste vide : aucune attente)
-    loadManifest()
+    const def = buildRuntimeMap(cfg.mapId, cfg.players.length).def;
+    startLoading('Chargement des modèles 3D…', def.name);
+    // la simulation locale attend la fin du chargement (le compte à rebours ne tourne pas pendant ce temps)
+    if (host.local) host.pause(true);
+    void (async () => {
       // en histoire, la princesse et le roi jouent dans le prologue
-      .then(() => ensureModels(gameModelKeys(biome, ENEMIES.map((e) => e.id), cfg.mode === 'story' ? [...HERO_IDS, 'ethan', 'roi'] : [...HERO_IDS])))
-      .catch(() => undefined)
-      .then(() => {
-        if (gen !== this.launchGen) return;
-        ui.loading = false;
-        this.game = new GameClient(this.renderer, cfg, host, you, () => this.leaveGame());
-        ui.gameId++;
-      });
+      const keys = gameModelKeys(def.biome, ENEMIES.map((e) => e.id), cfg.mode === 'story' ? [...HERO_IDS, 'ethan', 'roi'] : [...HERO_IDS]);
+      try {
+        await loadManifest();
+        await ensureModels(keys, span(0, 0.55));
+        await buildLods(keys, span(0.55, 0.7, 'Optimisation des modèles…'));
+      } catch (e) {
+        console.warn('Modèles incomplets :', e);
+      }
+      if (gen !== this.launchGen) return;
+      setLoading(0.72, 'Construction du monde…');
+      await nextFrame();
+      if (gen !== this.launchGen) return;
+      const game = new GameClient(this.renderer, cfg, host, you, () => this.leaveGame());
+      this.game = game;
+      ui.gameId++;
+      setLoading(0.85, 'Préparation des effets…');
+      await nextFrame();
+      this.renderer.update(1 / 60, performance.now() / 1000);
+      await warmup(this.renderer.gl, this.renderer.scene, this.renderer.camera);
+      if (gen !== this.launchGen) return;
+      await endLoading();
+      if (gen === this.launchGen) game.resumeAfterLoad();
+    })();
   }
   private launchGen = 0;
 
   leaveGame(toMenu = true) {
     this.launchGen++;
+    ui.loading.active = false;
     if (this.game) {
       this.game.dispose();
       this.game = null;

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { GB } from '../art/builder';
-import { settings } from '../settings';
+import { settings, tuning } from '../settings';
+
+/** quantité de particules des effets composés selon la qualité (au moins une) */
+const dens = (n: number) => (n <= 1 ? n : Math.max(1, Math.round(n * tuning().fx)));
 import { InstPool } from './InstPool';
 import { uniforms } from './materials';
 
@@ -596,6 +599,7 @@ export class Fx {
 
   burst(x: number, y: number, z: number, n: number, color: number, speed = 3, size = 0.12, life = 0.6, additive = false, grav = -9) {
     const p = additive ? this.glow : this.sparks;
+    n = dens(n);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const v = speed * (0.3 + Math.random() * 0.7);
@@ -715,8 +719,9 @@ export class Fx {
   shockwave(x: number, z: number, r: number, c: number, dust = 0x9e8a70, life = 0.5) {
     this.pillars.add(x, 0, z, r * 0.15, r, 0.9, 0.35, life, c, 0);
     this.rings.add(x, z, r * 0.1, r * 1.05, life * 1.1, c);
-    for (let k = 0; k < 22; k++) {
-      const a = (k / 22) * Math.PI * 2;
+    const nd = dens(22);
+    for (let k = 0; k < nd; k++) {
+      const a = (k / nd) * Math.PI * 2;
       const v = r * (2.2 + Math.random() * 1.4);
       this.sparks.spawn(x + Math.cos(a) * 0.3, 0.15, z + Math.sin(a) * 0.3, Math.cos(a) * v, 0.6 + Math.random(), Math.sin(a) * v, 0.45 + Math.random() * 0.3, 0.16 + Math.random() * 0.12, dust, -2);
     }
@@ -730,6 +735,7 @@ export class Fx {
 
   /** Étincelles qui montent en spirale (soin, sacré, magie). */
   spiral(x: number, z: number, r: number, n: number, c: number, life = 1.1) {
+    n = dens(n);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2;
       const d = r * (0.4 + Math.random() * 0.6);
@@ -739,6 +745,7 @@ export class Fx {
 
   /** Débris lourds (rochers) projetés en l'air. */
   debris(x: number, z: number, n: number, c: number, speed = 6) {
+    n = dens(n);
     for (let k = 0; k < n; k++) {
       const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
       this.sparks.spawn(x, 0.3, z, Math.cos(a) * v * 0.6, speed * (0.7 + Math.random() * 0.8), Math.sin(a) * v * 0.6, 1 + Math.random() * 0.5, 0.18 + Math.random() * 0.2, c, -16);
@@ -747,6 +754,7 @@ export class Fx {
 
   /** Fumée qui monte lentement. */
   smoke(x: number, y: number, z: number, n: number, c = 0x5d5d5d, spread = 1) {
+    n = dens(n);
     for (let k = 0; k < n; k++) {
       this.sparks.spawn(x + (Math.random() - 0.5) * spread, y + Math.random() * 0.5, z + (Math.random() - 0.5) * spread, (Math.random() - 0.5) * 0.6, 0.8 + Math.random() * 1.2, (Math.random() - 0.5) * 0.6, 1.2 + Math.random() * 0.9, 0.25 + Math.random() * 0.25, c, 0.6);
     }

@@ -10,6 +10,7 @@
   import Encyclopedia from './Encyclopedia.svelte';
   import Leaderboard from './Leaderboard.svelte';
   import Help from './Help.svelte';
+  import Loading from './Loading.svelte';
 </script>
 
 {#if ui.screen === 'title'}
@@ -30,6 +31,8 @@
 {#if ui.overlay === 'encyclo'}<Encyclopedia />{/if}
 {#if ui.overlay === 'leaderboard'}<Leaderboard />{/if}
 {#if ui.overlay === 'help'}<Help />{/if}
+
+<Loading />
 
 <div class="toasts">
   {#each ui.toasts as t (t.id)}

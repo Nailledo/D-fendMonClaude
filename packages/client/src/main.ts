@@ -7,9 +7,6 @@ import '@fontsource/grenze-gotisch/700.css';
 import './app.css';
 import { mount } from 'svelte';
 import { app } from './app';
-import { ensureModels, loadManifest, portraitModelKeys } from './art/models';
-import { renderIcons3DProgressive } from './render/icons3d';
-import { renderPortraits } from './render/portraits';
 import { detectLayout, settings } from './settings';
 import { ui } from './state.svelte';
 import { loadRaw } from './storage';
@@ -19,15 +16,10 @@ document.documentElement.style.setProperty('--scale', String(settings.textScale)
 document.documentElement.classList.toggle('show-keys', !!settings.showKeys);
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 app.init(canvas);
-ui.portraits = renderPortraits();
-// icônes 3D du jeu : générées par lots, l'interface affiche les anciennes en attendant
-renderIcons3DProgressive((chunk) => (ui.icons = { ...ui.icons, ...chunk }));
-// les portraits sont refaits avec les modèles importés (ceux qu'on voit en jeu) dès qu'ils sont chargés
-void loadManifest()
-  .then(() => ensureModels(portraitModelKeys()))
-  .then(() => (ui.portraits = renderPortraits()));
 void detectLayout();
-if (new URLSearchParams(location.search).has('bench')) app.startBench();
+// chargement initial (modèles, portraits, icônes, shaders) derrière l'écran de chargement
+const booted = app.boot();
+if (new URLSearchParams(location.search).has('bench')) void booted.then(() => app.startBench());
 // reconnexion automatique à une partie en cours (jeton conservé)
 if (loadRaw('token', '')) app.connect();
 mount(App, { target: document.getElementById('app')! });

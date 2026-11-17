@@ -13,6 +13,12 @@
   </head>
   <body>
     <canvas id="scene"></canvas>
+    <!-- écran affiché avant le chargement du script (remplacé par l'écran de chargement du jeu) -->
+    <div id="boot" style="position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:radial-gradient(ellipse at 50% 40%,#26302b 0%,#14181b 70%);color:#f3eee2;font:700 15px system-ui,sans-serif">
+      <div style="font:700 clamp(56px,13vw,104px) Georgia,serif;letter-spacing:0.02em">D-Fend</div>
+      <div style="width:min(440px,80vw);height:12px;border-radius:999px;background:#171c20;overflow:hidden"><div style="width:30%;height:100%;border-radius:999px;background:#f2b33d;animation:bootbar 1.2s ease-in-out infinite alternate"></div></div>
+      <style>@keyframes bootbar{from{margin-left:0}to{margin-left:70%}}</style>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

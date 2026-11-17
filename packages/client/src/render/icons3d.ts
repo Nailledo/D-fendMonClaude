@@ -696,15 +696,21 @@ export function disposeIcons3D() {
 }
 
 /** Génère toutes les icônes par petits lots entre deux images (aucun gel de l'écran titre). */
-export function renderIcons3DProgressive(onChunk: (icons: Record<string, string>) => void, size = 160, per = 6) {
+export function renderIcons3DProgressive(onChunk: (icons: Record<string, string>) => void, size = 160, per = 6, onProgress?: (done: number, total: number) => void): Promise<void> {
   const keys = Object.keys(ICONS3D);
   let i = 0;
-  const step = () => {
-    const chunk = keys.slice(i, i + per);
-    i += per;
-    onChunk(renderIcons3D(chunk, size));
-    if (i < keys.length) setTimeout(step, 16);
-    else disposeIcons3D();
-  };
-  setTimeout(step, 30);
+  return new Promise((done) => {
+    const step = () => {
+      const chunk = keys.slice(i, i + per);
+      i += per;
+      onChunk(renderIcons3D(chunk, size));
+      onProgress?.(Math.min(i, keys.length), keys.length);
+      if (i < keys.length) setTimeout(step, 16);
+      else {
+        disposeIcons3D();
+        done();
+      }
+    };
+    setTimeout(step, 30);
+  });
 }

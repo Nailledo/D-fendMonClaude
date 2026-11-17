@@ -6,7 +6,7 @@ import { towerModel } from '../art/towers';
 import { heroGeometry } from '../art/units';
 import { settings } from '../settings';
 import { Decal, Fx } from './Fx';
-import { InstPool } from './InstPool';
+import { InstPool, forgetPools } from './InstPool';
 import type { Renderer } from './Renderer';
 import { buildWorld } from './World';
 
@@ -303,5 +303,6 @@ export class TitleScene {
 
   dispose() {
     this.r.scene.remove(this.group);
+    forgetPools(this.group);
   }
 }

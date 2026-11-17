@@ -2,6 +2,7 @@
   import { audio } from '../audio/Audio';
   import { ACTION_LABELS, DEFAULT_KEYS, applyPreset, keyLabel, keys, resetKeys, saveKeys, saveSettings, settings, type Action, type Quality } from '../settings';
   import { ui } from '../state.svelte';
+  import { app } from '../app';
 
   let tab = $state<'gfx' | 'audio' | 'keys' | 'access'>('gfx');
   const s = $state({ ...settings });
@@ -16,6 +17,8 @@
     audio.applyVolumes();
     document.documentElement.style.setProperty('--scale', String(settings.textScale));
     document.documentElement.classList.toggle('show-keys', settings.showKeys);
+    // résolution : appliquée tout de suite
+    app.renderer?.applyPixelRatio();
     if (reload) needReload = true;
   }
   function preset(q: Quality) {
@@ -77,6 +80,7 @@
         </label>
         <label class="check"><input type="checkbox" bind:checked={s.shadows} onchange={commit} /> Ombres</label>
         <label class="check"><input type="checkbox" bind:checked={s.antialias} onchange={commit} /> Anticrénelage (MSAA)</label>
+        <label class="check"><input type="checkbox" bind:checked={s.dynRes} onchange={commit} /> Résolution dynamique (baisse la résolution si le jeu ralentit)</label>
         {#if needReload}<p class="warn">Certains réglages s’appliquent au rechargement. <button class="btn small" onclick={() => location.reload()}>Recharger</button></p>{/if}
       {:else if tab === 'audio'}
         <label>Volume général : {Math.round(s.volMaster * 100)} %<input type="range" min="0" max="1" step="0.05" bind:value={s.volMaster} oninput={commit} /></label>
