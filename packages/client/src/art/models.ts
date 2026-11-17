@@ -72,6 +72,7 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
     geo.setAttribute('aWeight', weight);
     geo.deleteAttribute('_weight');
   } else geo.setAttribute('aWeight', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count).fill(1), 1));
+  anchorHeld(geo);
   if (!geo.getAttribute('color')) {
     const c = new Float32Array(geo.attributes.position.count * 3).fill(1);
     geo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
@@ -89,6 +90,23 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
   }
   mat?.dispose();
   return { geo, map, meta };
+}
+
+/**
+ * Armes et boucliers tenus en main : la cuisson leur a donné leur propre pivot (le haut de l'objet),
+ * si bien qu'ils tournaient sur eux-mêmes, décalés de la main. Tout ce qui appartient à un bras
+ * pivote désormais autour de l'épaule de ce bras (le pivot le plus haut) : l'objet reste ancré dans la main.
+ */
+function anchorHeld(geo: THREE.BufferGeometry) {
+  const a = geo.getAttribute('aAnim') as THREE.BufferAttribute;
+  for (const part of [3, 4]) {
+    let best = -1, by = -Infinity;
+    for (let i = 0; i < a.count; i++) if (Math.round(a.getX(i)) === part && a.getZ(i) > by) { by = a.getZ(i); best = i; }
+    if (best < 0) continue;
+    const sx = a.getY(best), sz = a.getW(best);
+    for (let i = 0; i < a.count; i++) if (Math.round(a.getX(i)) === part) a.setXYZW(i, part, sx, by, sz);
+  }
+  a.needsUpdate = true;
 }
 
 /**
@@ -196,7 +214,7 @@ export function gameModelKeys(biome: Biome, enemyIds: string[], heroIds: string[
   for (const id of heroIds) keys.push(K.hero(id));
   for (let k = 0; k < 8; k++) keys.push(K.soldier(k));
   for (let f = 0; f < 4; f++) for (let l = 0; l < 5; l++) keys.push(K.tower(f, l));
-  keys.push(K.gate(biome), K.spawn(biome));
+  keys.push(K.gate(biome));
   if (manifest) for (const k of Object.keys(manifest)) if (k.startsWith(`decor:${biome}:`)) keys.push(k);
   return keys;
 }

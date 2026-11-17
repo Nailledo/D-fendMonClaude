@@ -186,16 +186,48 @@ export function gateGeometry(biome: Biome): THREE.BufferGeometry {
 }
 
 /** Repère d'apparition des ennemis (portail / grotte). */
+/**
+ * Entrée de galerie creusée dans la colline : arche de rochers, étais de bois, intérieur dans l'ombre.
+ * Repère local : l'ouverture regarde vers +z (vers la carte), la galerie s'enfonce vers -z sous la colline
+ * (le terrain se relève derrière, voir World). Les ennemis sortent de l'obscurité.
+ */
 export function spawnGeometry(biome: Biome): THREE.BufferGeometry {
   const g = new GB(55);
-  const c = biome === 'cendre' ? 0x2b2222 : biome === 'marais' ? 0x4a4f44 : 0x7d776d;
-  for (const s of [1, -1]) {
-    g.rock(0.9, c, s * 2.0, 0.9, 0, 0.8, 1.6, 0.8);
-    g.rock(0.6, c, s * 2.4, 0.4, 0.8, 1, 0.8, 1);
+  g.ao = false;
+  const c = biome === 'cendre' ? 0x3a2f2c : biome === 'marais' ? 0x5a6052 : 0x8a8478;
+  const c2 = biome === 'cendre' ? 0x2b2222 : biome === 'marais' ? 0x4a4f44 : 0x6f6a60;
+  const wood = biome === 'cendre' ? 0x3e2a22 : 0x6d4c33;
+  const dark = 0x0c0907, dim = 0x1b1510;
+  // l'intérieur : fond noir, parois et voûte sombres, sol de terre battue
+  g.box(3.6, 2.8, 0.3, dark, 0, 1.4, -2.9);
+  for (const s of [1, -1]) g.box(0.5, 2.8, 3.2, dim, s * 1.85, 1.4, -1.35);
+  g.box(4.2, 0.5, 3.2, dim, 0, 2.75, -1.35);
+  g.box(3.3, 0.05, 3.2, 0x2a2018, 0, 0.03, -1.35);
+  // étais de mine : deux cadres, le second dans la pénombre
+  for (const [z, k] of [[0.05, 1], [-1.5, 0.45]] as const) {
+    const col = k === 1 ? wood : 0x2e2118;
+    for (const s of [1, -1]) g.box(0.2, 2.3, 0.2, col, s * 1.45, 1.15, z, 0, 0, s * 0.04);
+    g.box(3.3, 0.22, 0.24, col, 0, 2.38, z);
   }
-  g.box(0.12, 1.5, 0.12, 0x4e342e, 1.2, 0.75, 0.6);
-  g.ball(0.18, 0xff7043, 1.2, 1.6, 0.6);
-  g.box(0.12, 1.5, 0.12, 0x4e342e, -1.2, 0.75, 0.6);
-  g.ball(0.18, 0xff7043, -1.2, 1.6, 0.6);
+  // arche de rochers autour de l'ouverture
+  for (let k = 0; k <= 8; k++) {
+    const a = (k / 8) * Math.PI;
+    const r = 0.62 + ((k * 37) % 5) * 0.06;
+    g.rock(r, k % 2 ? c : c2, Math.cos(a) * 2.25, 0.25 + Math.sin(a) * 2.45, 0.05, 1.1, 0.95, 0.9, k);
+  }
+  // masse rocheuse : la colline affleure autour et au-dessus de l'entrée
+  for (const s of [1, -1]) {
+    g.rock(1.35, c2, s * 3.1, 0.9, -0.9, 1, 1.1, 1.2, s);
+    g.rock(1.0, c, s * 3.6, 0.45, 0.3, 1.1, 0.7, 1, s * 2);
+    g.rock(1.2, c, s * 2.6, 2.5, -1.3, 1.1, 0.9, 1.1, s * 3);
+  }
+  g.rock(1.3, c2, 0, 3.0, -1.9, 1.5, 0.75, 1.2, 1.3);
+  g.rock(0.9, c, 1.0, 3.1, -1.2, 1, 0.65, 1, 0.4);
+  // torches de part et d'autre
+  for (const s of [1, -1]) {
+    g.box(0.1, 0.9, 0.1, 0x4e342e, s * 2.0, 1.0, 0.75, 0, 0, s * 0.15);
+    g.ball(0.17, 0xff7043, s * 2.07, 1.5, 0.75);
+    g.ball(0.09, 0xffe082, s * 2.07, 1.62, 0.75);
+  }
   return g.build();
 }

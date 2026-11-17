@@ -189,12 +189,16 @@ vec3 transformed = vec3(position);
     s = mix(s, -2.6, gesture);
     moved = rotX(transformed - pivot, s) + pivot;
   } else if (part > 4.5 && part < 6.5) {
-    // battement plus lent, alternant avec des phases de vol plané (ailes tenues légèrement relevées)
-    float flap = sin(uTime * 7.0 + iAnim.x * 3.1);
-    // descente rapide, remontée lente
-    flap = flap > 0.0 ? flap : flap * 0.65;
-    float glide = smoothstep(-0.2, 0.4, sin(uTime * 0.8 + iAnim.x * 1.7));
-    float s = (part < 5.5 ? 1.0 : -1.0) * (0.12 + flap * mix(0.12, 0.6, glide));
+    // grands battements (≈ 55° de part et d'autre), descente puissante et remontée plus lente,
+    // avec de courtes phases de vol plané (ailes tenues relevées)
+    float flap = sin(uTime * 6.5 + iAnim.x * 3.1);
+    flap = flap > 0.0 ? sqrt(flap) : flap * 0.8;
+    float glide = smoothstep(0.6, 0.9, sin(uTime * 0.6 + iAnim.x * 1.7));
+    float side = part < 5.5 ? 1.0 : -1.0;
+    float s = side * (0.1 + flap * mix(0.95, 0.15, glide));
+    // le bout de l'aile suit avec un temps de retard : l'aile se plie au lieu de rester une planche
+    float reach = clamp(abs(transformed.x - pivot.x) * 1.2, 0.0, 1.5);
+    s += side * reach * 0.35 * cos(uTime * 6.5 + iAnim.x * 3.1) * (1.0 - glide);
     moved = rotZ(transformed - pivot, s) + pivot;
   } else if (part > 7.5 && part < 8.5) {
     moved.x += sin(uTime * 1.7 + iAnim.x + position.x) * 0.07 * max(position.y, 0.0);
@@ -325,6 +329,13 @@ float tNoise(vec2 p) {
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(tHash(i), tHash(i + vec2(1.0, 0.0)), f.x), mix(tHash(i + vec2(0.0, 1.0)), tHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
+/** version bon marché de tDots : un disque au plus par cellule, entièrement contenu dans sa cellule (r < 0.25) */
+float tSpot(vec2 p, float density, float r) {
+  vec2 c = floor(p), f = fract(p);
+  if (tHash(c) > density) return 0.0;
+  vec2 o = vec2(tHash(c + 3.7), tHash(c + 9.1)) * 0.5 + 0.25 - f;
+  return 1.0 - smoothstep(r * 0.6, r, length(o));
+}
 /** petits disques semés au hasard (un par cellule, avec une probabilité) : cailloux, lentilles d'eau, bulles */
 float tDots(vec2 p, float density, float rMin, float rMax) {
   vec2 c = floor(p), f = fract(p);
@@ -366,8 +377,9 @@ export function terrainMaterial(t: TerrainColors, mask: THREE.Texture, bounds: [
       uG0: { value: c(g[0]) }, uG1: { value: c(g[1 % g.length]) }, uG2: { value: c(g[2 % g.length]) }, uG3: { value: c(g[3 % g.length]) },
       uDirt: { value: c(t.dirt) }, uDirtEdge: { value: c(t.dirtEdge) }, uHill: { value: c(t.hill) }, uRock: { value: rock }, uEdge: { value: c(t.fog).multiplyScalar(0.9) },
     });
-    shader.vertexShader = 'varying vec3 vWorldP;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.vertexShader = 'varying vec3 vWorldP;\nvarying vec3 vWorldN;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldP = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWorldN = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = `varying vec3 vWorldP;
+varying vec3 vWorldN;
 uniform sampler2D uMask; uniform vec4 uBounds; uniform float uPathW;
 uniform vec3 uG0, uG1, uG2, uG3, uDirt, uDirtEdge, uHill, uRock, uEdge;
 ${NOISE}
@@ -376,29 +388,51 @@ ${NOISE}
   vec4 mk = texture2D(uMask, (wp - uBounds.xy) / uBounds.zw);
   float dPath = mk.r * 6.0;
   float dPool = mk.g * 6.0 - 1.5;
-  // herbe : grandes taches douces, nuances moyennes, brins fins
+  // ---- herbe : grandes nappes de teintes, touffes plus sombres, brins clairs, coins plus secs, fleurettes
   float n1 = tFbm(wp * 0.07);
   vec3 col = mix(uG2, uG0, smoothstep(0.3, 0.6, n1));
-  col = mix(col, uG1, smoothstep(0.5, 0.75, tFbm(wp * 0.13 + 9.0)) * 0.8);
-  col = mix(col, uG3, smoothstep(0.62, 0.85, tNoise(wp * 0.45 + 3.0)) * 0.45);
-  col *= 0.92 + 0.12 * tNoise(wp * 3.3) + 0.05 * tNoise(wp * 9.0);
-  // relief : collines et roche sur les pentes
-  vec3 nrm = normalize(cross(dFdx(vWorldP), dFdy(vWorldP)));
-  float slope = 1.0 - abs(nrm.y);
+  col = mix(col, uG1, smoothstep(0.5, 0.75, tFbm(wp * 0.13 + 9.0)) * 0.7);
+  col = mix(col, uG3, smoothstep(0.62, 0.85, tNoise(wp * 0.45 + 3.0)) * 0.4);
+  // herbe sèche par endroits (teinte paille, discrète)
+  float dry = smoothstep(0.62, 0.8, tFbm(wp * 0.05 + 41.0));
+  col = mix(col, mix(col, uDirt, 0.38), dry * 0.55);
+  // touffes : petites zones plus denses et plus sombres ; brins : grain fin étiré
+  float tuft = tNoise(wp * 1.7 + 5.0) * 0.6 + tNoise(wp * 3.9 + 2.0) * 0.4;
+  col *= 0.86 + 0.2 * smoothstep(0.25, 0.75, tuft);
+  float blade = tNoise(vec2(wp.x * 7.0 + wp.y * 2.0, wp.y * 15.0)) * 0.6 + tNoise(wp * 11.0) * 0.4;
+  col *= 0.94 + 0.12 * blade;
+  // fleurettes blanches et jaunes, rares
+  float fl = tSpot(wp * 1.6, 0.05, 0.12);
+  col = mix(col, tHash(floor(wp * 1.6) + 1.3) > 0.5 ? vec3(0.98, 0.96, 0.86) : vec3(1.0, 0.86, 0.3), fl * 0.85);
+  // ---- relief : collines et roche sur les pentes (normale lissée : pas de facettes en damier)
+  vec3 nrm = normalize(vWorldN);
+  float slope = 1.0 - nrm.y;
   col = mix(col, uHill, smoothstep(0.5, 3.5, vWorldP.y) * 0.85);
-  col = mix(col, uRock * (0.9 + 0.2 * tNoise(wp * 2.0)), smoothstep(0.32, 0.6, slope + (tNoise(wp * 1.7) - 0.5) * 0.2));
-  // chemin : bord irrégulier, terre tassée autour, centre plus clair, cailloux
-  float pw = uPathW + (tNoise(wp * 1.4) - 0.5) * 0.35;
-  float inPath = 1.0 - smoothstep(pw - 0.12, pw + 0.06, dPath);
-  float rim = (1.0 - smoothstep(pw, pw + 0.7 + tNoise(wp * 2.2) * 0.4, dPath)) * (1.0 - inPath);
-  vec3 dirt = mix(uDirtEdge, uDirt, smoothstep(pw * 0.95, pw * 0.4, dPath));
-  dirt *= 0.9 + 0.14 * tNoise(wp * 2.6) + 0.06 * tNoise(wp * 8.0);
-  // (calculés seulement sur le chemin : c'est la partie la plus coûteuse du shader)
-  float peb = dPath < pw ? tDots(wp * 3.0, 0.22, 0.08, 0.16) * smoothstep(pw, pw * 0.6, dPath) : 0.0;
-  dirt = mix(dirt, uDirt * 1.22 + 0.05, peb * 0.75);
-  float rut = smoothstep(0.1, 0.0, abs(dPath - pw * 0.45)) * 0.08;
-  dirt *= 1.0 - rut;
-  col = mix(col, mix(col, uDirtEdge, 0.6), rim * 0.75);
+  float strata = tNoise(vec2(wp.x + wp.y, vWorldP.y * 6.0)) * 0.5 + tNoise(wp * 2.0) * 0.5;
+  vec3 rockC = uRock * (0.82 + 0.3 * strata);
+  col = mix(col, rockC, smoothstep(0.22, 0.45, slope + (tNoise(wp * 1.7) - 0.5) * 0.18));
+  // ---- chemin : bord net et irrégulier, herbe foulée autour, terre marbrée, ornières, cailloux ombrés
+  float pw = uPathW + (tNoise(wp * 1.4) - 0.5) * 0.35 + (tNoise(wp * 4.5) - 0.5) * 0.14;
+  float inPath = 1.0 - smoothstep(pw - 0.06, pw + 0.04, dPath);
+  float rim = (1.0 - smoothstep(pw, pw + 0.32 + tNoise(wp * 2.2) * 0.25, dPath)) * (1.0 - inPath);
+  vec3 dirt = mix(uDirtEdge, uDirt, smoothstep(pw * 0.98, pw * 0.5, dPath));
+  dirt = mix(dirt, dirt * vec3(0.9, 0.86, 0.82), smoothstep(0.45, 0.75, tFbm(wp * 0.6 + 13.0)) * 0.7);
+  dirt *= 0.92 + 0.1 * tNoise(wp * 2.6) + 0.07 * tNoise(wp * 9.0) + 0.04 * tNoise(wp * 23.0);
+  if (dPath < pw) {
+    // cailloux : clairs sur le dessus, ombre portée en bas
+    float peb = tDots(wp * 3.0, 0.2, 0.08, 0.15);
+    float sh = tDots(wp * 3.0 + vec2(-0.09, -0.12), 0.2, 0.08, 0.15);
+    float inner = smoothstep(pw, pw * 0.6, dPath);
+    dirt *= 1.0 - max(sh - peb, 0.0) * 0.35 * inner;
+    dirt = mix(dirt, uDirt * 1.18 + 0.04, peb * 0.7 * inner);
+  }
+  // deux ornières plus sombres et tassées
+  float rut = smoothstep(0.16, 0.0, abs(dPath - pw * 0.42)) * (0.6 + 0.4 * tNoise(wp * 1.1));
+  dirt *= 1.0 - rut * 0.1;
+  // bord : liseré de terre plus sombre sous l'herbe, puis herbe foulée (pas de halo orangé)
+  float lip = smoothstep(pw - 0.22, pw - 0.02, dPath) * inPath;
+  dirt *= 1.0 - lip * 0.18;
+  col = mix(col, col * vec3(0.92, 0.9, 0.8), rim * 0.8);
   col = mix(col, dirt, inPath);
   // berges des mares
   float shore = 1.0 - smoothstep(-0.2, 0.9 + tNoise(wp * 2.0) * 0.4, dPool);

@@ -70,13 +70,18 @@ export class TitleScene {
   private focus = new THREE.Vector3(2, 1, -2);
   private tmp = { x: 0, z: 0 };
   private spawnT = 0;
+  /** avancement sur le chemin du fond de la galerie d'entrée */
+  private tunnelD = -1;
 
   constructor(private r: Renderer) {
     const map = buildRuntimeMap('pont', 4);
-    const w = buildWorld(map);
+    const w = buildWorld(map, { surround: true });
     this.group.add(w.group);
     r.applyTheme(w.theme);
     this.heightAt = w.heightAt;
+    // les ennemis sortent de la galerie : avant sa bouche, ils sont encore sous la colline
+    const e0 = w.entries[0];
+    this.tunnelD = e0 ? (e0.i / Math.max(1, map.paths[0].count - 1)) * map.paths[0].length - 2.4 : -1;
     this.path = map.paths[0];
     this.fx = new Fx(this.group);
     const pool = (key: string, fb: () => THREE.BufferGeometry, cap: number) => {
@@ -280,6 +285,7 @@ export class TitleScene {
     for (const f of this.foes) {
       const def = ENEMIES[f.type];
       const p = this.pools.get(f.type)!;
+      if (f.d < this.tunnelD) continue;
       const life = f.dead >= 0 ? -Math.min(0.999, Math.max(0.001, (t - f.dead) / 0.9)) : Math.min(1, Math.max(0.001, (t - f.born) / 0.5));
       const flash = Math.max(0, 1 - (t - f.hit) / 0.1) * 0.35;
       const j = p.push(f.x, 0, f.z, f.yaw, def.size, f.d * 3.1, f.dead >= 0 || f.fighting ? 0 : def.speed * 4.5 / Math.max(0.6, def.size), flash, f.fighting ? 1 : 0);

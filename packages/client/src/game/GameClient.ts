@@ -15,6 +15,7 @@ import { ACTION_LABELS, keys, settings, type Action } from '../settings';
 import { banner, progress, saveProgress, toast, ui } from '../state.svelte';
 import { PROLOGUE, STORY } from '../story/dialogs';
 import { Prologue } from './Prologue';
+import { drape } from '../render/drape';
 import { Interp } from './Interp';
 
 /** Éléments DOM positionnés à chaque frame (sans passer par la réactivité). */
@@ -72,6 +73,8 @@ export class GameClient {
     r.applyTheme(this.world.theme);
     r.setBounds(this.map.def.hw, this.map.def.hh, this.world.exit);
     this.ents = new Entities(r.scene, this.map);
+    this.ents.tunnels = this.world.entries;
+    this.ents.heightAt = this.world.heightAt;
     this.fx = new Fx(r.scene);
     this.interp = new Interp(this.map, host.local);
     host.onSnapshot = (b) => {
@@ -80,10 +83,10 @@ export class GameClient {
     };
     // anneaux de sélection
     const ringMat = (c: number, o: number) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
-    const rg = new THREE.RingGeometry(0.97, 1, 64);
+    const rg = new THREE.RingGeometry(0.97, 1, 96);
     rg.rotateX(-Math.PI / 2);
     this.rangeRing = new THREE.Mesh(rg, ringMat(0xffffff, 0.75));
-    const disc = new THREE.CircleGeometry(1, 48);
+    const disc = new THREE.RingGeometry(0, 1, 48, 6);
     disc.rotateX(-Math.PI / 2);
     const fill = new THREE.Mesh(disc, ringMat(0xffffff, 0.08));
     this.rangeRing.add(fill);
@@ -640,8 +643,10 @@ export class GameClient {
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
     if (this.prologue) {
       const d = ui.dialog;
-      if (!d || d.i >= PROLOGUE.length) this.endPrologue();
-      else this.prologue.update(dt, this.time, d.i, d.lines[d.i].who);
+      // dialogue passé : la scène se termine (Kessin s'envole avec Ethan) avant de rendre la main
+      if (!d || d.i >= PROLOGUE.length) this.prologue.finish(this.time);
+      this.prologue.update(dt, this.time, d ? Math.min(d.i, PROLOGUE.length - 1) : 0, d && d.i < PROLOGUE.length ? d.lines[d.i].who : '');
+      if (this.prologue.done) this.endPrologue();
     }
     this.fx.update(dt, this.interp.renderTick, (id, out) => {
       const i = f.enemyIdx(id);
@@ -724,6 +729,7 @@ export class GameClient {
       this.aimRing.position.set(p.x, 0.1, p.z);
       this.aimRing.scale.setScalar(1);
     }
+    if (this.aimRing.visible) drape(this.aimRing, this.world.heightAt, 0.08);
   }
 
   private updateSelectionVisuals(snap: NonNullable<Interp['latest']>) {
@@ -760,6 +766,13 @@ export class GameClient {
       this.rangeRing.visible = true;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
       this.rangeRing.scale.setScalar(TOWERS[FAMILIES[this.hoverFam]][0].range);
+    }
+    // marques posées sur le relief
+    const hm = this.world.heightAt;
+    if (this.hoverRing.visible) drape(this.hoverRing, hm, 0.1);
+    if (this.rangeRing.visible) {
+      drape(this.rangeRing, hm, 0.09);
+      drape(this.rangeRing.children[0] as THREE.Mesh, hm, 0.07);
     }
   }
 

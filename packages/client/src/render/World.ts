@@ -29,7 +29,8 @@ const _c2 = new THREE.Color();
 export interface WorldInfo {
   group: THREE.Group;
   theme: BiomeTheme;
-  entries: { x: number; z: number; path: number }[];
+  /** entrées des ennemis (bouche du tunnel) ; (ox, oz) : direction de la galerie, vers l'extérieur de la carte */
+  entries: { x: number; z: number; path: number; i: number; ox: number; oz: number }[];
   exit: { x: number; z: number };
   slotPool: InstPool;
   lockedPool: InstPool;
@@ -48,7 +49,12 @@ const DECOR_SIZE: Record<string, [number, number]> = {
 /** décor solide : vient des obstacles de la carte (partagés avec la simulation), jamais tiré au hasard ici */
 const SOLID = /^(rocher|chene|arbremort|arbrecalcine|pic|cristal)$/;
 
-export function buildWorld(map: RuntimeMap): WorldInfo {
+export interface WorldOptions {
+  /** collines et décor tout autour (écran titre, caméra qui tourne) au lieu de dégager le bas de l'écran */
+  surround?: boolean;
+}
+
+export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo {
   const def = map.def;
   const theme = THEMES[def.biome];
   const group = new THREE.Group();
@@ -57,10 +63,38 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   const paths = map.paths;
   const pools = def.pools ?? [];
 
-  const distPath = (x: number, z: number) => {
+  // entrées : le chemin sort d'une galerie creusée dans la colline ; en amont de la bouche, il passe sous terre
+  const entries = paths.map((p, i) => {
+    const b = boundaryPoint(p, def.hw, def.hh, false);
+    const j = Math.min(p.count - 1, b.i + 3);
+    const dx = p.xs[b.i] - p.xs[j], dz = p.zs[b.i] - p.zs[j], l = Math.hypot(dx, dz) || 1;
+    return { x: b.x, z: b.z, i: b.i, path: i, ox: dx / l, oz: dz / l };
+  });
+  /** distance au chemin visible (sans le tronçon souterrain, en amont de chaque entrée) */
+  const distPathSq = (x: number, z: number, step: number) => {
     let best = Infinity;
-    for (const p of paths) best = Math.min(best, p.minDist2(x, z, 2));
-    return Math.sqrt(best);
+    paths.forEach((p, k) => {
+      for (let i = Math.max(0, entries[k].i - 1); i < p.count; i += step) {
+        const d = (p.xs[i] - x) ** 2 + (p.zs[i] - z) ** 2;
+        if (d < best) best = d;
+      }
+    });
+    return best;
+  };
+  const distPath = (x: number, z: number) => Math.sqrt(distPathSq(x, z, 2));
+  /** colline au-dessus de la galerie : plate devant la bouche, elle se relève derrière et sur les côtés */
+  const mound = (x: number, z: number) => {
+    let h = 0;
+    for (const e of entries) {
+      const dx = x - e.x, dz = z - e.z;
+      const a = dx * e.ox + dz * e.oz, c = Math.abs(dx * -e.oz + dz * e.ox);
+      if (a < -3 || a > 22 || c > 12) continue;
+      const s0 = 2.1 + (-0.4 - 2.1) * smooth(2.0, 3.4, c);
+      const w = 4.2 + Math.max(0, a) * 0.35;
+      const top = (e.z > 0 ? 2.6 : 3.4) + (noise(x * 0.4, z * 0.4) - 0.5) * 0.8;
+      h = Math.max(h, top * smooth(s0, s0 + 1.6, a) * (1 - smooth(w, w + 4, c)) * (1 - smooth(14, 22, a)));
+    }
+    return h;
   };
   const distPool = (x: number, z: number) => {
     let best = Infinity;
@@ -95,7 +129,9 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
     const dpool = distPool(x, z);
     if (dpool < 1.2) h = Math.min(h, -0.55 * smooth(1.2, -0.6, dpool));
     // plaine plus basse au sud (vers la caméra) pour ne pas masquer la vue
-    if (z > def.hh) h *= 0.45;
+    if (z > def.hh && !opts.surround) h *= 0.45;
+    const mh = mound(x, z);
+    if (mh > 0.01) h = Math.max(h, mh);
     heights[i] = h;
     pos.setY(i, h);
   }
@@ -105,7 +141,7 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) {
     const x = -W / 2 + (i + 0.5) / 3, z = -H / 2 + (j + 0.5) / 3;
     let d2 = Infinity;
-    for (const p of paths) d2 = Math.min(d2, p.minDist2(x, z, 1));
+    d2 = distPathSq(x, z, 1);
     const o = (j * MW + i) * 4;
     maskData[o] = Math.round(Math.min(1, Math.sqrt(d2) / 6) * 255);
     maskData[o + 1] = Math.round(Math.max(0, Math.min(1, (distPool(x, z) + 1.5) / 6)) * 255);
@@ -152,11 +188,10 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   // ------------------------------------------------ décor
   const dens = settings.decorDensity;
   const occupied: [number, number, number][] = map.slots.map((s) => [s.x, s.z, 1.9]);
-  const entries = paths.map((p, i) => ({ ...boundaryPoint(p, def.hw, def.hh, false), path: i }));
   const ex = boundaryPoint(paths[0], def.hw, def.hh, true);
   const exit = { x: ex.x, z: ex.z };
   occupied.push([exit.x, exit.z, 6]);
-  for (const e of entries) occupied.push([e.x, e.z, 3.5]);
+  for (const e of entries) occupied.push([e.x, e.z, 4.5], [e.x + e.ox * 2, e.z + e.oz * 2, 4]);
   const items = new Map<string, { x: number; y: number; z: number; yaw: number; s: number }[]>();
   const pickWeighted = (list: [string, number][]) => {
     let tot = 0;
@@ -194,11 +229,11 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   }
   const innerN = Math.round(def.hw * def.hh * 0.32 * dens);
   for (let i = 0; i < innerN; i++) tryPlace(rng.range(-def.hw, def.hw), rng.range(-def.hh, def.hh), true);
-  const outerN = Math.round(650 * dens);
+  const outerN = Math.round((opts.surround ? 900 : 650) * dens);
   for (let i = 0; i < outerN; i++) {
-    const x = rng.range(-W / 2 + 4, W / 2 - 4), z = rng.range(-H / 2 + 4, H / 2 - 12);
+    const x = rng.range(-W / 2 + 4, W / 2 - 4), z = rng.range(-H / 2 + 4, H / 2 - (opts.surround ? 4 : 12));
     if (Math.abs(x) < def.hw - 0.5 && Math.abs(z) < def.hh - 0.5) continue;
-    if (z > def.hh + 3) continue; // dégager le bas de l'écran
+    if (z > def.hh + 3 && !opts.surround) continue; // dégager le bas de l'écran
     tryPlace(x, z, false);
   }
   // bordures de chemin : petites pierres, herbes et fleurs juste à côté de la terre battue
@@ -239,13 +274,10 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
   const gidx = gatePool.push(p0.xs[gj], 0, p0.zs[gj], Math.atan2(p0.nx[gi], p0.nz[gi]) + Math.PI / 2, 0.85);
   gatePool.setTeam(gidx, 0x1e3a8a);
   gatePool.end();
-  const spawnG = geoFor(K.spawn(def.biome), () => spawnGeometry(def.biome));
-  const spawnPool = new InstPool(spawnG.geo, entries.length, group, false, spawnG.map);
+  // galerie construite en code (taillée pour la colline du terrain), ouverture tournée vers la carte
+  const spawnPool = new InstPool(spawnGeometry(def.biome), entries.length, group, settings.shadows);
   spawnPool.begin();
-  for (const e of entries) {
-    const p = paths[e.path];
-    spawnPool.push(e.x, 0, e.z, Math.atan2(p.nx[e.i], p.nz[e.i]) + Math.PI / 2, 1);
-  }
+  for (const e of entries) spawnPool.push(e.x, 0, e.z, Math.atan2(-e.ox, -e.oz), 1);
   spawnPool.end();
 
   // ------------------------------------------------ emplacements

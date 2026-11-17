@@ -10,6 +10,7 @@ import { heroGeometry, soldierGeometry } from '../art/units';
 import { HERO_STYLE, heroWeapon } from '../art/weapons';
 import type { Frame } from '../game/Interp';
 import { settings } from '../settings';
+import { drape } from './drape';
 import { InstPool } from './InstPool';
 import { hpBarMaterial } from './materials';
 
@@ -69,6 +70,10 @@ export class Entities {
   you = -1;
   /** pendant une cinématique, les héros de la partie sont masqués (les acteurs prennent leur place) */
   hideHeroes = false;
+  /** hauteur du terrain (pour poser les marques au sol sur le relief) */
+  heightAt: ((x: number, z: number) => number) | null = null;
+  /** bouches des galeries d'entrée : un ennemi encore dans la galerie (sous la colline) n'est pas dessiné */
+  tunnels: { x: number; z: number; ox: number; oz: number }[] = [];
   /** champ de la caméra : les entités hors de l'écran (et de la portée de leur ombre) ne sont pas dessinées */
   readonly frustum = new THREE.Frustum();
   cullOn = false;
@@ -100,9 +105,9 @@ export class Entities {
     const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false };
     this.glowHalo = new THREE.MeshBasicMaterial({ map: tex, opacity: 1, ...additive });
     this.glowRing = new THREE.MeshBasicMaterial({ opacity: 0.9, side: THREE.DoubleSide, ...additive });
-    const halo = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), this.glowHalo);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 48), this.glowRing);
-    halo.rotation.x = ring.rotation.x = -Math.PI / 2;
+    // géométries horizontales et subdivisées : elles épousent le relief (voir placeGlow)
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2, 8, 8).rotateX(-Math.PI / 2), this.glowHalo);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 48).rotateX(-Math.PI / 2), this.glowRing);
     halo.position.y = 0.04;
     ring.position.y = 0.05;
     halo.renderOrder = ring.renderOrder = 2;
@@ -184,6 +189,7 @@ export class Entities {
     this.glow.children[1].scale.setScalar(1 + 0.08 * pulse);
     this.glow.position.set(x, 0, z);
     this.glow.visible = true;
+    if (this.heightAt) for (const m of this.glow.children) drape(m as THREE.Mesh, this.heightAt, m === this.glow.children[1] ? 0.06 : 0.04);
   }
 
   /** Un tireur (unité ou héros) vise : il se tourne vers l'ennemi `target` (ou le point x, z) pendant `dur` secondes. */
@@ -202,6 +208,16 @@ export class Entities {
     this.eDeadAt[id] = time;
     this.eKnown[id] = 0;
     this.corpses.push({ pool, x, y, z, yaw: this.eYaw[id], s: def.size, t0: time, team: 0xffffff, dur: def.boss ? 1.6 : 0.85 });
+  }
+
+  /** dans la galerie, au-delà de son fond sombre (l'ennemi en sort comme de l'obscurité) */
+  private inTunnel(x: number, z: number) {
+    for (const t of this.tunnels) {
+      const dx = x - t.x, dz = z - t.z;
+      const a = dx * t.ox + dz * t.oz;
+      if (a > 2.5 && Math.abs(dx * t.oz - dz * t.ox) < 4 + a * 0.5) return true;
+    }
+    return false;
   }
 
   update(f: Frame, snap: Snapshot, dt: number, time: number, hoverSlot: number, selectedTower: number) {
@@ -239,6 +255,7 @@ export class Entities {
       const flash = Math.max(0, 1 - (time - this.hitTime[id]) / 0.12) * 0.7;
       const speed = stunned ? 0 : def.speed * 4.5 / Math.max(0.6, def.size);
       if (!this.inView(f.eX[i], y + def.size * 0.7, f.eZ[i], def.size * 1.6 + 2)) continue;
+      if (this.inTunnel(f.eX[i], f.eZ[i])) continue;
       const pool = this.enemyPools[f.eType[i]];
       const j = pool.push(f.eX[i], y, f.eZ[i], this.eYaw[id], def.size, id * 1.37, speed, flash, fighting ? 1 : 0);
       const hit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);

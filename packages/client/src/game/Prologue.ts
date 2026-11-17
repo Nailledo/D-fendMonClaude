@@ -31,10 +31,13 @@ export class Prologue {
   private kessin: Actor;
   private samuel: Actor;
   private line = -1;
-  private lineT = 0;
   private hemi0: number;
   private sun0: number;
   private dim = 0;
+  /** début de l'enlèvement (horloge absolue : passer les répliques ne le remet pas à zéro) */
+  private kidnapT = -1;
+  /** dialogue terminé ou passé : la scène se conclut d'elle-même avant de disparaître */
+  private ending = -1;
   /** point central de la scène et axes (vers l'intérieur de la carte, perpendiculaire) */
   private cx: number;
   private cz: number;
@@ -101,6 +104,7 @@ export class Prologue {
       audio.play('explosion', 1);
     } else if (i === 4) {
       // l'enlèvement : Kessin et Ethan s'envolent, puis disparaissent dans la fumée
+      this.kidnapT = time;
       fx.burst(e.x, 1, e.z, 20, 0xc77dff, 4, 0.15, 0.8, true, 1);
       audio.play('arcane', 1);
     } else if (i === 5) {
@@ -111,15 +115,28 @@ export class Prologue {
     }
   }
 
+  /**
+   * Le dialogue est fini ou a été passé : les événements manquants sont joués d'un coup
+   * (Kessin enlève Ethan et s'envole), puis `done` devient vrai une fois la scène conclue.
+   */
+  finish(time: number) {
+    if (this.ending >= 0) return;
+    this.ending = time;
+    for (let i = this.line + 1; i <= 6; i++) this.onLine(i, time);
+    this.line = 6;
+  }
+
+  get done() {
+    return this.ending >= 0 && !this.kessin.visible;
+  }
+
   /** `line` : indice de la réplique affichée (au-delà du prologue : fin). */
   update(dt: number, time: number, line: number, speaker: string) {
+    if (this.ending >= 0) { line = this.line; speaker = ''; }
     if (line !== this.line) {
       for (let i = this.line + 1; i <= line; i++) this.onLine(i, time);
       this.line = line;
-      this.lineT = 0;
     }
-    this.lineT += dt;
-    const t = this.lineT;
     // lumière : baisse pendant l'apparition, revient ensuite
     const target = this.dim ? 0.35 : 1;
     const cur = this.r.hemi.intensity / this.hemi0;
@@ -134,14 +151,16 @@ export class Prologue {
       k.yaw = Math.atan2(e.x - k.x, e.z - k.z) * 0.6 + this.r.cam.yaw * 0.4;
     }
     // l'enlèvement
-    if (line >= 4 && k.visible) {
-      const up = Math.min(1, t / 1.6);
+    if (this.kidnapT >= 0 && k.visible) {
+      const kt = time - this.kidnapT;
+      // passé en hâte : l'envol est accéléré mais toujours joué jusqu'au bout
+      const up = Math.min(1, kt / (this.ending >= 0 ? 1.1 : 1.6));
       const ease = up * up;
       k.y = 0.15 + ease * 6;
-      e.y = ease * 6 + Math.min(1, t / 0.3) * 0.9;
+      e.y = ease * 6 + Math.min(1, kt / 0.3) * 0.9;
       e.x += (k.x + this.px * 0.6 - e.x) * Math.min(1, dt * 3);
       e.z += (k.z + this.pz * 0.6 - e.z) * Math.min(1, dt * 3);
-      if (t > 0.2) this.fx.smoke(k.x, k.y + 1, k.z, 1, 0x3a2f28, 1.5);
+      if (kt > 0.2) this.fx.smoke(k.x, k.y + 1, k.z, 1, 0x3a2f28, 1.5);
       if (up >= 1) {
         this.fx.smoke(k.x, k.y, k.z, 24, 0x2b2420, 3);
         this.fx.burst(k.x, k.y, k.z, 30, 0xff6f00, 5, 0.2, 0.7, true, 0);
