@@ -107,6 +107,7 @@
   </div>
 
   <aside class="side panel">
+    <div class="info scroll">
     <header>
       <p class="eyebrow">{BIOME[sel]} · chapitre {sel + 1}</p>
       <h2>{level.name}</h2>
@@ -154,6 +155,7 @@
       <div class="hp"><HeroPicker value={ui.hero} onpick={setHero} compact /></div>
       <p class="hint"><b>{HEROES[ui.hero].name}</b> · {HEROES[ui.hero].title}</p>
     </section>
+    </div>
 
     <div class="cta">
       <button class="btn gold big" onclick={play}>Jouer</button>
@@ -190,7 +192,9 @@
   .top { position: absolute; left: 22px; top: 22px; display: flex; gap: 10px; align-items: stretch; }
   .total { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-family: var(--font-story); font-size: 1.25em; font-variant-numeric: lining-nums tabular-nums; background: rgba(246, 236, 210, 0.9); border: 2px solid var(--ink); border-radius: 99px; }
   .total :global(.icon) { width: 22px; height: 22px; }
-  .side { display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 20px 20px 0; margin: 14px; }
+  /* page de droite : le contenu défile, les boutons restent dessous (hors du défilement, sans fond propre) */
+  .side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; padding: 20px 20px 18px; margin: 14px; }
+  .info { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; margin: 0 -8px; padding: 0 8px 4px; }
   header { display: flex; flex-direction: column; gap: 6px; }
   .eyebrow { margin: 0; }
   h2 { margin: 0; font-size: 2.2em; line-height: 1.05; }
@@ -223,8 +227,7 @@
   .hp :global(.hero img) { max-width: 46px; }
   .hint { margin: 0; font-size: 0.9em; color: var(--muted); font-weight: 700; }
   .hint b { color: var(--text); font-weight: 900; }
-  /* les boutons restent visibles en bas de la page, même quand elle défile */
-  .cta { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding: 10px 0 16px; background: linear-gradient(180deg, rgba(243, 231, 201, 0), #f1e3c1 22%); }
+  .cta { flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(45, 36, 22, 0.25); }
   .cta .btn { width: 100%; }
   .sub { display: flex; gap: 8px; }
   .sub .btn { flex: 1; padding: 7px 10px; }
@@ -238,7 +241,8 @@
   @media (max-height: 520px) and (orientation: landscape) {
     .wrap { grid-template-columns: 1fr minmax(280px, 40vw); grid-template-rows: 1fr; }
     .map { margin: 8px 0 8px calc(8px + var(--sal)); }
-    .side { margin: 8px calc(8px + var(--sar)) 8px 8px; padding: 14px 14px 0; gap: 10px; }
+    .side { margin: 8px calc(8px + var(--sar)) 8px 8px; padding: 14px 14px 12px; gap: 8px; }
+    .info { gap: 10px; }
     h2 { font-size: 1.7em; }
     .top { left: 14px; top: 14px; }
   }
