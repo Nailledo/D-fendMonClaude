@@ -64,6 +64,8 @@ Fiabilité : **bon** = modèle du bon type trouvé ; **approx.** = modèle proch
 | hero-lyra.glb | KayKit Adventurers — Ranger (arc ; pas d'oreilles d'elfe) | bon |
 | hero-brom.glb | aucun nain gratuit (l'Engineer de KayKit est payant) | manque |
 | hero-nox.glb | KayKit Adventurers — Mage (teinte à assombrir) | approx. |
+| hero-ethan.glb | composé (`pnpm models:kitbash`) depuis hero-lyra : robe rose, cheveux blonds, diadème | bon |
+| hero-roi.glb | composé (`pnpm models:kitbash`) depuis soldier-0 : tenue royale, barbe, couronne, cape d'hermine | bon |
 
 ### Boss (3)
 

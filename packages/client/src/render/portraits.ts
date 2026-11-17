@@ -65,7 +65,7 @@ export function renderPortraits(): Record<string, string> {
     scene.remove(mesh);
   };
   for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot(id, pick(K.hero(id), () => heroGeometry(id)), true);
-  for (const id of ['samuel', 'lyra', 'brom', 'nox']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
+  for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
   for (const e of ENEMIES) shot('e_' + e.id, pick(K.enemy(e.id), () => enemyGeometry(e.id)), false);
   shot('kessin', pick(K.enemy('kessin1'), () => enemyGeometry('kessin1')), true);
   shot('grolbak', pick(K.enemy('grolbak'), () => enemyGeometry('grolbak')), true);

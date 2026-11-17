@@ -16,7 +16,8 @@
     "tune": "tsx tools/tune.ts && tsx tools/tune-players.ts && tsx tools/tune-multi.ts",
     "hf:example": "node --env-file=.env.local --import tsx tools/higgsfield/index.ts",
     "models:bake": "tsx tools/models/bake.ts",
-    "models:prompts": "tsx tools/models/prompts.ts"
+    "models:prompts": "tsx tools/models/prompts.ts",
+    "models:kitbash": "tsx tools/models/kitbash.ts"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

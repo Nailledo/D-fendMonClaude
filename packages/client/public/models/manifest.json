@@ -427,6 +427,14 @@
    "file": "decor-cendre-crane-0.glb",
    "height": 0.5,
    "tris": 298
+  },
+  "hero:ethan": {
+   "file": "hero-ethan.glb",
+   "height": 1.35
+  },
+  "hero:roi": {
+   "file": "hero-roi.glb",
+   "height": 1.35
   }
  }
 }
