@@ -17,6 +17,8 @@ export interface Settings {
   textScale: number;
   colorblind: boolean;
   reduceShake: boolean;
+  /** badges de raccourcis toujours visibles (sinon : au survol, ou en maintenant Alt) */
+  showKeys: boolean;
   autoDetected: boolean;
 }
 
@@ -30,7 +32,7 @@ export const QUALITY_PRESETS: Record<Quality, Pick<Settings, 'resScale' | 'shado
 const DEFAULTS: Settings = {
   quality: 'moyen', ...QUALITY_PRESETS.moyen, fpsCap: 0,
   volMaster: 0.8, volMusic: 0.5, volSfx: 0.8, edgeScroll: false, damageNumbers: false,
-  textScale: 1, colorblind: false, reduceShake: false, autoDetected: false,
+  textScale: 1, colorblind: false, reduceShake: false, showKeys: false, autoDetected: false,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);

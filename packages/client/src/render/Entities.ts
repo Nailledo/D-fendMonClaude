@@ -41,9 +41,39 @@ export class Entities {
   /** hauteur du canon de chaque tour (pour l'origine des tirs) */
   towerMuzzle = new Map<number, { x: number; y: number; z: number; fam: number; level: number; owner: number; slot: number }>();
   heroTypeByUnit = new Map<number, number>();
+  /** joueur local : son héros reçoit un halo pour qu'on le repère d'un coup d'œil */
+  you = -1;
+  private glow: THREE.Group;
+  private glowHalo: THREE.MeshBasicMaterial;
+  private glowRing: THREE.MeshBasicMaterial;
 
   constructor(scene: THREE.Scene, private map: RuntimeMap) {
     scene.add(this.group);
+    // halo au sol sous le héros du joueur : tache lumineuse douce + anneau fin qui respire
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const cx = c.getContext('2d')!;
+    const grd = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0.6)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = grd;
+    cx.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false };
+    this.glowHalo = new THREE.MeshBasicMaterial({ map: tex, opacity: 1, ...additive });
+    this.glowRing = new THREE.MeshBasicMaterial({ opacity: 0.9, side: THREE.DoubleSide, ...additive });
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), this.glowHalo);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 48), this.glowRing);
+    halo.rotation.x = ring.rotation.x = -Math.PI / 2;
+    halo.position.y = 0.04;
+    ring.position.y = 0.05;
+    halo.renderOrder = ring.renderOrder = 2;
+    this.glow = new THREE.Group();
+    this.glow.add(halo, ring);
+    this.glow.visible = false;
+    this.group.add(this.glow);
     // modèles importés (GLB cuits) quand ils existent, sinon art construit en code
     const pool = (key: string, fb: () => THREE.BufferGeometry, cap: number) => {
       const g = geoFor(key, fb);
@@ -102,6 +132,17 @@ export class Entities {
     a[i * 2 + 1] = width;
   }
 
+  private placeGlow(x: number, z: number, team: number, time: number) {
+    const col = new THREE.Color(team).lerp(new THREE.Color(0xffffff), 0.2);
+    this.glowHalo.color.copy(col);
+    this.glowRing.color.copy(col);
+    const pulse = 0.5 + 0.5 * Math.sin(time * 3.2);
+    this.glowRing.opacity = 0.55 + 0.4 * pulse;
+    this.glow.children[1].scale.setScalar(1 + 0.08 * pulse);
+    this.glow.position.set(x, 0, z);
+    this.glow.visible = true;
+  }
+
   update(f: Frame, snap: Snapshot, dt: number, time: number, hoverSlot: number, selectedTower: number) {
     this.frameNo++;
     const k = Math.min(1, dt * 10);
@@ -138,6 +179,7 @@ export class Entities {
     // ------------------------------------------------ unités et héros
     for (const p of this.soldierPools) p.begin();
     for (const p of this.heroPools) p.begin();
+    this.glow.visible = false;
     for (let i = 0; i < f.uN; i++) {
       const flags = f.uFlags[i];
       if (flags & UF_DEAD) continue;
@@ -158,6 +200,7 @@ export class Entities {
       if (kind === HERO_UNIT) {
         pool = this.heroPools[this.heroTypeByUnit.get(id) ?? 0];
         scale = 1.25;
+        if (f.uOwner[i] === this.you) this.placeGlow(f.uX[i], f.uZ[i], team, time);
       } else {
         pool = this.soldierPools[kind] ?? this.soldierPools[0];
         if (kind === 7) scale = 1.1;

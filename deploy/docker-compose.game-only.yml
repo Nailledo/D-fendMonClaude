@@ -10,6 +10,10 @@ services:
       - PORT=3000
       - MAX_ROOMS=${MAX_ROOMS:-60}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # Caddy est devant le jeu : l'IP réelle des joueurs est lue dans X-Forwarded-For
+      - TRUST_PROXY=1
+      - SCORE_SECRET=${SCORE_SECRET:-}
+      - MAX_CONN_PER_IP=${MAX_CONN_PER_IP:-8}
     volumes:
       - game_data:/data
     ports:

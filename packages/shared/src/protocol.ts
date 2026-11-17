@@ -110,7 +110,7 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.Leak]: 'wb',
   [Ev.Build]: 'wb',
   [Ev.Sell]: 'bb',
-  [Ev.Upgrade]: 'w',
+  [Ev.Upgrade]: 'wbb',
   [Ev.Spell]: 'bbpp',
   [Ev.HeroSkill]: 'bbpppp',
   [Ev.Dmg]: 'wwb',

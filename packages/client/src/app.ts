@@ -109,9 +109,25 @@ class App {
     this.title = null;
   }
 
-  startSolo(mode: Mode, mapId: string, difficulty: Difficulty, hero: HeroId, level = -1) {
+  /** Ticket signé par le serveur pour la partie de survie en cours (sans lui, le score ne peut pas être envoyé). */
+  private ticket: string | null = null;
+  private starting = 0;
+
+  async startSolo(mode: Mode, mapId: string, difficulty: Difficulty, hero: HeroId, level = -1) {
+    const run = ++this.starting;
+    let seed = (Math.random() * 2 ** 31) | 0;
+    this.ticket = null;
+    if (mode === 'survival') {
+      // la graine d'une partie classée est choisie par le serveur
+      const t = await requestSeed(mapId, difficulty);
+      if (run !== this.starting) return; // un autre lancement a eu lieu entre-temps
+      if (t) {
+        seed = t.seed;
+        this.ticket = t.ticket;
+      } else toast('Serveur injoignable : partie hors classement.', 'warn', 2500);
+    }
     this.leaveGame(false);
-    const cfg: GameConfig = { mode, mapId, difficulty, seed: (Math.random() * 2 ** 31) | 0, players: [{ id: 0, name: ui.name || 'Samuel', hero }] };
+    const cfg: GameConfig = { mode, mapId, difficulty, seed, players: [{ id: 0, name: ui.name || 'Samuel', hero }] };
     ui.game = { mode, mapId, difficulty, you: 0, multi: false, level };
     this.launch(cfg, 0, new LocalHost(cfg));
   }
@@ -177,13 +193,20 @@ class App {
     const g = this.game;
     if (!g || !ui.end || !g.host.getLog || ui.submitted) return;
     ui.submitted = true;
+    const ticket = this.ticket;
+    if (!ticket) {
+      toast('Partie hors classement : score non envoyé.', 'warn');
+      return;
+    }
     try {
       const log = await g.host.getLog();
       const res = await fetch('/api/score', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ cfg: g.cfg, log, claimed: ui.end.wave }),
+        body: JSON.stringify({ cfg: g.cfg, log, claimed: ui.end.wave, ticket }),
       });
+      // le ticket est consommé par le serveur, même en cas de refus
+      if (res.status !== 503 && res.status !== 429) this.ticket = null;
       const j = await res.json();
       if (j.ok) toast(`Score validé : vague ${j.wave} !`, 'good');
       else toast('Score refusé : ' + (j.error ?? 'erreur'), 'warn');
@@ -248,3 +271,23 @@ class App {
 export const app = new App();
 (window as unknown as { __ping: (x: number, z: number) => void }).__ping = (x, z) => net.send({ t: 'ping', kind: 0, x, z });
 export { ENEMIES, HERO_IDS };
+
+/** Demande au serveur une graine signée pour une partie de survie. */
+async function requestSeed(mapId: string, difficulty: Difficulty): Promise<{ seed: number; ticket: string } | null> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 2500);
+  try {
+    const res = await fetch('/api/seed', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mapId, difficulty }),
+      signal: ctl.signal,
+    });
+    const j = await res.json();
+    return j.ok && Number.isFinite(j.seed) && typeof j.ticket === 'string' ? { seed: j.seed, ticket: j.ticket } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

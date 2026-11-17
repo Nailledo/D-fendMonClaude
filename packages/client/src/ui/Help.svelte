@@ -17,13 +17,13 @@
     </ul>
     <h3>Votre héros</h3>
     <ul>
-      <li>Clic droit n’importe où pour le déplacer (ou sélectionnez-le, puis cliquez au sol). Il bloque et combat les ennemis et gagne des niveaux.</li>
+      <li>Clic droit n’importe où pour le déplacer (au tactile : appui long), ou sélectionnez-le puis touchez le sol. Il bloque et combat les ennemis et gagne des niveaux.</li>
       <li>Ses compétences se débloquent aux niveaux 1, 3 et 5 : <span class="kbd">{keyLabel(keys.skill1)}</span> <span class="kbd">{keyLabel(keys.skill2)}</span> <span class="kbd">{keyLabel(keys.ult)}</span>.</li>
     </ul>
     <h3>Sorts et vagues</h3>
     <ul>
       <li><span class="kbd">{keyLabel(keys.spell1)}</span> Pluie de météores et <span class="kbd">{keyLabel(keys.spell2)}</span> Renforts : choisissez ensuite un point sur la carte.</li>
-      <li>Le bouton rouge au début du chemin appelle la vague suivante. L’appeler en avance rapporte de l’or et recharge les sorts.</li>
+      <li>Le bouton rouge au début du chemin appelle la vague suivante ; survolez-le (ou touchez-le une fois) pour voir les ennemis qui arrivent. L’appeler en avance rapporte de l’or à chaque joueur et recharge les sorts.</li>
     </ul>
     <h3>En coopération</h3>
     <ul>
@@ -37,9 +37,12 @@
 </div>
 
 <style>
-  .box { width: min(680px, 100%); max-height: 86vh; }
+  .box { width: min(700px, 100%); max-height: 88vh; }
   .head { display: flex; justify-content: space-between; align-items: center; }
-  h2, h3 { margin: 0; }
-  h3 { margin-top: 12px; }
-  p, ul { margin: 6px 0; line-height: 1.45; }
+  h2 { margin: 0; font-size: 2em; }
+  h3 { margin: 18px 0 4px; font-size: 1.4em; color: var(--gold); }
+  p, ul { margin: 6px 0; line-height: 1.5; max-width: 66ch; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--gold); }
 </style>

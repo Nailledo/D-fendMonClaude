@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc -p packages/shared && tsc -p packages/server && pnpm --filter @dfend/client check",
     "balance": "tsx tools/balance.ts",
+    "families": "tsx tools/families.ts",
     "bench": "node tools/bench.cjs",
     "smoke": "node tools/smoke.cjs",
     "tune": "tsx tools/tune.ts && tsx tools/tune-players.ts && tsx tools/tune-multi.ts",

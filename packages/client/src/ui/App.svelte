@@ -38,30 +38,10 @@
 </div>
 
 <style>
-  .toasts {
-    position: fixed;
-    top: 84px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    align-items: center;
-    z-index: 60;
-    width: min(560px, calc(100vw - 32px));
-  }
-  .toast {
-    padding: 8px 16px;
-    border-radius: 10px;
-    background: rgba(30, 20, 12, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-    font-weight: 700;
-    animation: rise 0.25s ease;
-    text-align: center;
-  }
-  .toast.warn { border-color: #f59e0b; }
-  .toast.danger { border-color: #ef4444; color: #fecaca; }
-  .toast.good { border-color: #4ade80; color: #dcfce7; }
-  .toast.enemy { border-color: #c084fc; background: rgba(40, 20, 50, 0.9); }
+  .toasts { position: fixed; top: 66px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 60; width: min(560px, calc(100vw - 32px)); filter: var(--drop-sm); }
+  .toast { padding: 8px 16px; background: var(--panel); box-shadow: inset 4px 0 0 var(--muted); font-weight: 700; animation: rise 0.2s ease; text-align: center; }
+  .toast.warn { box-shadow: inset 4px 0 0 var(--gold); }
+  .toast.danger { box-shadow: inset 4px 0 0 var(--life); color: var(--bad); }
+  .toast.good { box-shadow: inset 4px 0 0 var(--good); }
+  .toast.enemy { box-shadow: inset 4px 0 0 var(--magic); color: #eadcff; }
 </style>

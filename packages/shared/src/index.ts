@@ -8,6 +8,7 @@ export * from './waves';
 export * from './sim';
 export * from './protocol';
 export * from './replay';
+export * from './preview';
 export * from './data/towers';
 export * from './data/enemies';
 export * from './data/heroes';

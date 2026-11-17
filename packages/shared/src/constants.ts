@@ -6,6 +6,8 @@ export const POS_SCALE = 64;
 export const MAX_PLAYERS = 4;
 /** Délai de grâce pour la reconnexion (secondes). */
 export const RECONNECT_GRACE_S = 90;
+/** Longueur des codes de salon (32 symboles : 32⁶ ≈ 1 milliard de codes). */
+export const ROOM_CODE_LEN = 6;
 /** Durée pendant laquelle une revente rembourse 100 % (annulation). */
 export const UNDO_SELL_S = 3;
 export const SELL_RATIO = 0.6;

@@ -25,7 +25,7 @@
 </div>
 
 <style>
-  .box { width: min(340px, 100%); display: flex; flex-direction: column; gap: 10px; text-align: center; }
-  h2 { margin: 0; }
-  .muted { margin: 0; color: #7a6040; font-size: 0.9em; }
+  .box { width: min(360px, 100%); display: flex; flex-direction: column; gap: 10px; text-align: center; padding: 22px; }
+  h2 { margin: 0 0 6px; font-size: 2.4em; }
+  .muted { margin: 0; color: var(--muted); font-size: 0.9em; }
 </style>

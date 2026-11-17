@@ -15,6 +15,7 @@
     saveSettings();
     audio.applyVolumes();
     document.documentElement.style.setProperty('--scale', String(settings.textScale));
+    document.documentElement.classList.toggle('show-keys', settings.showKeys);
     if (reload) needReload = true;
   }
   function preset(q: Quality) {
@@ -55,16 +56,16 @@
       <h2>Paramètres</h2>
       <button class="btn small" onclick={close}>Fermer</button>
     </div>
-    <div class="tabs">
+    <div class="seg tabs">
       {#each [['gfx', 'Graphismes'], ['audio', 'Audio'], ['keys', 'Contrôles'], ['access', 'Accessibilité']] as [id, label]}
-        <button class="btn small" class:gold={tab === id} onclick={() => { commit(); tab = id as typeof tab; }}>{label}</button>
+        <button class:on={tab === id} onclick={() => { commit(); tab = id as typeof tab; }}>{label}</button>
       {/each}
     </div>
     <div class="body scroll">
       {#if tab === 'gfx'}
-        <div class="row presets">
+        <div class="seg presets">
           {#each [['bas', 'Bas'], ['moyen', 'Moyen'], ['haut', 'Haut'], ['ultra', 'Ultra']] as [q, label]}
-            <button class="btn small" class:gold={s.quality === q} onclick={() => preset(q as Quality)}>{label}</button>
+            <button class:on={s.quality === q} onclick={() => preset(q as Quality)}>{label}</button>
           {/each}
         </div>
         <label>Échelle de résolution : {Math.round(s.resScale * 100)} %<input type="range" min="0.5" max="2" step="0.05" bind:value={s.resScale} onchange={commit} /></label>
@@ -92,7 +93,7 @@
               <button class="kb" class:cap={capturing === act} class:conf={(conflicts.get(k[act]) ?? 0) > 1} onclick={() => (capturing = act)}>
                 {capturing === act ? 'Appuyez sur une touche…' : keyLabel(k[act])}
               </button>
-              {#if k[act] !== DEFAULT_KEYS[act]}<button class="btn small ghost" title="Par défaut" onclick={() => { k[act] = DEFAULT_KEYS[act]; Object.assign(keys, k); saveKeys(); }}>↺</button>{/if}
+              {#if k[act] !== DEFAULT_KEYS[act]}<button class="btn small ghost" aria-label="Touche par défaut" title="Par défaut" onclick={() => { k[act] = DEFAULT_KEYS[act]; Object.assign(keys, k); saveKeys(); }}>↺</button>{/if}
             </div>
           {/each}
         </div>
@@ -102,6 +103,7 @@
         <label>Taille du texte : {Math.round(s.textScale * 100)} %<input type="range" min="0.85" max="1.4" step="0.05" bind:value={s.textScale} onchange={commit} /></label>
         <label class="check"><input type="checkbox" bind:checked={s.damageNumbers} onchange={commit} /> Afficher les chiffres de dégâts</label>
         <label class="check"><input type="checkbox" bind:checked={s.reduceShake} onchange={commit} /> Réduire les tremblements d’écran</label>
+        <label class="check"><input type="checkbox" bind:checked={s.showKeys} onchange={commit} /> Toujours afficher les raccourcis clavier (sinon : au survol, ou en maintenant Alt)</label>
         <label class="check"><input type="checkbox" bind:checked={s.colorblind} onchange={commit} /> Mode daltonien (motifs sur les couleurs de joueurs)</label>
       {/if}
     </div>
@@ -109,20 +111,20 @@
 </div>
 
 <style>
-  .box { width: min(620px, 100%); max-height: 88vh; display: flex; flex-direction: column; gap: 10px; }
+  .box { width: min(640px, 100%); max-height: 88vh; display: flex; flex-direction: column; gap: 14px; }
   .head { display: flex; justify-content: space-between; align-items: center; }
-  h2 { margin: 0; }
-  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-  .body { display: flex; flex-direction: column; gap: 12px; padding-right: 6px; }
-  label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
-  label.check { flex-direction: row; align-items: center; gap: 8px; }
-  .muted { color: #7a6040; margin: 0; font-size: 0.88em; }
-  .warn { color: #9a3412; font-weight: 700; margin: 0; }
-  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
-  .krow { display: flex; align-items: center; gap: 6px; font-size: 0.9em; }
+  h2 { margin: 0; font-size: 2em; }
+  .body { display: flex; flex-direction: column; gap: 14px; padding-right: 6px; }
+  label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+  label.check { flex-direction: row; align-items: center; gap: 10px; font-weight: 400; }
+  .muted { color: var(--muted); margin: 0; font-size: 0.9em; }
+  .warn { color: var(--gold); font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
+  .krow { display: flex; align-items: center; gap: 6px; font-size: 0.92em; }
   .krow span { flex: 1; }
-  .kb { min-width: 90px; cursor: pointer; padding: 4px 8px; border-radius: 6px; border: 2px solid var(--wood); background: #fffaf0; color: var(--ink); font-weight: 800; }
-  .kb.cap { background: #fde68a; }
-  .kb.conf { border-color: var(--red); color: var(--red); }
+  .kb { min-width: 96px; cursor: pointer; padding: 5px 8px; border: 2px solid var(--edge); background: var(--sunken); color: var(--text); font-weight: 700; }
+  .kb:hover { border-color: var(--muted); }
+  .kb.cap { border-color: var(--gold); color: var(--gold); }
+  .kb.conf { border-color: var(--life); color: var(--bad); }
   @media (max-width: 600px) { .keys { grid-template-columns: 1fr; } }
 </style>

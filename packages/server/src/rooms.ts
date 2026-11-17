@@ -1,17 +1,24 @@
 import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
-  GameState, HERO_IDS, LEVELS, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, SURVIVAL_MAPS, Sim, encodeSnapshot,
+  GameState, HERO_IDS, LEVELS, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
   type ClientMsg, type Command, type EndInfo, type GameConfig, type HeroId, type LobbyPlayer, type RoomSettings, type ServerMsg,
 } from '@dfend/shared';
 import type { Scores } from './db';
+import { RateLimiter, sanitizeName, sanitizeText } from './security';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const EMPTY_ROOM_TTL = 120_000;
 const CMD_PER_SEC = 25;
+/** Tous messages confondus, par connexion et par seconde. Au-delà du double, la connexion est fermée. */
+const MSG_PER_SEC = 40;
+/** Bornes des coordonnées d'un signal sur la carte. */
+const PING_BOUND = 64;
 
 export interface Client {
   ws: WebSocket;
+  ip: string;
+  msgBudget: number;
   token: string;
   name: string;
   room: Room | null;
@@ -36,10 +43,6 @@ interface RoomPlayer {
 
 function send(c: Client | null, m: ServerMsg) {
   if (c && c.ws.readyState === 1) c.ws.send(JSON.stringify(m));
-}
-
-function sanitize(s: unknown, max: number): string {
-  return String(s ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, max);
 }
 
 export class Room {
@@ -185,7 +188,7 @@ export class Room {
       case 'chat': {
         if (c.chatBudget <= 0) return;
         c.chatBudget--;
-        const text = sanitize(m.text, 140);
+        const text = sanitizeText(m.text, 140);
         if (text) this.broadcast({ t: 'chat', from: p.pid, name: p.name, text });
         break;
       }
@@ -193,7 +196,8 @@ export class Room {
         if (c.chatBudget <= 0) return;
         c.chatBudget -= 0.5;
         const x = Number(m.x), z = Number(m.z);
-        if (Number.isFinite(x) && Number.isFinite(z)) this.broadcast({ t: 'ping', from: p.pid, kind: (Number(m.kind) | 0) % 3, x, z });
+        const kind = (((Number(m.kind) | 0) % 3) + 3) % 3;
+        if (Number.isFinite(x) && Number.isFinite(z) && Math.abs(x) <= PING_BOUND && Math.abs(z) <= PING_BOUND) this.broadcast({ t: 'ping', from: p.pid, kind, x, z });
         break;
       }
       case 'lobby':
@@ -307,6 +311,14 @@ export class RoomManager {
   /** jeton -> salon (pour la reconnexion) */
   private tokens = new Map<string, string>();
   private pingN = 0;
+  /** créations de salon : par connexion et par IP */
+  private createConn = new RateLimiter(3, 60_000);
+  private createIp = new RateLimiter(10, 60_000);
+  /** tentatives pour rejoindre un salon : par connexion et par IP (empêche de deviner les codes) */
+  private joinConn = new RateLimiter(5, 60_000);
+  private joinIp = new RateLimiter(20, 60_000);
+  private connIds = new WeakMap<Client, string>();
+  private connSeq = 0;
 
   constructor(readonly maxRooms: number, readonly scores: Scores | null) {
     setInterval(() => this.housekeeping(), 1000);
@@ -315,21 +327,41 @@ export class RoomManager {
   private newCode(): string {
     for (;;) {
       let s = '';
-      const b = randomBytes(5);
-      for (let i = 0; i < 5; i++) s += CODE_CHARS[b[i] % CODE_CHARS.length];
+      const b = randomBytes(ROOM_CODE_LEN);
+      for (let i = 0; i < ROOM_CODE_LEN; i++) s += CODE_CHARS[b[i] % CODE_CHARS.length];
       if (!this.rooms.has(s)) return s;
     }
   }
 
-  connect(ws: WebSocket): Client {
-    const c: Client = { ws, token: '', name: 'Joueur', room: null, pid: -1, alive: true, cmdBudget: CMD_PER_SEC, chatBudget: 5, pingSent: 0, pingN: 0, rtt: 0 };
+  connect(ws: WebSocket, ip = 'inconnu'): Client {
+    const c: Client = { ws, ip, msgBudget: MSG_PER_SEC, token: '', name: 'Joueur', room: null, pid: -1, alive: true, cmdBudget: CMD_PER_SEC, chatBudget: 5, pingSent: 0, pingN: 0, rtt: 0 };
     this.clients.add(c);
+    this.connIds.set(c, 'c' + this.connSeq++);
     return c;
   }
 
+  /** Nombre de connexions ouvertes depuis une IP. */
+  countIp(ip: string) {
+    let n = 0;
+    for (const c of this.clients) if (c.ip === ip) n++;
+    return n;
+  }
+
+  private dropIfEmpty(room: Room | null) {
+    // un salon sans aucun joueur (ni place réservée pour une reconnexion) disparaît tout de suite :
+    // créer et quitter des salons en boucle ne remplit plus le serveur
+    if (!room || room.players.length > 0 || room.inGame) return;
+    this.rooms.delete(room.code);
+    for (const [t, rc] of this.tokens) if (rc === room.code) this.tokens.delete(t);
+  }
+
   message(c: Client, m: ClientMsg) {
+    if (--c.msgBudget < 0) {
+      if (c.msgBudget < -MSG_PER_SEC) c.ws.close(1008, 'trop de messages');
+      return;
+    }
     if (m.t === 'hello') {
-      c.name = sanitize(m.name, 16) || 'Joueur';
+      c.name = sanitizeName(m.name);
       const tok = typeof m.token === 'string' && /^[a-f0-9]{32}$/.test(m.token) ? m.token : randomBytes(16).toString('hex');
       c.token = tok;
       send(c, { t: 'welcome', token: tok });
@@ -344,7 +376,12 @@ export class RoomManager {
       return;
     }
     if (m.t === 'create') {
-      if (c.room) c.room.leave(c);
+      if (!this.createConn.hit(this.connIds.get(c)!) || !this.createIp.hit(c.ip)) return send(c, { t: 'error', msg: 'Trop de salons créés : réessayez dans une minute.' });
+      if (c.room) {
+        const old = c.room;
+        old.leave(c);
+        this.dropIfEmpty(old);
+      }
       if (this.rooms.size >= this.maxRooms) return send(c, { t: 'error', msg: 'Le serveur est plein, réessayez plus tard.' });
       const room = new Room(this.newCode(), this);
       this.rooms.set(room.code, room);
@@ -353,20 +390,27 @@ export class RoomManager {
       return;
     }
     if (m.t === 'join') {
-      const code = sanitize(m.code, 5).toUpperCase();
+      const code = sanitizeText(m.code, ROOM_CODE_LEN).toUpperCase();
+      if (!this.joinConn.hit(this.connIds.get(c)!) || !this.joinIp.hit(c.ip)) return send(c, { t: 'error', msg: 'Trop de tentatives : réessayez dans une minute.' });
       const room = this.rooms.get(code);
       if (!room) return send(c, { t: 'error', msg: 'Salon introuvable.' });
       if (c.room === room) return room.broadcastRoom();
       if (room.reattach(c)) return;
-      if (c.room) c.room.leave(c);
+      if (c.room) {
+        const old = c.room;
+        old.leave(c);
+        this.dropIfEmpty(old);
+      }
       if (room.inGame) return send(c, { t: 'error', msg: 'La partie a déjà commencé.' });
       if (!room.add(c)) return send(c, { t: 'error', msg: 'Le salon est complet.' });
       this.tokens.set(c.token, room.code);
       return;
     }
     if (m.t === 'leave') {
-      if (c.room) c.room.leave(c);
+      const old = c.room;
+      if (old) old.leave(c);
       this.tokens.delete(c.token);
+      this.dropIfEmpty(old);
       return;
     }
     c.room?.handle(c, m);
@@ -374,13 +418,16 @@ export class RoomManager {
 
   close(c: Client) {
     this.clients.delete(c);
-    c.room?.disconnect(c);
+    const room = c.room;
+    room?.disconnect(c);
+    this.dropIfEmpty(room);
   }
 
   private housekeeping() {
     const now = Date.now();
     this.pingN++;
     for (const c of this.clients) {
+      c.msgBudget = Math.min(MSG_PER_SEC, c.msgBudget + MSG_PER_SEC);
       c.cmdBudget = CMD_PER_SEC;
       c.chatBudget = Math.min(5, c.chatBudget + 1);
     }
@@ -391,6 +438,7 @@ export class RoomManager {
         for (const [t, rc] of this.tokens) if (rc === code) this.tokens.delete(t);
       }
     }
+    if (this.pingN % 30 === 0) for (const l of [this.createConn, this.createIp, this.joinConn, this.joinIp]) l.sweep();
     // latence toutes les 2 s
     if (this.pingN % 2 === 0) {
       for (const r of this.rooms.values()) {

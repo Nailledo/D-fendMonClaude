@@ -46,10 +46,10 @@
           <div class="pl" style="--c:{hex(PLAYER_COLORS[p.id] ?? 0xffffff)}">
             {#if ui.portraits[p.hero]}<img src={ui.portraits[p.hero]} alt="" />{/if}
             <div class="grow">
-              <b>{p.name}</b> {#if p.host}<span class="tag">Hôte</span>{/if}
+              <b>{p.name}</b>
               <div class="small">{HEROES[p.hero].name}{#if !p.connected} · <i>déconnecté</i>{/if}</div>
             </div>
-            <span class="rdy" class:ok={p.ready || p.host}>{p.host ? '★' : p.ready ? 'Prêt' : '…'}</span>
+            <span class="rdy" class:ok={p.ready || p.host}>{p.host ? 'Hôte' : p.ready ? 'Prêt' : 'Pas prêt'}</span>
           </div>
         {/each}
         {#each Array(4 - room.players.length) as _}
@@ -59,9 +59,9 @@
 
       <h3>Partie</h3>
       <div class="settings">
-        <div class="row">
+        <div class="seg">
           {#each [['story', 'Histoire'], ['survival', 'Survie']] as [m, label]}
-            <button class="btn small" class:gold={room.settings.mode === m} disabled={!isHost}
+            <button class:on={room.settings.mode === m} disabled={!isHost}
               onclick={() => setSettings(m as Mode, m === 'story' ? LEVELS[0].mapId : SURVIVAL_MAPS[0], room.settings.difficulty)}>{label}</button>
           {/each}
         </div>
@@ -74,9 +74,9 @@
             {#each SURVIVAL_MAPS as m}<option value={m}>{MAPS[m].name}</option>{/each}
           {/if}
         </select>
-        <div class="row">
+        <div class="seg">
           {#each DIFFICULTY_NAMES as d, i}
-            <button class="btn small" class:gold={room.settings.difficulty === i} disabled={!isHost} onclick={() => setSettings(room.settings.mode, room.settings.mapId, i as Difficulty)}>{d}</button>
+            <button class:on={room.settings.difficulty === i} disabled={!isHost} onclick={() => setSettings(room.settings.mode, room.settings.mapId, i as Difficulty)}>{d}</button>
           {/each}
         </div>
       </div>
@@ -102,23 +102,25 @@
 {/if}
 
 <style>
-  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 420px); justify-content: center; gap: 16px; padding: 20px 16px; overflow: auto; background: rgba(20, 12, 6, 0.5); }
-  .main { display: flex; flex-direction: column; gap: 10px; }
+  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 580px) minmax(0, 420px); justify-content: center; align-content: start; gap: 16px; padding: 24px 16px; overflow: auto; background: rgba(12, 14, 16, 0.6); }
+  .main { display: flex; flex-direction: column; gap: 12px; padding: 22px; }
   .side { display: flex; flex-direction: column; gap: 12px; }
-  .head { display: flex; align-items: center; justify-content: space-between; }
-  h2, h3 { margin: 0; }
-  .code { cursor: pointer; font-family: 'Cinzel', serif; font-weight: 800; font-size: 1.8em; letter-spacing: 0.25em; padding: 4px 14px; border-radius: 10px; border: 3px dashed var(--wood); background: #fffaf0; color: var(--ink); }
-  .muted { color: #7a6040; margin: 0; font-size: 0.88em; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h2 { margin: 0; font-size: 2.2em; }
+  h3 { margin: 6px 0 0; font-size: 1.35em; }
+  .code { cursor: pointer; font-family: var(--font-ui); font-weight: 700; font-size: 1.6em; letter-spacing: 0.22em; padding: 6px 12px 6px 16px; border: 2px dashed var(--gold); background: var(--sunken); color: var(--gold); font-variant-numeric: tabular-nums; }
+  .code:hover { background: var(--raised); }
+  .muted { color: var(--muted); margin: 0; font-size: 0.9em; }
   .players { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .pl { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.08); border-left: 6px solid var(--c); }
-  .pl img { width: 44px; height: 44px; }
-  .pl.empty { justify-content: center; color: #9a8060; border-left-color: transparent; border: 2px dashed rgba(90, 58, 34, 0.3); min-height: 56px; }
-  .small { font-size: 0.8em; color: #7a6040; }
-  .tag { font-size: 0.7em; background: var(--gold-2); color: #3a2208; padding: 1px 6px; border-radius: 99px; font-weight: 800; }
-  .rdy { font-weight: 800; color: #9a8060; }
-  .rdy.ok { color: #2e7d32; }
+  .pl { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--raised); box-shadow: inset 4px 0 0 var(--c); min-width: 0; }
+  .pl img { width: 46px; height: 46px; background: #d9cfb8; flex: none; }
+  .pl b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .pl.empty { justify-content: center; color: var(--faint); box-shadow: none; background: transparent; outline: 1px dashed rgba(243, 238, 226, 0.2); outline-offset: -1px; min-height: 62px; }
+  .small { font-size: 0.82em; color: var(--muted); }
+  .rdy { font-weight: 700; font-size: 0.82em; color: var(--faint); white-space: nowrap; }
+  .rdy.ok { color: var(--good); }
   .settings { display: flex; flex-direction: column; gap: 8px; }
-  .actions { margin-top: 6px; }
-  .chatbox { min-height: 220px; display: flex; }
+  .actions { margin-top: 8px; }
+  .chatbox { min-height: 240px; display: flex; }
   @media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } .players { grid-template-columns: 1fr; } }
 </style>
