@@ -205,10 +205,19 @@ export function spawnGeometry(biome: Biome): THREE.BufferGeometry {
   const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
 
   // l'intérieur : fond noir, parois et voûte sombres (cachées sous la roche), sol de terre battue
-  g.box(3.2, 3.0, 0.3, dark, 0, 1.2, -2.7);
-  for (const s of [1, -1]) g.box(0.4, 3.0, 3.0, dim, s * 1.7, 1.2, -1.3);
-  g.box(3.6, 0.4, 3.0, dim, 0, 2.55, -1.3);
+  // (le sombre ne tapisse que l'intérieur ; dehors, la galerie est enveloppée de roche)
+  g.box(3.2, 3.0, 0.12, dark, 0, 1.2, -2.66);
+  for (const s of [1, -1]) g.box(0.1, 3.0, 2.9, dim, s * 1.6, 1.2, -1.25);
+  g.box(3.3, 0.1, 2.9, dim, 0, 2.4, -1.25);
   g.box(3.1, 0.05, 3.0, 0x2a2018, 0, 0.03, -1.2);
+  // enveloppe : murs, voûte et fond en roche
+  for (const s of [1, -1]) g.box(1.4, 3.25, 2.9, rk[0], s * 2.35, 1.3, -1.3);
+  g.box(6.1, 0.7, 2.9, rk[0], 0, 2.8, -1.3);
+  g.box(6.1, 3.4, 1.0, rk[0], 0, 1.5, -3.2);
+  for (const s of [1, -1]) {
+    g.rock(0.9, rk[1], s * 3.05, 1.5, -1.7, 0.8, 1.5, 1.7, s);
+    g.rock(0.85, rk[0], s * 2.95, 1.1, -3.1, 0.9, 1.3, 1.3, s * 2);
+  }
   // étais de mine : un cadre à l'entrée, un second dans la pénombre
   for (const [z, col] of [[-0.15, wood], [-1.7, 0x2e2118]] as const) {
     for (const s of [1, -1]) g.box(0.2, 2.2, 0.2, col, s * 1.38, 1.1, z, 0, 0, s * 0.03);
