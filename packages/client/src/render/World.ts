@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PATH_HALF_WIDTH, Rng, type RuntimeMap, type SampledPath } from '@dfend/shared';
+import { PATH_HALF_WIDTH, Rng, boundaryPoint, type RuntimeMap } from '@dfend/shared';
 import { DECOR, THEMES, decorGeometry, gateGeometry, spawnGeometry, type BiomeTheme } from '../art/decor';
 import { K, geoFor, model } from '../art/models';
 import { slotGeometry } from '../art/towers';
@@ -37,16 +37,16 @@ export interface WorldInfo {
   heightAt: (x: number, z: number) => number;
 }
 
-/** Point où le chemin entre dans la zone jouable. */
-function boundaryPoint(p: SampledPath, hw: number, hh: number, fromEnd: boolean) {
-  const inside = (i: number) => Math.abs(p.xs[i]) < hw - 1.5 && Math.abs(p.zs[i]) < hh - 1.5;
-  if (!fromEnd) {
-    for (let i = 0; i < p.count; i++) if (inside(i)) return { x: p.xs[i], z: p.zs[i], i };
-  } else {
-    for (let i = p.count - 1; i >= 0; i--) if (inside(i)) return { x: p.xs[i], z: p.zs[i], i };
-  }
-  return { x: p.xs[0], z: p.zs[0], i: 0 };
-}
+/**
+ * Taille de chaque élément de décor (multiplicateur de son modèle), dans la zone jouable et en bordure de chemin :
+ * proportions cohérentes avec les personnages (~1,7 de haut) au lieu d'une échelle unique pour tout.
+ */
+const DECOR_SIZE: Record<string, [number, number]> = {
+  herbe: [1, 0.8], fleurs: [0.9, 0.75], buisson: [0.8, 0.6], rocher: [0.85, 0.42], roseaux: [0.9, 0.7], champignon: [0.65, 0.45],
+  crane: [0.6, 0.45], cristal: [0.32, 0.2], pic: [0.55, 0.32], chene: [0.95, 0.95], arbremort: [0.85, 0.85], arbrecalcine: [0.85, 0.85],
+};
+/** décor solide : vient des obstacles de la carte (partagés avec la simulation), jamais tiré au hasard ici */
+const SOLID = /^(rocher|chene|arbremort|arbrecalcine|pic|cristal)$/;
 
 export function buildWorld(map: RuntimeMap): WorldInfo {
   const def = map.def;
@@ -171,17 +171,27 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
     if (distPool(x, z) < 0.6) return;
     for (const [ox, oz, r] of occupied) if ((x - ox) ** 2 + (z - oz) ** 2 < r * r) return;
     const name = pickWeighted(inner ? DECOR[def.biome].inner : DECOR[def.biome].outer);
+    if (inner && SOLID.test(name)) return;
     // les grands éléments restent loin du chemin
     if (/chene|sapin|saule|basalte|pic|arbre/.test(name) && dp < PATH_HALF_WIDTH + 2.2) return;
     const variant = rng.int(0, 2);
     const key = name + '|' + variant;
     const ix = Math.round((x + W / 2) / (W / SX)), iz = Math.round((z + H / 2) / (H / SZ));
     const hy = heights[Math.max(0, Math.min(heights.length - 1, iz * (SX + 1) + ix))] ?? 0;
-    const s = (inner ? 0.75 : 1) * rng.range(0.8, 1.3);
+    const s = inner ? (DECOR_SIZE[name]?.[0] ?? 0.8) * rng.range(0.85, 1.2) : rng.range(0.8, 1.3);
     if (!items.has(key)) items.set(key, []);
     items.get(key)!.push({ x, y: Math.max(hy, 0) - 0.05, z, yaw: rng.next() * Math.PI * 2, s });
     if (/chene|sapin|saule|basalte/.test(name)) occupied.push([x, z, 1.1 * s]);
   };
+  // obstacles solides (rochers, troncs) : toujours dessinés, à l'endroit exact où la simulation les connaît
+  for (const o of map.obstacles) {
+    const key = o.name + '|' + rng.int(0, 2);
+    const ix = Math.round((o.x + W / 2) / (W / SX)), iz = Math.round((o.z + H / 2) / (H / SZ));
+    const hy = heights[Math.max(0, Math.min(heights.length - 1, iz * (SX + 1) + ix))] ?? 0;
+    if (!items.has(key)) items.set(key, []);
+    items.get(key)!.push({ x: o.x, y: Math.max(hy, 0) - 0.05, z: o.z, yaw: rng.next() * Math.PI * 2, s: o.s });
+    occupied.push([o.x, o.z, o.r + 0.4]);
+  }
   const innerN = Math.round(def.hw * def.hh * 0.32 * dens);
   for (let i = 0; i < innerN; i++) tryPlace(rng.range(-def.hw, def.hw), rng.range(-def.hh, def.hh), true);
   const outerN = Math.round(650 * dens);
@@ -208,7 +218,7 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
       const name = edgeSet[rng.int(0, edgeSet.length - 1)];
       const key = name + '|' + rng.int(0, 2);
       if (!items.has(key)) items.set(key, []);
-      items.get(key)!.push({ x, y: 0.02, z, yaw: rng.next() * Math.PI * 2, s: rng.range(0.3, 0.55) });
+      items.get(key)!.push({ x, y: 0.02, z, yaw: rng.next() * Math.PI * 2, s: (DECOR_SIZE[name]?.[1] ?? 0.45) * rng.range(0.8, 1.2) });
     }
   }
   for (const [key, list] of items) {

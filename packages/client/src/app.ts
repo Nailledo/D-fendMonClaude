@@ -83,7 +83,7 @@ class App {
   }
 
   private frameStart = performance.now();
-  private dyn = { acc: 0, n: 0, good: 0 };
+  private dyn = { acc: 0, n: 0, good: 0, hold: 0 };
 
   /**
    * Résolution dynamique : si les images ralentissent nettement pendant ~1,5 s, on baisse la densité de pixels
@@ -103,8 +103,10 @@ class App {
     d.acc = d.n = 0;
     const target = settings.fpsCap > 0 ? 1 / settings.fpsCap : 1 / 60;
     let s = r.dynScale;
-    if (avg > target * 1.3 + 0.002) { s = Math.max(0.55, s - 0.1); d.good = 0; }
-    else if (avg < target * 1.08 && ++d.good >= 2) { s = Math.min(1, s + 0.05); d.good = 0; }
+    const now = performance.now();
+    if (avg > target * 1.3 + 0.002) { s = Math.max(0.55, s - 0.1); d.good = 0; d.hold = now + 12000; }
+    // on ne remonte qu'après un long moment sans ralentissement (pas de va-et-vient visible de la netteté)
+    else if (avg < target * 1.08 && now > d.hold && ++d.good >= 3) { s = Math.min(1, s + 0.05); d.good = 0; }
     if (s !== r.dynScale) {
       r.dynScale = s;
       r.applyPixelRatio();

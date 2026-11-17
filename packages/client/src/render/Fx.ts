@@ -668,8 +668,10 @@ export class Fx {
       } else if (k === 11) {
         // météore : rocher qui tournoie, traînée de feu et de fumée
         this.rocks.push(x, y, z, tick * 0.45, 1.5);
-        for (let n = 0; n < 5; n++) this.glow.spawn(x + (Math.random() - 0.5) * 0.9, y + (Math.random() - 0.5) * 0.9, z + (Math.random() - 0.5) * 0.9, -dx * 4, -dy * 4 + 0.5, -dz * 4, 0.35 + Math.random() * 0.3, 0.3 + Math.random() * 0.3, n < 2 ? 0xffd54f : n < 4 ? 0xff6f00 : 0xff3d00, 0);
-        if (Math.random() < 0.7) this.sparks.spawn(x, y + 0.4, z, -dx * 2, 0.8, -dz * 2, 1.1, 0.32 + Math.random() * 0.2, 0x3e3e3e, 0.5);
+        // traînée : particules lâchées vers l'arrière de la trajectoire (direction unitaire de la tangente)
+        const tl = Math.hypot(dx, dy, dz) || 1, bx = -dx / tl, by = -dy / tl, bz = -dz / tl;
+        for (let n = 0; n < 5; n++) this.glow.spawn(x + (Math.random() - 0.5) * 0.9, y + (Math.random() - 0.5) * 0.9, z + (Math.random() - 0.5) * 0.9, bx * 2, by * 2 + 0.5, bz * 2, 0.35 + Math.random() * 0.3, 0.3 + Math.random() * 0.3, n < 2 ? 0xffd54f : n < 4 ? 0xff6f00 : 0xff3d00, 0);
+        if (Math.random() < 0.7) this.sparks.spawn(x, y + 0.4, z, bx, 0.8, bz, 1.1, 0.32 + Math.random() * 0.2, 0x3e3e3e, 0.5);
       } else {
         // projectile magique : cœur lumineux + traînée continue (indépendante de la cadence d'images)
         const c = GLOW[k] ?? 0xffffff;

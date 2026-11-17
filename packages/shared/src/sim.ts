@@ -295,6 +295,81 @@ export class Sim {
     });
   }
 
+  // ------------------------------------------------------------ collisions des unités
+
+  /** obstacles fixes (mares, décor solide) : x, z, rayon (marge du corps comprise) */
+  private solidsCache: number[] | null = null;
+  private tmpGoal = { x: 0, z: 0 };
+  private solids(): number[] {
+    if (!this.solidsCache) {
+      const c: number[] = [];
+      for (const [px, pz, r] of this.map.def.pools ?? []) c.push(px, pz, r + 0.3);
+      for (const o of this.map.obstacles) c.push(o.x, o.z, o.r + 0.28);
+      this.solidsCache = c;
+    }
+    return this.solidsCache;
+  }
+
+  /** Appelle f(x, z, r) pour chaque obstacle : fixes, puis tours construites. */
+  private eachSolid(f: (cx: number, cz: number, r: number) => void) {
+    const c = this.solids();
+    for (let i = 0; i < c.length; i += 3) f(c[i], c[i + 1], c[i + 2]);
+    for (const t of this.towers) f(t.x, t.z, 1.05);
+  }
+
+  /** Ramène un point hors des obstacles (sur leur bord) ; renvoie vrai s'il a bougé. */
+  private pushOut(p: { x: number; z: number }) {
+    let moved = false;
+    for (let pass = 0; pass < 2; pass++) {
+      this.eachSolid((cx, cz, r) => {
+        const dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+        if (d2 >= r * r) return;
+        const d = Math.sqrt(d2);
+        if (d < 1e-4) { p.x = cx + r; moved = true; return; }
+        p.x = cx + (dx / d) * (r + 0.01);
+        p.z = cz + (dz / d) * (r + 0.01);
+        moved = true;
+      });
+    }
+    return moved;
+  }
+
+  /**
+   * Pas de déplacement d'une unité vers (gx, gz) en contournant les obstacles :
+   * si un obstacle barre la route dans le pas suivant, on longe son bord du côté le plus proche de la direction voulue.
+   */
+  private walk(u: Unit, gx: number, gz: number, step: number): boolean {
+    let dx = gx - u.x, dz = gz - u.z;
+    const d = Math.sqrt(dx * dx + dz * dz);
+    if (d <= step) {
+      u.x = gx; u.z = gz;
+      this.pushOut(u);
+      return true;
+    }
+    dx /= d; dz /= d;
+    // obstacle le plus proche devant, à portée d'un pas et demi
+    let bx = 0, bz = 0, br = 0, bp = Infinity;
+    this.eachSolid((cx, cz, r) => {
+      const vx = cx - u.x, vz = cz - u.z;
+      const proj = vx * dx + vz * dz;
+      if (proj <= 0 || proj > r + step * 1.5 + 0.3 || proj > d + r) return;
+      const perp = vx * dz - vz * dx;
+      if (perp * perp >= r * r || proj >= bp) return;
+      bp = proj; bx = cx; bz = cz; br = r;
+    });
+    if (bp < Infinity) {
+      const vx = bx - u.x, vz = bz - u.z, vl = Math.sqrt(vx * vx + vz * vz) || 1;
+      // deux tangentes possibles : on garde celle qui suit le mieux la direction voulue
+      let tx = -vz / vl, tz = vx / vl;
+      if (tx * dx + tz * dz < 0 || (tx * dx + tz * dz === 0 && vx * dz - vz * dx > 0)) { tx = -tx; tz = -tz; }
+      dx = tx; dz = tz;
+    }
+    u.x += dx * step;
+    u.z += dz * step;
+    this.pushOut(u);
+    return false;
+  }
+
   // ------------------------------------------------------------ utilitaires
 
   private ev(...a: number[]) {
@@ -678,8 +753,11 @@ export class Sim {
         const x = clampNum(c.x, -this.map.def.hw, this.map.def.hw), z = clampNum(c.z, -this.map.def.hh, this.map.def.hh);
         if (!h || h.u.dead || x === null || z === null) return;
         this.release(h.u);
-        h.u.hx = x;
-        h.u.hz = z;
+        // destination dans l'eau, un rocher ou une tour : au bord le plus proche
+        const goal = { x, z };
+        this.pushOut(goal);
+        h.u.hx = goal.x;
+        h.u.hz = goal.z;
         h.u.moving = true;
         break;
       }
@@ -1284,11 +1362,11 @@ export class Sim {
         gz = e.z + dz * reach;
       }
       if (u.speed > 0) {
-        const dx = gx - u.x, dz = gz - u.z;
-        const d = Math.sqrt(dx * dx + dz * dz);
-        const step = u.speed * DT;
-        if (d > step) { u.x += (dx / d) * step; u.z += (dz / d) * step; }
-        else { u.x = gx; u.z = gz; if (u.moving) u.moving = false; }
+        // les unités contournent l'eau, le décor solide et les tours ; une destination dedans est ramenée au bord
+        const goal = this.tmpGoal;
+        goal.x = gx; goal.z = gz;
+        if (this.pushOut(goal) && !u.target) { u.hx = goal.x; u.hz = goal.z; }
+        if (this.walk(u, goal.x, goal.z, u.speed * DT) && u.moving) u.moving = false;
       }
       // attaque de mêlée
       u.fighting = false;

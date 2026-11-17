@@ -4,6 +4,7 @@ import { enemyGeometry } from '../art/enemies';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry } from '../art/units';
+import { HERO_STYLE, heroWeapon } from '../art/weapons';
 import { settings } from '../settings';
 import { Decal, Fx } from './Fx';
 import { InstPool, forgetPools } from './InstPool';
@@ -41,16 +42,27 @@ export class TitleScene {
   private foes: Foe[] = [];
   private pools = new Map<number, InstPool>();
   private hero: InstPool;
+  private heroWeapon: InstPool | null = null;
+  private heroStyle = 0;
+  /** poste de garde de Samuel (devant la tour), sa position et son cap */
+  private post = { x: 0, z: 0 };
   private heroPos = { x: 0, z: 0, yaw: 0 };
+  private heroMoving = false;
+  /** avancement sur le chemin du poste de Samuel, et cap de base de la caméra */
+  private postD = 40;
+  private camBase = 0;
   private heroAtk = 0;
   private heroTarget: Foe | null = null;
   private towers: { pool: InstPool; x: number; z: number; y: number; kind: number; cd: number; fired: number; range: number }[] = [];
   private kessin: InstPool;
   private kessinPos = new THREE.Vector3(-20, 0, -32);
   /** Kessin marche le long de l'horizon : avancement, cap, hauteur de la gueule */
-  private kPhase = 0;
   private kYaw = 0;
   private kMouth = 5;
+  /** Kessin : avancement le long de l'horizon (-1..1 × 9), sens de marche, cible de la boule de feu */
+  private kAlong = 0;
+  private kDir = 1;
+  private kAim = { x: 0, z: 0 };
   private heightAt: (x: number, z: number) => number;
   private nextRoar = 4;
   private roar = -99;
@@ -75,13 +87,19 @@ export class TitleScene {
       const i = ENEMIES.findIndex((e) => e.id === id);
       this.pools.set(i, pool(K.enemy(id), () => enemyGeometry(id), 12));
     }
-    // Samuel garde le chemin, un peu en retrait, aux deux tiers du parcours
+    // point de garde de départ : aux deux tiers du parcours
     this.path.at(this.path.length * 0.58, 0, this.tmp);
     const k = Math.min(this.path.count - 1, Math.floor((this.path.length * 0.58) / (this.path.length / (this.path.count - 1))));
     this.heroPos.x = this.tmp.x + this.path.nx[k] * 0.4;
     this.heroPos.z = this.tmp.z + this.path.nz[k] * 0.4;
-    this.focus.set(this.heroPos.x, 1, this.heroPos.z);
     this.hero = pool(K.hero('samuel'), () => heroGeometry('samuel'), 1);
+    // son épée et son animation de combat (modèle importé)
+    const hm = model(K.hero('samuel'));
+    const wg = hm ? heroWeapon('samuel', hm.geo) : null;
+    if (wg) {
+      this.heroWeapon = new InstPool(wg, 1, this.group, settings.shadows);
+      this.heroStyle = HERO_STYLE.samuel;
+    }
     // deux tours sur les emplacements les plus proches de Samuel
     const slots = [...map.slots].filter((s) => !s.locked && (s.x - this.heroPos.x) ** 2 + (s.z - this.heroPos.z) ** 2 > 16).sort((a, b) => (a.x - this.heroPos.x) ** 2 + (a.z - this.heroPos.z) ** 2 - ((b.x - this.heroPos.x) ** 2 + (b.z - this.heroPos.z) ** 2));
     [[0, 2], [2, 2]].forEach(([fam, lvl], i) => {
@@ -93,14 +111,36 @@ export class TitleScene {
       const y = m ? (m.meta.muzzleY ?? m.meta.height * 0.8) : tm!.muzzleY;
       this.towers.push({ pool: p, x: s.x, z: s.z, y, kind: fam === 0 ? 0 : fam === 2 ? 1 : 4, cd: fam === 0 ? 0.9 : fam === 2 ? 1.4 : 2.4, fired: -9, range: fam === 3 ? 9 : 8 });
     });
+    // Samuel monte la garde devant la première tour : entre elle et le chemin, au bord de la terre battue
+    const t0 = this.towers[0];
+    if (t0) {
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < this.path.count; i++) {
+        const d = (this.path.xs[i] - t0.x) ** 2 + (this.path.zs[i] - t0.z) ** 2;
+        if (d < bd) { bd = d; best = i; }
+      }
+      const px = this.path.xs[best], pz = this.path.zs[best];
+      this.postD = (best / Math.max(1, this.path.count - 1)) * this.path.length;
+      const dx = t0.x - px, dz = t0.z - pz, l = Math.hypot(dx, dz) || 1;
+      this.post.x = px + (dx / l) * 1.6;
+      this.post.z = pz + (dz / l) * 1.6;
+      // la caméra reste du côté du chemin (Samuel entre elle et la tour)
+      this.camBase = Math.atan2(-dx, -dz);
+    } else {
+      this.post.x = this.heroPos.x;
+      this.post.z = this.heroPos.z;
+    }
+    this.heroPos.x = this.post.x;
+    this.heroPos.z = this.post.z;
+    this.focus.set(this.post.x, 1, this.post.z);
     // Kessin à pied (première forme) : il arpente les collines au loin
     const kg = geoFor(K.enemy('kessin1'), () => enemyGeometry('kessin1'));
     kg.geo.computeBoundingBox();
     this.kMouth = kg.geo.boundingBox!.max.y * 0.82;
     this.kessin = new InstPool(kg.geo, 1, this.group, settings.shadows, kg.map);
     this.crows = pool(K.enemy('corbeau'), () => enemyGeometry('corbeau'), 4);
-    // une colonne déjà en route au lancement
-    for (let i = 0; i < 6; i++) this.spawn(this.path.length * (0.05 + i * 0.07), -9);
+    // une colonne déjà en route au lancement : la tête arrive au poste de Samuel en quelques secondes
+    for (let i = 0; i < 6; i++) this.spawn(Math.max(0.5, this.postD - 5 - i * 3.2), -9);
     r.scene.add(this.group);
   }
 
@@ -140,10 +180,11 @@ export class TitleScene {
       if (f.d > L - 1) continue;
       this.foes[w++] = f;
       if (f.dead >= 0) continue;
-      // Samuel bloque le premier ennemi qui arrive à sa hauteur
+      // Samuel choisit le premier ennemi qui approche de son poste ; celui-ci s'arrête quand Samuel est au contact
+      const dp = Math.hypot(f.x - this.post.x, f.z - this.post.z);
+      if (!this.heroTarget && dp < 4.2) this.heroTarget = f;
       const dh = Math.hypot(f.x - this.heroPos.x, f.z - this.heroPos.z);
-      f.fighting = this.heroTarget === f;
-      if (!this.heroTarget && dh < 1.4) { this.heroTarget = f; f.fighting = true; }
+      f.fighting = this.heroTarget === f && dh < 1.5;
       if (!f.fighting) f.d += def.speed * 0.9 * dt;
       this.path.at(f.d, f.lane, this.tmp);
       const nx = this.tmp.x, nz = this.tmp.z;
@@ -154,25 +195,55 @@ export class TitleScene {
     this.foes.length = w;
     if (this.heroTarget && (this.heroTarget.dead >= 0 || !this.foes.includes(this.heroTarget))) this.heroTarget = null;
 
-    // ------------------------------------------------ Samuel
+    // ------------------------------------------------ Samuel : va au-devant de l'ennemi, se bat, puis regagne son poste
     const tg = this.heroTarget;
+    const hp = this.heroPos;
+    let gx = this.post.x, gz = this.post.z;
     if (tg) {
-      this.heroPos.yaw = Math.atan2(tg.x - this.heroPos.x, tg.z - this.heroPos.z);
-      this.heroAtk += dt;
-      if (this.heroAtk > 0.8) {
-        this.heroAtk = 0;
+      const dx = hp.x - tg.x, dz = hp.z - tg.z, l = Math.hypot(dx, dz) || 1;
+      gx = tg.x + (dx / l) * 1.05;
+      gz = tg.z + (dz / l) * 1.05;
+    }
+    const hmx = gx - hp.x, hmz = gz - hp.z, ml = Math.hypot(hmx, hmz);
+    const step = 2.8 * dt;
+    this.heroMoving = ml > 0.08;
+    if (this.heroMoving) {
+      const k = Math.min(1, step / ml);
+      hp.x += hmx * k;
+      hp.z += hmz * k;
+    }
+    const fighting = !!tg && Math.hypot(tg.x - hp.x, tg.z - hp.z) < 1.5;
+    // cap : vers l'ennemi au combat, dans le sens de la marche, sinon vers le chemin (face aux arrivants)
+    let yawT = hp.yaw;
+    if (tg) yawT = Math.atan2(tg.x - hp.x, tg.z - hp.z);
+    else if (this.heroMoving) yawT = Math.atan2(hmx, hmz);
+    else {
+      this.path.at(this.path.length * 0.3, 0, this.tmp);
+      yawT = Math.atan2(this.tmp.x - hp.x, this.tmp.z - hp.z);
+    }
+    let hdy = yawT - hp.yaw;
+    while (hdy > Math.PI) hdy -= Math.PI * 2;
+    while (hdy < -Math.PI) hdy += Math.PI * 2;
+    hp.yaw += hdy * Math.min(1, dt * 9);
+    // coups synchronisés avec l'animation : dégâts au moment où la lame s'abat (phase ~0,6 du cycle)
+    const phase0 = 0.3;
+    const atk = (((t * 1.0 + phase0 * 0.37) % 1) + 1) % 1;
+    if (fighting && tg) {
+      const prev = this.heroAtk;
+      this.heroAtk = atk;
+      if (prev < 0.6 && atk >= 0.6) {
         this.damage(tg);
         fx.burst(tg.x, 0.8, tg.z, 6, 0xffffff, 2.5, 0.08, 0.3, true, 0);
       }
-    } else {
-      this.heroAtk = 0;
-      this.heroPos.yaw += (Math.atan2(this.focus.x - this.heroPos.x + 6, this.focus.z - this.heroPos.z - 6) - this.heroPos.yaw) * Math.min(1, dt * 2);
+    } else this.heroAtk = atk;
+    const mode = (fighting ? 1 : 0) + this.heroStyle * 2;
+    for (const p of this.heroWeapon ? [this.hero, this.heroWeapon] : [this.hero]) {
+      p.begin();
+      const hj = p.push(hp.x, 0, hp.z, hp.yaw, 1.5, phase0, this.heroMoving || fighting ? 9 : 0, 0, mode);
+      p.setTeam(hj, 0x3b82f6);
+      p.setPose(hj, 0, 0, 0, 1);
+      p.end();
     }
-    this.hero.begin();
-    const hj = this.hero.push(this.heroPos.x, 0, this.heroPos.z, this.heroPos.yaw, 1.5, 0.3, tg ? 9 : 0, 0, tg ? 1 : 0);
-    this.hero.setTeam(hj, 0x3b82f6);
-    this.hero.setPose(hj, 0, 0, 0, 1);
-    this.hero.end();
 
     // ------------------------------------------------ tours
     for (const tw of this.towers) {
@@ -210,66 +281,79 @@ export class TitleScene {
       const def = ENEMIES[f.type];
       const p = this.pools.get(f.type)!;
       const life = f.dead >= 0 ? -Math.min(0.999, Math.max(0.001, (t - f.dead) / 0.9)) : Math.min(1, Math.max(0.001, (t - f.born) / 0.5));
-      const flash = Math.max(0, 1 - (t - f.hit) / 0.12) * 0.7;
+      const flash = Math.max(0, 1 - (t - f.hit) / 0.1) * 0.35;
       const j = p.push(f.x, 0, f.z, f.yaw, def.size, f.d * 3.1, f.dead >= 0 || f.fighting ? 0 : def.speed * 4.5 / Math.max(0.6, def.size), flash, f.fighting ? 1 : 0);
       p.setPose(j, 0, Math.max(0, 1 - (t - f.hit) / 0.22), 0, life);
     }
     for (const p of this.pools.values()) p.end();
 
     // ------------------------------------------------ Kessin, au loin
-    // il reste à l'arrière-plan, à l'opposé de la caméra qui tourne, et marche de long en large sur les collines
+    // il reste à l'arrière-plan, à l'opposé de la caméra qui tourne, et patrouille sur les collines :
+    // il tourne d'abord sur place, puis marche droit devant lui à vitesse constante (jambes accordées au pas)
     if (t > this.nextRoar) {
       this.roar = t;
       this.nextRoar = t + 7 + Math.random() * 4;
+      // la boule de feu tombera sur le chemin, loin devant Samuel
+      this.path.at(this.path.length * (0.15 + Math.random() * 0.25), 0, this.tmp);
+      this.kAim.x = this.tmp.x + (Math.random() - 0.5) * 3;
+      this.kAim.z = this.tmp.z + (Math.random() - 0.5) * 3;
     }
     const rt = t - this.roar;
-    const roaring = rt < 1.8;
-    const oa = t * 0.05;
+    const roaring = rt < 2.2;
+    const oa = this.camBase + Math.sin(t * 0.07) * 0.75;
     const rx = Math.sin(oa), rz = Math.cos(oa); // direction caméra → scène (radiale)
     const tx0 = rz, tz0 = -rx; // tangente à l'horizon
-    if (!roaring) this.kPhase += dt * 0.11;
-    const along = Math.sin(this.kPhase) * 9, vel = Math.cos(this.kPhase) * 9 * 0.11;
-    const kx = this.focus.x - rx * 23 + tx0 * along, kz = this.focus.z - rz * 23 + tz0 * along;
+    const scale = 2.0;
+    const kx = this.focus.x - rx * 29 + tx0 * this.kAlong, kz = this.focus.z - rz * 29 + tz0 * this.kAlong;
     const ky = Math.max(0, this.heightAt(kx, kz)) - 0.05;
     this.kessinPos.set(kx, ky, kz);
-    const scale = 2.0;
-    // cap : dans le sens de la marche, ou face à la scène pour rugir
-    const faceScene = Math.atan2(this.focus.x - kx, this.focus.z - kz);
-    const walkYaw = Math.atan2(tx0 * Math.sign(vel), tz0 * Math.sign(vel));
-    let target = roaring || Math.abs(vel) < 0.25 ? faceScene : walkYaw;
+    // cap voulu : vers la cible de la boule de feu pendant le rugissement, sinon dans le sens de la marche
+    const walkYaw = Math.atan2(tx0 * this.kDir, tz0 * this.kDir);
+    const target = roaring ? Math.atan2(this.kAim.x - kx, this.kAim.z - kz) : walkYaw;
     let dy = target - this.kYaw;
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
-    this.kYaw += dy * Math.min(1, dt * 2.5);
-    const walking = !roaring && Math.abs(vel) > 0.25;
+    this.kYaw += Math.sign(dy) * Math.min(Math.abs(dy), dt * 1.6);
+    // il ne marche que face à sa direction : jamais à reculons ni en crabe
+    const aligned = Math.abs(dy) < 0.12;
+    const kv = 0.75;
+    const walking = !roaring && aligned;
+    if (walking) {
+      this.kAlong += this.kDir * kv * dt;
+      if (Math.abs(this.kAlong) > 9) { this.kAlong = Math.sign(this.kAlong) * 9; this.kDir = -this.kDir; }
+    }
     this.kessin.begin();
-    const kj = this.kessin.push(kx, ky, kz, this.kYaw, scale, 0, walking ? 2.4 : 0, 0, 0);
-    // rugissement : il se cambre en arrière puis se penche en avant, bras immobiles (le trident ne bouge pas)
-    const lean = roaring ? Math.sin(Math.min(1, rt / 1.8) * Math.PI) * 0.55 : 0;
-    this.kessin.setPose(kj, 0, lean, 0, 1);
+    // cadence des jambes = vitesse au sol (même relation que les ennemis en jeu)
+    const kj = this.kessin.push(kx, ky, kz, this.kYaw, scale, 0, walking ? (kv * 4.5) / scale : 0, 0, 0);
+    // rugissement : il se cambre (élan), puis se penche en avant pour cracher la boule de feu
+    const arch = roaring ? Math.sin(Math.min(1, rt / 1.1) * Math.PI) * 0.6 : 0;
+    this.kessin.setPose(kj, 0, rt < 1.1 ? arch : 0, 0, 1);
     this.kessin.end();
-    if (roaring && rt > 0.35) {
-      // gueule : en haut du modèle, un peu en avant dans la direction du regard
-      const fwx = Math.sin(this.kYaw), fwz = Math.cos(this.kYaw);
-      const mx = kx + fwx * scale * 0.45, my = ky + this.kMouth * scale, mz = kz + fwz * scale * 0.45;
-      // souffle de feu
-      for (let n = 0; n < 3; n++) fx.glow.spawn(mx, my, mz, fwx * 9 + (Math.random() - 0.5) * 2, -1.5 + Math.random() * 2, fwz * 9 + (Math.random() - 0.5) * 2, 0.5, 0.35, n ? 0xff6f00 : 0xffd54f, 0);
-      if (rt - dt < 0.35) {
-        fx.flashes.flash(mx, my, mz, 0xff5a00, 12, 1.2, 20);
-        // une boule de feu s'abat sur le chemin, loin devant Samuel
-        this.path.at(this.path.length * (0.15 + Math.random() * 0.25), 0, this.tmp);
-        const tx = this.tmp.x + (Math.random() - 0.5) * 3, tz = this.tmp.z + (Math.random() - 0.5) * 3;
-        fx.addShot({ kind: 11, sx: mx, sy: my, sz: mz, tx, ty: 0, tz, targetId: 0xffff, t0: tick, dur: 28, arc: 3, x: mx, y: my, z: mz });
-        setTimeout(() => {
-          fx.burst(tx, 0.3, tz, 26, 0xff6f00, 6, 0.28, 0.8, true, -4);
-          fx.debris(tx, tz, 8, 0x4e342e, 6);
-          fx.shockwave(tx, tz, 2.6, 0xffab40, 0x7a5a3a, 0.5);
-          fx.decals.add(tx, tz, 1.6, Decal.Scorch, 5, 0xff5a00);
-          fx.smoke(tx, 0.5, tz, 6, 0x3d3d3d, 1.2);
-          fx.flashes.flash(tx, 2, tz, 0xff9a3c, 10, 0.4, 10);
-          for (const f of this.foes) if ((f.x - tx) ** 2 + (f.z - tz) ** 2 < 5) this.damage(f, 9);
-        }, (28 / TICK) * 1000);
+    const fwx = Math.sin(this.kYaw), fwz = Math.cos(this.kYaw);
+    const mx = kx + fwx * scale * 0.45, my = ky + this.kMouth * scale, mz = kz + fwz * scale * 0.45;
+    if (roaring && rt > 0.25 && rt < 1.1) {
+      // braises qui montent dans la gueule pendant l'élan
+      if (Math.random() < dt * 25) fx.glow.spawn(mx, my, mz, (Math.random() - 0.5) * 0.6, 0.8, (Math.random() - 0.5) * 0.6, 0.4, 0.18, 0xff8f00, 0);
+    }
+    if (roaring && rt >= 1.1 && rt - dt < 1.1) {
+      // la boule de feu part dans la direction du regard, vers sa cible
+      const tx = this.kAim.x, tz = this.kAim.z;
+      fx.flashes.flash(mx, my, mz, 0xff5a00, 10, 0.8, 18);
+      for (let n = 0; n < 14; n++) {
+        const sp = 3 + Math.random() * 4;
+        fx.glow.spawn(mx, my, mz, fwx * sp + (Math.random() - 0.5) * 1.5, (Math.random() - 0.3) * 1.5, fwz * sp + (Math.random() - 0.5) * 1.5, 0.45, 0.3, n % 3 ? 0xff6f00 : 0xffd54f, 0);
       }
+      const dur = 30;
+      fx.addShot({ kind: 11, sx: mx, sy: my, sz: mz, tx, ty: 0, tz, targetId: 0xffff, t0: tick, dur, arc: 4, x: mx, y: my, z: mz });
+      setTimeout(() => {
+        fx.burst(tx, 0.3, tz, 26, 0xff6f00, 6, 0.28, 0.8, true, -4);
+        fx.debris(tx, tz, 8, 0x4e342e, 6);
+        fx.shockwave(tx, tz, 2.6, 0xffab40, 0x7a5a3a, 0.5);
+        fx.decals.add(tx, tz, 1.6, Decal.Scorch, 5, 0xff5a00);
+        fx.smoke(tx, 0.5, tz, 6, 0x3d3d3d, 1.2);
+        fx.flashes.flash(tx, 2, tz, 0xff9a3c, 8, 0.4, 10);
+        for (const f of this.foes) if ((f.x - tx) ** 2 + (f.z - tz) ** 2 < 5) this.damage(f, 9);
+      }, (dur / TICK) * 1000);
     }
 
     // ------------------------------------------------ corbeaux et lucioles
@@ -288,8 +372,8 @@ export class TitleScene {
 
     fx.update(dt, tick, () => false);
 
-    // ------------------------------------------------ caméra : lente orbite autour de la scène
-    const a = t * 0.05;
+    // ------------------------------------------------ caméra : lent balancement devant la scène (jamais derrière les tours)
+    const a = this.camBase + Math.sin(t * 0.07) * 0.75;
     const cam = this.r.camera;
     const f = this.focus;
     const place = () => {

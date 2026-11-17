@@ -17,6 +17,36 @@ describe('cartes', () => {
   });
 });
 
+describe('obstacles', () => {
+  it('sont déterministes et hors du chemin, des mares et des emplacements', () => {
+    for (const id of Object.keys(MAPS)) {
+      const a = buildRuntimeMap(id, 1).obstacles, b = buildRuntimeMap(id, 4).obstacles;
+      expect(a, id).toEqual(b);
+      const m = buildRuntimeMap(id, 4);
+      for (const o of m.obstacles) {
+        for (const p of m.paths) expect(Math.sqrt(p.minDist2(o.x, o.z, 1)), id).toBeGreaterThan(o.r + 1.2);
+        for (const s of m.slots) expect(Math.hypot(s.x - o.x, s.z - o.z), id).toBeGreaterThan(o.r + 1.5);
+      }
+    }
+  });
+
+  it('le héros ne marche ni dans l’eau ni à travers le décor', () => {
+    for (const id of Object.keys(MAPS)) {
+      const sim = new Sim(cfg({ mapId: id, mode: 'survival' }));
+      const u = sim.heroes[0].u;
+      const solids: [number, number, number][] = [...(sim.map.def.pools ?? []), ...sim.map.obstacles.map((o) => [o.x, o.z, o.r] as [number, number, number])];
+      // vers le centre de chaque mare et de chaque obstacle
+      for (const [x, z] of solids.slice(0, 6)) {
+        sim.apply(0, { k: 'hmove', x, z });
+        for (let i = 0; i < 20 * 12; i++) {
+          sim.step();
+          for (const [cx, cz, r] of solids) expect(Math.hypot(u.x - cx, u.z - cz), id).toBeGreaterThan(r - 0.02);
+        }
+      }
+    }
+  });
+});
+
 describe('simulation', () => {
   it('construit, tire et tue des ennemis', () => {
     const sim = new Sim(cfg());

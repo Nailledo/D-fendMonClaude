@@ -83,6 +83,8 @@ export class InstPool {
 
   private alloc(cap: number) {
     const old = this.mesh;
+    // agrandissement en cours d'image : on garde les instances déjà posées (sinon elles disparaissent une image)
+    const keep = old ? { mat: this.mat, anim: this.anim, tint: this.tint, team: this.team, pose: this.pose } : null;
     this.cap = cap;
     this.geo = new THREE.BufferGeometry();
     for (const k of Object.keys(this.src.attributes)) this.geo.setAttribute(k, this.src.attributes[k]);
@@ -108,6 +110,10 @@ export class InstPool {
     this.mesh.customDepthMaterial = sharedDepthMat();
     this.mesh.count = 0;
     this.mat = this.mesh.instanceMatrix.array as Float32Array;
+    if (keep) {
+      this.mat.set(keep.mat.subarray(0, Math.min(keep.mat.length, this.mat.length)));
+      this.anim.set(keep.anim); this.tint.set(keep.tint); this.team.set(keep.team); this.pose.set(keep.pose);
+    }
     if (old) {
       this.parent.remove(old);
       old.geometry.dispose();
