@@ -63,9 +63,9 @@ const M = DmgType.Magic;
 
 export const TOWERS: Record<Family, TowerLevel[]> = {
   archer: [
-    { name: 'Tour d’archers', cost: 70, range: 6.5, cooldown: 0.8, dmg: [4, 7], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 18, desc: 'Tirs rapides, touche les volants.' },
-    { name: 'Poste d’archers', cost: 110, range: 7, cooldown: 0.7, dmg: [7, 11], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 19, desc: 'Des archers mieux payés, donc plus motivés.' },
-    { name: 'Bastion d’archers', cost: 160, range: 7.5, cooldown: 0.6, dmg: [11, 16], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 20, desc: 'Ils ne ratent jamais. Enfin, presque.' },
+    { name: 'Tour d’archers', cost: 70, range: 6.5, cooldown: 0.9, dmg: [4, 7], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 18, desc: 'Tirs rapides, touche les volants.' },
+    { name: 'Poste d’archers', cost: 95, range: 7, cooldown: 0.7, dmg: [7, 11], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 19, desc: 'Des archers mieux payés, donc plus motivés.' },
+    { name: 'Bastion d’archers', cost: 135, range: 7.5, cooldown: 0.6, dmg: [11, 16], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 20, desc: 'Ils ne ratent jamais. Enfin, presque.' },
     {
       name: 'Tireurs d’élite', cost: 230, range: 9.5, cooldown: 1.5, dmg: [38, 58], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 30,
       desc: 'Très longue portée, gros dégâts.',
@@ -75,7 +75,7 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
       ],
     },
     {
-      name: 'Arbalétriers à répétition', cost: 230, range: 7.5, cooldown: 1.0, dmg: [12, 17], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 24, burst: 3,
+      name: 'Arbalétriers à répétition', cost: 230, range: 7.5, cooldown: 1.0, dmg: [10, 15], dmgType: P, proj: 'arrow', hitsAir: true, projSpeed: 24, burst: 3,
       desc: 'Rafales de trois carreaux.',
       skills: [
         { id: 'poison', name: 'Carreaux empoisonnés', desc: 'Empoisonne la cible (dégâts par seconde, 4 s).', costs: [150, 150, 150], values: [5, 10, 15] },
@@ -85,8 +85,8 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
   ],
   barracks: [
     { name: 'Caserne de milice', cost: 70, range: 4.5, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0, desc: 'Trois miliciens bloquent les ennemis au sol.', soldiers: { count: 3, hp: 55, dmg: [1, 3], armor: 0, cooldown: 1, respawn: 10, regen: 4, kind: SoldierKind.Milicien } },
-    { name: 'Caserne de soldats', cost: 110, range: 4.5, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0, desc: 'Des soldats entraînés et un peu d’armure.', soldiers: { count: 3, hp: 100, dmg: [3, 6], armor: 0.15, cooldown: 1, respawn: 10, regen: 7, kind: SoldierKind.Soldat } },
-    { name: 'Caserne de chevaliers', cost: 150, range: 4.5, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0, desc: 'Des chevaliers en armure complète.', soldiers: { count: 3, hp: 150, dmg: [6, 10], armor: 0.3, cooldown: 1, respawn: 10, regen: 10, kind: SoldierKind.Chevalier } },
+    { name: 'Caserne de soldats', cost: 95, range: 4.5, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0, desc: 'Des soldats entraînés et un peu d’armure.', soldiers: { count: 3, hp: 100, dmg: [3, 6], armor: 0.15, cooldown: 1, respawn: 10, regen: 7, kind: SoldierKind.Soldat } },
+    { name: 'Caserne de chevaliers', cost: 130, range: 4.5, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0, desc: 'Des chevaliers en armure complète.', soldiers: { count: 3, hp: 150, dmg: [6, 10], armor: 0.3, cooldown: 1, respawn: 10, regen: 10, kind: SoldierKind.Chevalier } },
     {
       name: 'Gardes royaux', cost: 230, range: 5, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0,
       desc: 'Des murs de métal sur pattes.',
@@ -108,8 +108,8 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
   ],
   mage: [
     { name: 'Tour de mage', cost: 100, range: 6, cooldown: 1.5, dmg: [9, 17], dmgType: M, proj: 'bolt', hitsAir: true, projSpeed: 14, desc: 'Dégâts magiques qui ignorent l’armure.' },
-    { name: 'Tour d’adepte', cost: 160, range: 6.5, cooldown: 1.5, dmg: [18, 32], dmgType: M, proj: 'bolt', hitsAir: true, projSpeed: 15, desc: 'Plus de magie, plus de fumée violette.' },
-    { name: 'Tour d’enchanteur', cost: 240, range: 7, cooldown: 1.5, dmg: [30, 52], dmgType: M, proj: 'bolt', hitsAir: true, projSpeed: 16, desc: 'Un enchanteur qui a lu tous les grimoires.' },
+    { name: 'Tour d’adepte', cost: 135, range: 6.5, cooldown: 1.5, dmg: [18, 32], dmgType: M, proj: 'bolt', hitsAir: true, projSpeed: 15, desc: 'Plus de magie, plus de fumée violette.' },
+    { name: 'Tour d’enchanteur', cost: 205, range: 7, cooldown: 1.5, dmg: [30, 52], dmgType: M, proj: 'bolt', hitsAir: true, projSpeed: 16, desc: 'Un enchanteur qui a lu tous les grimoires.' },
     {
       name: 'Arcaniste', cost: 300, range: 7.5, cooldown: 2, dmg: [75, 125], dmgType: M, proj: 'arcane', hitsAir: true, projSpeed: 40,
       desc: 'Rayon arcanique dévastateur.',
@@ -128,11 +128,11 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
     },
   ],
   artillery: [
-    { name: 'Artillerie naine', cost: 125, range: 6, cooldown: 3, dmg: [8, 16], dmgType: P, proj: 'shell', hitsAir: false, projSpeed: 9, splash: 1.8, desc: 'Dégâts de zone, uniquement au sol.' },
-    { name: 'Artillerie lourde', cost: 220, range: 6.5, cooldown: 3, dmg: [18, 34], dmgType: P, proj: 'shell', hitsAir: false, projSpeed: 9.5, splash: 1.9, desc: 'Plus gros, plus bruyant.' },
-    { name: 'Grand obusier', cost: 320, range: 7, cooldown: 3, dmg: [30, 52], dmgType: P, proj: 'shell', hitsAir: false, projSpeed: 10, splash: 2.0, desc: 'Le sol tremble à chaque tir.' },
+    { name: 'Artillerie naine', cost: 105, range: 6, cooldown: 2.6, dmg: [8, 16], dmgType: P, proj: 'shell', hitsAir: false, projSpeed: 9, splash: 1.8, desc: 'Dégâts de zone, uniquement au sol.' },
+    { name: 'Artillerie lourde', cost: 185, range: 6.5, cooldown: 2.6, dmg: [18, 34], dmgType: P, proj: 'shell', hitsAir: false, projSpeed: 9.5, splash: 1.9, desc: 'Plus gros, plus bruyant.' },
+    { name: 'Grand obusier', cost: 270, range: 7, cooldown: 2.6, dmg: [30, 52], dmgType: P, proj: 'shell', hitsAir: false, projSpeed: 10, splash: 2.0, desc: 'Le sol tremble à chaque tir.' },
     {
-      name: 'Mortier à flammes', cost: 350, range: 7.5, cooldown: 3, dmg: [48, 78], dmgType: P, proj: 'fireshell', hitsAir: false, projSpeed: 10, splash: 2.3, burn: [6, 3],
+      name: 'Mortier à flammes', cost: 350, range: 7.5, cooldown: 3, dmg: [48, 78], dmgType: P, proj: 'fireshell', hitsAir: false, projSpeed: 10, splash: 2.3, burn: [10, 3],
       desc: 'Laisse un sol en feu.',
       skills: [
         { id: 'napalm', name: 'Napalm', desc: 'Le feu au sol brûle beaucoup plus fort.', costs: [175, 175, 175], values: [10, 18, 26] },
@@ -140,7 +140,7 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
       ],
     },
     {
-      name: 'Canon tesla', cost: 350, range: 6.5, cooldown: 2.2, dmg: [36, 64], dmgType: M, proj: 'tesla', hitsAir: true, projSpeed: 0, chain: 3,
+      name: 'Canon tesla', cost: 350, range: 6.5, cooldown: 2.2, dmg: [36, 64], dmgType: M, proj: 'tesla', hitsAir: true, projSpeed: 0, chain: 2,
       desc: 'Éclairs en chaîne, touche aussi les volants.',
       skills: [
         { id: 'surcharge', name: 'Surcharge', desc: 'Les éclairs rebondissent sur plus de cibles.', costs: [200, 200, 200], values: [1, 2, 3] },

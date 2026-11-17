@@ -94,3 +94,74 @@ describe('simulation', () => {
     expect(four.enemies[0].maxHp).toBeGreaterThan(one.enemies[0].maxHp);
   });
 });
+
+describe('coopération et héros', () => {
+  const duo = () => cfg({
+    mapId: 'carrefour',
+    players: [{ id: 0, name: 'A', hero: 'samuel' }, { id: 1, name: 'B', hero: 'brom' }],
+  });
+
+  it('un coéquipier améliore une tour avec son or, mais ne peut pas la vendre', () => {
+    const sim = new Sim(duo());
+    const free = sim.map.slots.findIndex((s) => !s.locked);
+    sim.apply(0, { k: 'build', slot: free, fam: 0 });
+    const t = sim.towers[0];
+    const goldA = sim.players[0].gold, goldB = sim.players[1].gold;
+    sim.apply(1, { k: 'up', tower: t.id });
+    expect(t.level).toBe(1);
+    expect(sim.players[0].gold).toBe(goldA);
+    expect(sim.players[1].gold).toBeLessThan(goldB);
+    sim.apply(1, { k: 'sell', tower: t.id });
+    expect(sim.towers.length).toBe(1);
+    // l'achat du coéquipier n'ouvre pas le remboursement intégral au propriétaire
+    const before = sim.players[0].gold;
+    sim.apply(0, { k: 'sell', tower: t.id });
+    expect(sim.players[0].gold - before).toBeLessThan(t.invested);
+  });
+
+  it('un héros qui frappe un ennemi déjà bloqué prend les coups', () => {
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'brom' }] }));
+    const hero = sim.heroes[0].u;
+    // le héros se poste au milieu du chemin, sans tour ni soldat
+    const p = { x: 0, z: 0 };
+    sim.map.paths[0].at(sim.map.paths[0].length * 0.35, 0, p);
+    sim.apply(0, { k: 'hmove', x: p.x, z: p.z });
+    sim.apply(0, { k: 'wave' });
+    let hurt = false;
+    for (let i = 0; i < 20 * 90 && !hurt; i++) {
+      sim.step();
+      if (hero.hp < hero.maxHp - 1 || hero.dead) hurt = true;
+    }
+    expect(hurt).toBe(true);
+  });
+
+  it('un héros qui rejoint un soldat au combat attire les coups de l’ennemi', () => {
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'brom' }] }));
+    sim.players[0].gold = 5000;
+    for (let s = 0; s < sim.map.slots.length; s++) if (!sim.map.slots[s].locked) sim.apply(0, { k: 'build', slot: s, fam: 1 });
+    const hero = sim.heroes[0].u;
+    sim.apply(0, { k: 'wave' });
+    let sent = -1, hurt = false;
+    let foe: (typeof sim.enemies)[number] | null = null;
+    // on ne regarde que les coups reçus tant que l'ennemi visé est vivant
+    for (let i = 0; i < 20 * 120 && !hurt && !(foe && foe.dead); i++) {
+      sim.step();
+      if (sim.nextWaveT > 0) sim.apply(0, { k: 'wave' });
+      if (sent < 0) {
+        // un ennemi déjà au contact d'un soldat : le héros se colle derrière lui et l'attaque
+        const e = sim.enemies.find((e) => !e.dead && e.def.dmg[1] > 0 && e.fighting && !e.def.ab.cleave);
+        if (e) {
+          hero.x = hero.hx = e.x + 0.6;
+          hero.z = hero.hz = e.z;
+          hero.moving = false;
+          hero.target = e;
+          e.blockers.push(hero);
+          foe = e;
+          sent = i;
+        }
+      } else if (hero.hp < hero.maxHp - 0.5 || hero.dead) hurt = true;
+    }
+    expect(sent).toBeGreaterThanOrEqual(0);
+    expect(hurt).toBe(true);
+  });
+});

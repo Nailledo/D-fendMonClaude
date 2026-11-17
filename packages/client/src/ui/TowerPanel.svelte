@@ -15,6 +15,8 @@
   const cur = $derived(TOWERS[fam][lvl]);
   const next = $derived(lvl < 2 ? TOWERS[fam][lvl + 1] : null);
   const sell = $derived(sellValue(fi, lvl, sk));
+  const mine = $derived(sel.mine !== false);
+  const ownerName = $derived(ui.hud.players.find((p) => p.id === sel.owner)?.name ?? 'un allié');
   const g = () => app.game;
   /** aperçu de portée au sol pendant le survol d'une amélioration */
   const hover = (target: number) => {
@@ -24,7 +26,7 @@
 
 <div class="tp panel ui" role="region" aria-label="Tour sélectionnée" style="--fc:{FAMILY_COLOR[fi]}; --accent:{FAMILY_COLOR[fi]}" onpointerleave={() => hover(-1)}>
   <div class="th">
-    <small>{FAMILY_NAME[fi]} · {LEVEL_LABEL[lvl]}</small>
+    <small>{FAMILY_NAME[fi]} · {LEVEL_LABEL[lvl]}{#if !mine} · à {ownerName}{/if}</small>
     <b>{cur.name}</b>
   </div>
 
@@ -39,7 +41,7 @@
       <button class="btn gold" class:poor={gold < next.cost} onpointerenter={() => hover(lvl + 1)} onfocus={() => hover(lvl + 1)} onclick={() => g()?.upgrade()}>
         Améliorer · {next.cost}<span class="kbd">{keyLabel(keys.upgrade)}</span>
       </button>
-      <button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button>
+      {#if mine}<button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button>{/if}
     </div>
   {:else if lvl === 2}
     <p class="hint">Choisissez une spécialisation : elle débloque deux compétences.</p>
@@ -54,7 +56,7 @@
         </button>
       {/each}
     </div>
-    <div class="btns one"><button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button></div>
+    {#if mine}<div class="btns one"><button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button></div>{/if}
   {:else}
     <div class="stats">{#each towerStats(fam, lvl) as r}<span class="k">{r.label}</span><span class="v">{r.text}</span>{/each}</div>
     <div class="skills">
@@ -67,13 +69,17 @@
         </button>
       {/each}
     </div>
-    <div class="btns one"><button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button></div>
+    {#if mine}<div class="btns one"><button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button></div>{/if}
   {/if}
 
-  {#if fam === 'barracks'}
+  {#if fam === 'barracks' && mine}
     <button class="btn ghost rally" onclick={() => g()?.startRally()}>{@html ICON.flag} Déplacer le point de ralliement<span class="kbd">{keyLabel(keys.rally)}</span></button>
   {/if}
-  <p class="undo">Remboursement intégral pendant {UNDO_SELL_S} s après un achat.</p>
+  {#if mine}
+    <p class="undo">Remboursement intégral pendant {UNDO_SELL_S} s après un achat.</p>
+  {:else}
+    <p class="undo">Vous payez avec votre or ; seul {ownerName} peut vendre la tour.</p>
+  {/if}
 </div>
 
 <style>

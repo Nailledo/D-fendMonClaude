@@ -10,9 +10,9 @@ export const SPEAKERS: Record<Speaker, { name: string; color: string }> = {
   ethan: { name: 'Princesse Ethan', color: '#f472b6' },
   kessin: { name: 'Kessin', color: '#f26464' },
   roi: { name: 'Le Roi Gontran', color: '#f2c94c' },
-  lyra: { name: 'Lyra', color: '#6fcf74' },
-  brom: { name: 'Brom', color: '#e0954a' },
-  nox: { name: 'Nox', color: '#b48cff' },
+  lyra: { name: 'Patoche', color: '#6fcf74' },
+  brom: { name: 'Matéo', color: '#e0954a' },
+  nox: { name: 'William', color: '#b48cff' },
   grolbak: { name: 'Grôlbak', color: '#a3d65c' },
   vasiere: { name: 'Mère Vasière', color: '#8fbf5a' },
   narrateur: { name: 'Narrateur', color: '#c9bba4' },
@@ -59,7 +59,7 @@ export const STORY: LevelStory[] = [
       { who: 'samuel', text: 'Les moulins du Val. Deux chemins se rejoignent ici… Ça va être sportif.' },
       { who: 'lyra', text: 'Sportif, oui. Surtout pour toi, chevalier. Tu fais autant de bruit qu’une armoire qui dévale un escalier.' },
       { who: 'samuel', text: 'Qui va là ?!' },
-      { who: 'lyra', text: 'Lyra, archère de la forêt. Ces gobelins ont brûlé mes arbres. Je viens avec toi. Essaie de suivre.' },
+      { who: 'lyra', text: 'Patoche, archer de la forêt. Ces gobelins ont brûlé mes arbres. Je viens avec toi. Essaie de suivre.' },
     ],
     waves: {
       3: [{ who: 'lyra', text: 'Des corbeaux de guerre ! Tes soldats ne peuvent pas les atteindre. Archers et mages, vite !' }],
@@ -90,7 +90,7 @@ export const STORY: LevelStory[] = [
   {
     intro: [
       { who: 'samuel', text: 'Le marais de Brumenoire. On n’y voit pas à trois pas et ça sent le vieux chou.' },
-      { who: 'brom', text: 'C’est pas le marais, gamin. C’est mon fromage. Brom, forgeron. Kessin m’a volé ma forge pour fabriquer ses armures.' },
+      { who: 'brom', text: 'C’est pas le marais, gamin. C’est mon fromage. Matéo, forgeron. Kessin m’a volé ma forge pour fabriquer ses armures.' },
       { who: 'brom', text: 'Je viens avec vous. J’ai un marteau et une rancune très tenace.' },
     ],
     waves: {
@@ -107,15 +107,15 @@ export const STORY: LevelStory[] = [
     intro: [
       { who: 'nox', text: 'Arrêtez-vous, voyageurs. Ce marais appartient à Mère Vasière. Personne n’en ressort vivant.' },
       { who: 'samuel', text: 'Et vous êtes… ?' },
-      { who: 'nox', text: 'Nox. Ancienne nécromancienne. Repentie. Enfin, presque. Mère Vasière garde le passage vers les Terres de Cendre. Je vais vous aider à la noyer dans sa propre vase.' },
-      { who: 'brom', text: 'Une nécromancienne. Génial. Ne réveille pas mon grand-père, il était insupportable.' },
+      { who: 'nox', text: 'William. Ancien nécromancien. Repenti. Enfin, presque. Mère Vasière garde le passage vers les Terres de Cendre. Je vais vous aider à la noyer dans sa propre vase.' },
+      { who: 'brom', text: 'Un nécromancien. Génial. Ne réveille pas mon grand-père, il était insupportable.' },
     ],
     waves: {
       15: [{ who: 'vasiere', text: 'Qui ose troubler mes eaux ? Je vais vous engloutir, petits êtres de chair !' }, { who: 'nox', text: 'C’est elle. Elle régénère et paralyse les tours. Frappez fort et vite !' }],
     },
     outro: [
       { who: 'vasiere', text: 'Kessin… m’avait promis… un marais éternel…' },
-      { who: 'nox', text: 'Les promesses des démons ne valent rien. Je suis bien placée pour le savoir.' },
+      { who: 'nox', text: 'Les promesses des démons ne valent rien. Je suis bien placé pour le savoir.' },
       { who: 'samuel', text: 'La route vers les Terres de Cendre est ouverte. Tiens bon, Ethan.' },
     ],
   },
@@ -145,7 +145,7 @@ export const STORY: LevelStory[] = [
     },
     outro: [
       { who: 'brom', text: 'La porte de la salle du trône. Elle est en acier démoniaque… J’en ferais bien une enclume.' },
-      { who: 'samuel', text: 'Plus tard, Brom. On a une princesse à sauver.' },
+      { who: 'samuel', text: 'Plus tard, Matéo. On a une princesse à sauver.' },
     ],
   },
   {

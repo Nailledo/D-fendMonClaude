@@ -44,7 +44,7 @@
         <span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery][i])}</span>
       </button>
     {/each}
-  {:else if sel.kind === 'tower' && sel.mine}
+  {:else if sel.kind === 'tower'}
     {#if lvl < 2}
       {@const next = TOWERS[fam][lvl + 1]}
       <button class="opt up" class:poor={gold < next.cost} style={at(-90)}
@@ -75,6 +75,7 @@
         </button>
       {/each}
     {/if}
+    {#if sel.mine}
     <button class="opt sell" style={at(90)} onpointerenter={() => (tip = { title: 'Vendre', text: `Rend ${sellValue} or (100 % pendant 3 s après un achat).` })} onclick={() => g()?.sell()}>
       <span class="face hex neutral">{@html ICON.sell}</span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
     </button>
@@ -82,6 +83,7 @@
       <button class="opt" style={at(180)} onpointerenter={() => (tip = { title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
         <span class="face hex neutral">{@html ICON.flag}</span><span class="kbd">{keyLabel(keys.rally)}</span>
       </button>
+    {/if}
     {/if}
   {/if}
   {#if tip}

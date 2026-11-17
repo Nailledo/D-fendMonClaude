@@ -162,7 +162,8 @@ export class GameClient {
 
   upgrade(spec?: 1 | 2) {
     const s = ui.sel;
-    if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
+    // toute tour peut être améliorée, y compris celle d'un coéquipier (avec son propre or)
+    if (!s || s.kind !== 'tower' || s.tower === undefined) return;
     const fam = FAMILIES[s.fam ?? 0];
     const cost = spec ? TOWERS[fam][2 + spec].cost : (s.level ?? 0) < 2 ? TOWERS[fam][(s.level ?? 0) + 1].cost : 0;
     if (ui.hud.gold < cost) { audio.play('deny'); toast('Pas assez d’or', 'warn', 1500); return; }
@@ -174,7 +175,7 @@ export class GameClient {
 
   skill(i: 0 | 1) {
     const s = ui.sel;
-    if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
+    if (!s || s.kind !== 'tower' || s.tower === undefined) return;
     this.send({ k: 'skill', tower: s.tower, i });
   }
 
@@ -509,6 +510,7 @@ export class GameClient {
 
     // héros : type par unité
     for (let i = 0; i < snap.hCount; i++) this.ents.heroTypeByUnit.set(snap.hUnit[i], snap.hType[i]);
+    this.ents.you = this.you;
 
     // événements
     for (const e of this.interp.dueEvents(this.scratch)) this.handleEvent(e.tick, e.ev);
@@ -944,6 +946,10 @@ export class GameClient {
           fx.ring(t.x, t.z, 2, 0xfff176, 0.6);
         }
         audio.play('upgrade');
+        if (ev[3] === this.you && ev[2] !== this.you) {
+          const who = ui.hud.players.find((p) => p.id === ev[2]);
+          toast(`${who?.name ?? 'Un allié'} améliore votre tour`, 'good', 2500);
+        }
         break;
       }
       case Ev.Spell: {

@@ -5,7 +5,7 @@ La princesse Ethan a été enlevée par le démon Kessin : Samuel, le dernier ch
 
 - **Mode histoire** : 8 niveaux sur 3 biomes (Vallée d’Aubeclair, Marais de Brumenoire, Terres de Cendre), 3 boss dont Kessin en 3 phases, dialogues et carte de campagne. Solo ou coop.
 - **Mode survie** : vagues infinies générées procéduralement, une mutation toutes les 5 vagues, un boss toutes les 10, classement par carte et par nombre de joueurs.
-- **4 familles de tours** (archers, caserne, mages, artillerie), 3 niveaux puis 2 spécialisations avec compétences, **4 héros** (Samuel, Lyra, Brom, Nox), 2 sorts.
+- **4 familles de tours** (archers, caserne, mages, artillerie), 3 niveaux puis 2 spécialisations avec compétences, **4 héros** (Samuel, Patoche, Matéo, William), 2 sorts.
 - **Tout l’art est fait en code** : modèles low-poly assemblés à partir de primitives, toon shading, sons et musique synthétisés (Web Audio). Aucune image, aucun modèle, aucun son externe.
 
 ## Démarrage rapide
@@ -34,6 +34,7 @@ pnpm start        # http://localhost:3000
 | `pnpm test` | Tests de la simulation (Vitest) |
 | `pnpm typecheck` | Vérification TypeScript de tout le dépôt |
 | `pnpm balance` | Rapport d’équilibrage : des bots jouent chaque niveau pour 1 à 4 joueurs |
+| `pnpm families` | Compare les familles de tours : un bot ne construit qu’une seule famille, en solo |
 | `pnpm tune` | Recalibre automatiquement les niveaux (long) |
 | `pnpm bench` | Benchmark de rendu sur une scène de stress (~400 ennemis) ; `-- --gpu` pour utiliser la carte graphique |
 | `pnpm smoke` | Test de fumée multijoueur dans un vrai navigateur (2 joueurs, construction, une vague) |
@@ -62,7 +63,9 @@ Toutes les formules sont dans `packages/shared/src/balance.ts` et `packages/shar
 
 - les PV des ennemis augmentent au fil des vagues (`hpRamp`) sans augmenter les primes : c’est ce qui crée la pression ;
 - le multiplicateur de PV selon le nombre de joueurs (`hpByPlayers`) et son intensité par niveau (`multiK`) ont été calibrés pour que 2, 3 et 4 joueurs aient la même difficulté que le solo ;
-- objectif en Vétéran : un joueur qui ne pose que des archers perd dès le premier niveau ; un joueur qui diversifie, améliore et utilise ses sorts gagne avec environ 10 vies.
+- objectif en Vétéran : un joueur qui ne pose que des archers perd dès le premier niveau ; un joueur qui diversifie, améliore et utilise ses sorts gagne avec environ 10 vies ;
+- en coopération, chacun peut améliorer (et spécialiser) la tour d’un autre avec son propre or ; seul le propriétaire la vend ou déplace son point de ralliement ;
+- un héros prend les coups de l’ennemi qu’il combat, même si des soldats le bloquent déjà, et retient jusqu’à deux ennemis de plus autour de lui.
 
 Après une modification des données, `pnpm balance` montre l’effet, `pnpm tune` recalibre.
 

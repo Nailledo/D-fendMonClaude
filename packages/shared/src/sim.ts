@@ -1,7 +1,7 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, type EnemyDef } from './data/enemies';
-import { HEROES, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
+import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
 import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, type SoldierDef, type TowerLevel } from './data/towers';
 import { buildRuntimeMap, type RuntimeMap } from './mapgen';
@@ -19,7 +19,7 @@ export const enum Ev {
   Leak = 4, // enemyId, lives
   Build = 5, // towerId, slot
   Sell = 6, // slot, owner
-  Upgrade = 7, // towerId
+  Upgrade = 7, // towerId, payeur, propriétaire
   Spell = 8, // kind, owner, x, z
   HeroSkill = 9, // owner, skill, x, z, x2, z2
   Dmg = 10, // enemyId, amount, flags (1 crit, 2 instakill)
@@ -146,6 +146,8 @@ export interface Tower {
   units: Unit[];
   invested: number;
   lastBuy: number;
+  /** joueur qui a payé le dernier achat (le remboursement intégral ne vaut que pour ses propres achats) */
+  lastBuyer: number;
   s1T: number;
   s2T: number;
   x: number;
@@ -569,7 +571,7 @@ export class Sim {
         p.gold -= def.cost;
         const t: Tower = {
           id: this.nextId++, slot, owner: pid, fam, fi, level: 0, sk: [0, 0], cdT: sec(0.3), burstLeft: 0, burstT: 0,
-          stunT: 0, aim: null, rallyX: s.x, rallyZ: s.z, units: [], invested: def.cost, lastBuy: this.tick, s1T: 0, s2T: 0, x: s.x, z: s.z,
+          stunT: 0, aim: null, rallyX: s.x, rallyZ: s.z, units: [], invested: def.cost, lastBuy: this.tick, lastBuyer: pid, s1T: 0, s2T: 0, x: s.x, z: s.z,
         };
         if (fam === 'barracks') {
           // point de ralliement : le point du chemin le plus proche
@@ -592,7 +594,8 @@ export class Sim {
         break;
       }
       case 'up': {
-        const t = this.ownTower(pid, c.tower);
+        // n'importe quel joueur peut améliorer la tour d'un coéquipier, avec son propre or
+        const t = this.anyTower(c.tower);
         if (!t || t.level >= 2) return;
         const def = TOWERS[t.fam][t.level + 1];
         if (p.gold < def.cost) return;
@@ -600,12 +603,13 @@ export class Sim {
         t.invested += def.cost;
         t.level++;
         t.lastBuy = this.tick;
+        t.lastBuyer = pid;
         this.syncSoldiers(t);
-        this.ev(Ev.Upgrade, t.id);
+        this.ev(Ev.Upgrade, t.id, pid, t.owner);
         break;
       }
       case 'spec': {
-        const t = this.ownTower(pid, c.tower);
+        const t = this.anyTower(c.tower);
         if (!t || t.level !== 2 || (c.s !== 1 && c.s !== 2)) return;
         const def = TOWERS[t.fam][2 + c.s];
         if (p.gold < def.cost) return;
@@ -613,14 +617,15 @@ export class Sim {
         t.invested += def.cost;
         t.level = 2 + c.s;
         t.lastBuy = this.tick;
+        t.lastBuyer = pid;
         t.s1T = sec(3);
         t.s2T = sec(5);
         this.syncSoldiers(t);
-        this.ev(Ev.Upgrade, t.id);
+        this.ev(Ev.Upgrade, t.id, pid, t.owner);
         break;
       }
       case 'skill': {
-        const t = this.ownTower(pid, c.tower);
+        const t = this.anyTower(c.tower);
         if (!t || t.level < LEVEL_SPEC_A || (c.i !== 0 && c.i !== 1)) return;
         const sk = TOWERS[t.fam][t.level].skills![c.i];
         const rank = t.sk[c.i];
@@ -631,14 +636,15 @@ export class Sim {
         t.invested += cost;
         t.sk[c.i]++;
         t.lastBuy = this.tick;
+        t.lastBuyer = pid;
         this.syncSoldiers(t);
-        this.ev(Ev.Upgrade, t.id);
+        this.ev(Ev.Upgrade, t.id, pid, t.owner);
         break;
       }
       case 'sell': {
         const t = this.ownTower(pid, c.tower);
         if (!t) return;
-        const undo = this.tick - t.lastBuy <= sec(UNDO_SELL_S);
+        const undo = t.lastBuyer === pid && this.tick - t.lastBuy <= sec(UNDO_SELL_S);
         p.gold += Math.floor(t.invested * (undo ? 1 : SELL_RATIO));
         this.removeTower(t);
         break;
@@ -719,6 +725,10 @@ export class Sim {
         break;
       }
     }
+  }
+
+  private anyTower(id: unknown): Tower | null {
+    return this.towers.find((t) => t.id === id) ?? null;
   }
 
   private ownTower(pid: number, id: unknown): Tower | null {
@@ -1104,9 +1114,15 @@ export class Sim {
       e.fighting = false;
       let foe: Unit | null = null;
       if (!e.flying && !e.burrowed && e.blockers.length) {
+        // allonge proportionnelle à la taille : un bloqueur posté contre un gros ennemi reste à portée
+        const reach = Math.max(1.38, 0.95 + e.def.size * 0.3);
+        const r2 = reach * reach;
         for (const u of e.blockers) {
           const dx = u.x - e.x, dz = u.z - e.z;
-          if (dx * dx + dz * dz < 1.9) { foe = u; break; }
+          if (dx * dx + dz * dz >= r2) continue;
+          // un héros au contact attire les coups, même s'il attaque un ennemi déjà bloqué par des soldats
+          if (u.hero) { foe = u; break; }
+          if (!foe) foe = u;
         }
       }
       if (foe) {
@@ -1229,12 +1245,14 @@ export class Sim {
         }
         if (best) this.engage(u, best);
       }
-      // provocation : retenir des ennemis supplémentaires
-      if (t && t.level === 3 && t.sk[1] > 0 && u.target) {
-        const cap = TOWERS.barracks[3].skills![1].values[t.sk[1] - 1];
+      // retenir des ennemis supplémentaires : compétence Provocation, et tout héros au contact
+      // (un héros posé au milieu du chemin arrête aussi ceux qui le frôlent, et prend leurs coups)
+      const holds = u.hero ? HERO_EXTRA_HOLD : t && t.level === 3 && t.sk[1] > 0 ? TOWERS.barracks[3].skills![1].values[t.sk[1] - 1] : 0;
+      if (holds > 0 && u.target) {
+        const cap = holds;
         for (let k = u.extra.length - 1; k >= 0; k--) {
           const e = u.extra[k];
-          if (e.dead || e.burrowed) { u.extra.splice(k, 1); const j = e.blockers.indexOf(u); if (j >= 0) e.blockers.splice(j, 1); }
+          if (e.dead || e.burrowed || e.flying) { u.extra.splice(k, 1); const j = e.blockers.indexOf(u); if (j >= 0) e.blockers.splice(j, 1); }
         }
         if (u.extra.length < cap) {
           for (const e of this.enemies) {

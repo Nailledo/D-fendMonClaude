@@ -204,14 +204,8 @@
         <span>Vitesse {d.speed}</span><span>Vies {d.lives}</span>{#if d.flying}<span>Volant</span>{/if}
       </div>
     </div>
-  {:else if sel?.kind === 'tower' && sel.fam !== undefined && sel.mine}
+  {:else if sel?.kind === 'tower' && sel.fam !== undefined}
     <TowerPanel />
-  {:else if sel?.kind === 'tower' && sel.fam !== undefined && !sel.mine}
-    {@const t = TOWERS[FAMILIES[sel.fam]][sel.level ?? 0]}
-    <div class="info panel ui">
-      <b>{t.name}</b> <span class="small">— à {h.players.find((p) => p.id === sel.owner)?.name ?? '?'}</span>
-      <div class="small">{t.desc}</div>
-    </div>
   {:else if sel?.kind === 'build'}
     <div class="info panel ui hint">Choisissez une tour : {#each FAMILY_NAME as n, i}<span class="nowrap"><span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery][i])}</span> {n} </span>{/each}</div>
   {/if}

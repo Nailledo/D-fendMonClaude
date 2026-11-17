@@ -228,7 +228,7 @@ export const SOLDIER_MODELS: ((g: GB) => void)[] = [
     g.ball(0.05, 0x76ff03, -0.07, 1.07, 0.14);
     g.setPart(Part.Team).box(0.3, 0.06, 0.3, 0xffffff, 0, 0.47, 0);
   },
-  // 7 Tourelle de Brom
+  // 7 Tourelle de Matéo
   (g) => {
     g.cyl(0.4, 0.5, 0.35, 8, 0x5d4037, 0, 0.18, 0);
     g.setPart(Part.Team).cyl(0.42, 0.42, 0.08, 8, 0xffffff, 0, 0.38, 0);
