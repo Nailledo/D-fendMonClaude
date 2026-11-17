@@ -47,7 +47,8 @@ export function renderPortraits(): Record<string, string> {
     const m = model(key);
     return m ? { geo: m.geo, map: m.map } : { geo: fb(), map: null };
   };
-  const shot = (key: string, src: { geo: THREE.BufferGeometry; map: THREE.Texture | null }, face: boolean) => {
+  /** faceAt : hauteur relative du visage (le chapeau du narrateur le décale vers le bas) */
+  const shot = (key: string, src: { geo: THREE.BufferGeometry; map: THREE.Texture | null }, face: boolean, faceAt = 0.78) => {
     const geo = src.geo;
     const mesh = new THREE.Mesh(geo, matFor(src.map));
     scene.add(mesh);
@@ -55,8 +56,8 @@ export function renderPortraits(): Record<string, string> {
     const bb = geo.boundingBox!;
     const h = bb.max.y - bb.min.y;
     const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-    const cy = face ? bb.min.y + h * 0.78 : (bb.max.y + bb.min.y) / 2;
-    const span = face ? Math.max(h * 0.42, w * 0.45) : Math.max(h, w) * 0.62;
+    const cy = face ? bb.min.y + h * faceAt : (bb.max.y + bb.min.y) / 2;
+    const span = face ? Math.max(h * 0.42, w * (faceAt < 0.78 ? 0.36 : 0.45)) : Math.max(h, w) * 0.62;
     const d = span / Math.tan((15 * Math.PI) / 180);
     cam.position.set(d * 0.45, cy + d * 0.18, d * 0.9);
     cam.lookAt(0, cy, 0);
@@ -65,6 +66,8 @@ export function renderPortraits(): Record<string, string> {
     scene.remove(mesh);
   };
   for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot(id, pick(K.hero(id), () => heroGeometry(id)), true);
+  // le narrateur n'a pas d'art en code : portrait seulement si son modèle est chargé
+  if (model(K.hero('narrateur'))) shot('narrateur', pick(K.hero('narrateur'), () => heroGeometry('nox')), true, 0.66);
   for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
   for (const e of ENEMIES) shot('e_' + e.id, pick(K.enemy(e.id), () => enemyGeometry(e.id)), false);
   shot('kessin', pick(K.enemy('kessin1'), () => enemyGeometry('kessin1')), true);

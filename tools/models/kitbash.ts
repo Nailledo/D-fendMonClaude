@@ -7,7 +7,7 @@
  *   l'occlusion cuite est conservée) ;
  * - ajoute des accessoires construits ici (couronne, diadème, cape, robe, barbe), partie « corps » de l'animation.
  *
- * Sorties : packages/client/public/models/hero-ethan.glb et hero-roi.glb, référencés dans manifest.json.
+ * Sorties : packages/client/public/models/hero-ethan.glb, hero-roi.glb et hero-narrateur.glb, référencés dans manifest.json.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -229,21 +229,87 @@ class Mesh {
     this.quad(v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1), col, white);
   }
   /** Cape : coque épaisse incurvée derrière le corps, des épaules jusqu'au sol, évasée vers le bas. */
-  cape(cz: number, yTop: number, yBot: number, wTop: number, wBot: number, back: number, col: RGB, inner: RGB, white: [number, number]) {
-    const seg = 8, rows = 5, th = 0.025;
-    const pt = (s: number, r: number, off: number) => {
-      const y = yTop + (yBot - yTop) * r;
-      const w = wTop + (wBot - wTop) * r;
-      const a = (s - 0.5) * Math.PI * 0.95;
-      const x = Math.sin(a) * w;
-      const z = cz - Math.cos(a) * (back + r * 0.08) - off - r * r * 0.06;
-      return [x, y, z];
-    };
+  /**
+   * Cape : coque épaisse qui part du haut du dos et tombe jusqu'au sol en s'évasant.
+   * Chaque colonne suit la surface du dos mesurée par un rayon tiré de derrière : le haut est collé au corps,
+   * et plus bas la cape ne s'en écarte que de ce qu'il faut pour ne jamais le traverser.
+   */
+  cape(cx: number, yTop: number, yBot: number, wTop: number, wBot: number, col: RGB, inner: RGB, white: [number, number]) {
+    const seg = 10, rows = 7, th = 0.025, gap = 0.012;
+    const backZ = (x: number, y: number) => { const d = this.ray(x, y, -2, 0, 0, 1); return d > 0 ? -2 + d : NaN; };
+    const grid: number[][][] = [];
+    for (let j = 0; j <= rows; j++) {
+      const r = j / rows, y = yTop + (yBot - yTop) * r;
+      const row: number[][] = [];
+      for (let i = 0; i <= seg; i++) {
+        const u = (i / seg) * 2 - 1;
+        const x = cx + u * (wTop + (wBot - wTop) * r);
+        // en haut : collée au dos ; vers le bas : elle ne fait que reculer (chute régulière, jamais dans le corps)
+        const top = backZ(cx + u * wTop, yTop);
+        let z = (Number.isNaN(top) ? -0.2 : top) - gap - r * r * 0.1 - Math.abs(u) * r * 0.04;
+        const here = backZ(x, y);
+        if (!Number.isNaN(here)) z = Math.min(z, here - gap * 2);
+        if (j > 0) z = Math.min(z, grid[j - 1][i][2]);
+        row.push([x, y, z]);
+      }
+      grid.push(row);
+    }
+    // lissage horizontal sous la première rangée (le tissu ne suit pas chaque facette du dos)
+    for (let j = 1; j <= rows; j++) {
+      const zs = grid[j].map((g) => g[2]);
+      for (let i = 0; i <= seg; i++) {
+        const a = zs[Math.max(0, i - 1)], b = zs[i], c = zs[Math.min(seg, i + 1)];
+        grid[j][i][2] = Math.min(b, (a + 2 * b + c) / 4);
+      }
+    }
     for (let i = 0; i < seg; i++) for (let j = 0; j < rows; j++) {
-      const s0 = i / seg, s1 = (i + 1) / seg, r0 = j / rows, r1 = (j + 1) / rows;
-      // dessus (extérieur) et dessous (doublure)
-      this.quad(pt(s1, r0, th), pt(s1, r1, th), pt(s0, r1, th), pt(s0, r0, th), col, white);
-      this.quad(pt(s0, r0, 0), pt(s0, r1, 0), pt(s1, r1, 0), pt(s1, r0, 0), inner, white);
+      const p = (jj: number, ii: number, off: number) => { const g = grid[jj][ii]; return [g[0], g[1], g[2] - off]; };
+      // extérieur (rouge, tourné vers l'arrière) et doublure (or, tournée vers le corps)
+      this.quad(p(j, i + 1, th), p(j + 1, i + 1, th), p(j + 1, i, th), p(j, i, th), col, white);
+      this.quad(p(j, i, 0), p(j + 1, i, 0), p(j + 1, i + 1, 0), p(j, i + 1, 0), inner, white);
+      // tranches latérales et bas
+      if (i === 0) this.quad(p(j, 0, th), p(j + 1, 0, th), p(j + 1, 0, 0), p(j, 0, 0), inner, white);
+      if (i === seg - 1) this.quad(p(j, seg, 0), p(j + 1, seg, 0), p(j + 1, seg, th), p(j, seg, th), inner, white);
+      if (j === rows - 1) this.quad(p(rows, i, 0), p(rows, i + 1, 0), p(rows, i + 1, th), p(rows, i, th), col, white);
+    }
+  }
+  /**
+   * Barbe : coque posée sur le bas du visage (points mesurés par des rayons de face), plus épaisse au menton,
+   * prolongée en pointe sous le menton ; moustache en deux mèches sous le nez.
+   */
+  beard(hx: number, yTop: number, yChin: number, yTip: number, bx: number, col: RGB, white: [number, number]) {
+    const cols = 7, rows = Math.max(6, Math.round((yTop - yTip) / 0.04));
+    const grid: number[][][] = [];
+    let lastZ = 0.2;
+    for (let j = 0; j <= rows; j++) {
+      const t = j / rows, y = yTop + (yTip - yTop) * t;
+      const row: number[][] = [];
+      for (let i = 0; i <= cols; i++) {
+        const u = (i / cols) * 2 - 1;
+        // la barbe se resserre en pointe vers le bas, et s'affine près du nez
+        const x = hx + u * bx * (1 - Math.max(0, (yChin - y) / (yChin - yTip)) * 0.75) * Math.min(1, 0.8 + (yTop - y) * 4);
+        const d = this.ray(x, y, 2, 0, 0, -1);
+        // sous le menton le rayon touche le torse : on prolonge la surface du visage
+        let z = d > 0 ? 2 - d : lastZ;
+        if (y < yChin) z = Math.max(z, lastZ - 0.02);
+        if (Math.abs(u) < 0.2) lastZ = z;
+        const thick = 0.025 + Math.max(0, Math.min(1, (yTop - y) / (yTop - yChin))) * 0.06 * (1 - u * u * 0.6);
+        row.push([x, y, z - 0.03, z + thick]);
+      }
+      grid.push(row);
+    }
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const p = (jj: number, ii: number, outer: boolean) => { const g = grid[jj][ii]; return [g[0], g[1], outer ? g[3] : g[2]]; };
+      this.quad(p(j, i, true), p(j + 1, i, true), p(j + 1, i + 1, true), p(j, i + 1, true), col, white);
+      if (i === 0) this.quad(p(j, 0, false), p(j + 1, 0, false), p(j + 1, 0, true), p(j, 0, true), col, white);
+      if (i === cols - 1) this.quad(p(j, cols, true), p(j + 1, cols, true), p(j + 1, cols, false), p(j, cols, false), col, white);
+      if (j === rows - 1) this.quad(p(rows, i, false), p(rows, i + 1, false), p(rows, i + 1, true), p(rows, i, true), col, white);
+    }
+    for (const sgn of [-1, 1]) {
+      const y = yTop - 0.005, x = hx + sgn * 0.045;
+      const d = this.ray(x, y, 2, 0, 0, -1);
+      const z = d > 0 ? 2 - d : 0.25;
+      this.box(Math.min(x, x + sgn * 0.075), y - 0.03, z - 0.03, Math.max(x, x + sgn * 0.075), y + 0.015, z + 0.03, col, white);
     }
   }
   write(p: Primitive, doc: import('@gltf-transform/core').Document) {
@@ -340,41 +406,8 @@ await make('soldier-0.glb', 'hero-roi.glb', (m, img, white) => {
     m.spike(hx + Math.cos(a) * rb * 1.06, yt - 0.01, hz + Math.sin(a) * rb * 1.06, 0.045, k % 2 ? 0.08 : 0.12, 4, GOLD, white);
     if (k % 2 === 0) m.gem(hx + Math.cos(a) * rb * 1.1, yb + 0.06, hz + Math.sin(a) * rb * 1.1, 0.03, RUBY, white);
   }
-  // barbe : coque posée sur le bas du visage (points mesurés par des rayons de face), plus épaisse au menton
-  const cols = 7, rows = 6, bx = 0.15, yTop = 0.86, yChin = 0.72, yTip = 0.6;
-  const grid: number[][][] = [];
-  let lastZ = 0.2;
-  for (let j = 0; j <= rows; j++) {
-    const t = j / rows, y = yTop + (yTip - yTop) * t;
-    const row: number[][] = [];
-    for (let i = 0; i <= cols; i++) {
-      const u = i / cols * 2 - 1;
-      // la barbe se resserre en pointe vers le bas
-      const x = hx + u * bx * (1 - Math.max(0, (yChin - y) / (yChin - yTip)) * 0.75) * (y > 0.82 ? 0.8 + (yTop - y) * 4 : 1);
-      const d = m.ray(x, y, 2, 0, 0, -1);
-      // sous le menton le rayon touche le torse : on prolonge la surface du visage
-      let z = d > 0 ? 2 - d : lastZ;
-      if (y < yChin) z = Math.max(z, lastZ - 0.02);
-      if (i === cols / 2 || Math.abs(u) < 0.2) lastZ = z;
-      const thick = 0.025 + Math.max(0, Math.min(1, (yTop - y) / (yTop - yChin))) * 0.06 * (1 - u * u * 0.6);
-      row.push([x, y, z - 0.03, z + thick]);
-    }
-    grid.push(row);
-  }
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    const p = (jj: number, ii: number, outer: boolean) => { const g = grid[jj][ii]; return [g[0], g[1], outer ? g[3] : g[2]]; };
-    m.quad(p(j, i, true), p(j + 1, i, true), p(j + 1, i + 1, true), p(j, i + 1, true), WHITE, white);
-    if (i === 0) m.quad(p(j, 0, false), p(j + 1, 0, false), p(j + 1, 0, true), p(j, 0, true), WHITE, white);
-    if (i === cols - 1) m.quad(p(j, cols, true), p(j + 1, cols, true), p(j + 1, cols, false), p(j, cols, false), WHITE, white);
-    if (j === rows - 1) m.quad(p(rows, i, false), p(rows, i + 1, false), p(rows, i + 1, true), p(rows, i, true), WHITE, white);
-  }
-  // moustache : deux mèches posées sous le nez
-  for (const sgn of [-1, 1]) {
-    const y = yTop - 0.005, x = hx + sgn * 0.045;
-    const d = m.ray(x, y, 2, 0, 0, -1);
-    const z = d > 0 ? 2 - d : 0.25;
-    m.box(Math.min(x, x + sgn * 0.075), y - 0.03, z - 0.03, Math.max(x, x + sgn * 0.075), y + 0.015, z + 0.03, WHITE, white);
-  }
+  // barbe et moustache posées sur le visage
+  m.beard(hx, 0.86, 0.72, 0.6, 0.15, WHITE, white);
   // col d'hermine : anneau qui épouse le haut du torse (rayon maximal mesuré à chaque hauteur), recouvre le foulard
   const ncx = neck.cx, ncz = neck.cz;
   const levels = [0.6, 0.66, 0.72, 0.77];
@@ -385,7 +418,7 @@ await make('soldier-0.glb', 'hero-roi.glb', (m, img, white) => {
   m.frustum(ncx, ncz, levels[3], levels[3] + 0.02, radii[3], radii[3] * 0.75, 16, WHITE, white, false);
   // cape rouge doublée d'or, col d'hermine
   const cw = Math.max(chest.w, 0.3) / 2;
-  m.cape(chest.cz, 0.74, 0.04, cw * 1.05, cw * 1.6, Math.max(...radii) * 0.97, RED_D, GOLD, white);
+  m.cape(chest.cx, 0.72, 0.04, cw * 1.0, cw * 1.55, RED_D, GOLD, white);
   // mouchetures noires de l'hermine, posées sur le col
   for (let k = 0; k < 9; k++) {
     const a = Math.PI * 0.15 + (k / 8) * Math.PI * 1.7, y = k % 2 ? 0.7 : 0.65;
@@ -395,8 +428,39 @@ await make('soldier-0.glb', 'hero-roi.glb', (m, img, white) => {
   }
 });
 
+
+// ------------------------------------------------------------------ Le narrateur (base : Nox, mage)
+await make('hero-nox.glb', 'hero-narrateur.glb', (m, img, white) => {
+  const ROBE = hex(0x1f3f7a), ROBE_D = hex(0x142a55), GOLD = hex(0xf2b33d), WHITE = hex(0xf2efe8), STAR = hex(0xffe27a);
+  // robe et chapeau violets → bleu nuit, bandeau orange → or, cheveux noirs → blancs
+  m.recolor(img, white, (tex, [h, s, v], _x, y) => {
+    // cheveux (sombres, autour du visage, sous le bord du chapeau)
+    // (gris ou violacés ; le dessous du chapeau, au-dessus, reste sombre)
+    if (y > 0.5 && y < 0.98 && v < 0.42 && (s < 0.45 || (h > 265 && h < 335))) return WHITE;
+    if (y >= 0.98 && v < 0.42) return ROBE_D;
+    if (h > 200 && h < 290 && s > 0.15 && v < 0.65) return v < 0.35 ? ROBE_D : ROBE;
+    // cape magenta du mage → bleu nuit
+    if (h > 285 && h < 350 && s > 0.2) return ROBE_D;
+    if (h > 15 && h < 45 && s > 0.55 && v > 0.6 && y > 0.3) return GOLD;
+    return null;
+  });
+  // repère du visage : la peau la plus en avant entre les yeux et le menton
+  const head = m.slab(0.75, 1.0);
+  let faceY = 0.9, bestZ = -9;
+  for (let y = 0.7; y <= 1.0; y += 0.01) { const d = m.ray(head.cx, y, 2, 0, 0, -1); if (d > 0 && 2 - d > bestZ) { bestZ = 2 - d; faceY = y; } }
+  console.log('  visage', faceY.toFixed(2), bestZ.toFixed(3));
+  // longue barbe de conteur, jusqu'à la ceinture
+  m.beard(head.cx, faceY - 0.07, faceY - 0.2, 0.36, 0.16, WHITE, white);
+  // étoiles dorées brodées sur la robe (posées sur la surface par des rayons)
+  const stars: [number, number][] = [[-0.12, 0.3], [0.1, 0.22], [0.15, 0.42], [-0.17, 0.48], [0.02, 0.15]];
+  for (const [x, y] of stars) {
+    const d = m.ray(head.cx + x, y, 2, 0, 0, -1);
+    if (d > 0) m.gem(head.cx + x, y, 2 - d + 0.01, 0.028, STAR, white);
+  }
+});
+
 // ------------------------------------------------------------------ manifeste
 const manPath = join(MODELS, 'manifest.json');
 const man = JSON.parse(readFileSync(manPath, 'utf8'));
-for (const id of ['ethan', 'roi']) man.models[`hero:${id}`] = { file: `hero-${id}.glb`, height: 1.35 };
+for (const id of ['ethan', 'roi', 'narrateur']) man.models[`hero:${id}`] = { file: `hero-${id}.glb`, height: 1.35 };
 writeFileSync(manPath, JSON.stringify(man, null, 1) + '\n');

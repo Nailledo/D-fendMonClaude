@@ -435,6 +435,10 @@
   "hero:roi": {
    "file": "hero-roi.glb",
    "height": 1.35
+  },
+  "hero:narrateur": {
+   "file": "hero-narrateur.glb",
+   "height": 1.35
   }
  }
 }
