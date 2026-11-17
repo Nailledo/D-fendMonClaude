@@ -10,7 +10,7 @@
     <p>Empêchez les ennemis d’atteindre la porte au bout du chemin. Chaque ennemi qui passe vous coûte des vies, et la partie est perdue à zéro.</p>
     <h3>Construire</h3>
     <ul>
-      <li>Cliquez sur un <b>emplacement de pierre</b> : un menu circulaire propose quatre tours.</li>
+      <li>Cliquez (ou touchez) un <b>emplacement de pierre</b> : un menu circulaire propose quatre tours. Au tactile, un premier appui sur une tour montre sa portée et son prix, un second la construit.</li>
       <li><b>Archers</b> : rapides, touchent les volants. <b>Caserne</b> : des soldats bloquent les ennemis au sol. <b>Mages</b> : ignorent l’armure. <b>Artillerie</b> : dégâts de zone.</li>
       <li>Cliquez sur une tour pour l’améliorer (3 niveaux), puis choisir l’une des deux <b>spécialisations</b> et acheter ses compétences.</li>
       <li>La revente rend 60 % de l’investissement, ou 100 % pendant 3 secondes après un achat.</li>
@@ -32,7 +32,8 @@
       <li><b>Alt + clic</b> pour signaler un point à vos alliés, <span class="kbd">{keyLabel(keys.chat)}</span> pour discuter, et le bouton cadeau pour donner 50 or.</li>
     </ul>
     <h3>Caméra</h3>
-    <p>Molette pour zoomer, glisser (clic gauche, droit ou molette) pour déplacer, flèches du clavier.</p>
+    <p>Molette pour zoomer vers le curseur, glisser (clic gauche, droit ou molette) pour déplacer, flèches du clavier.</p>
+    <p>Au tactile : glissez un doigt pour déplacer la carte, pincez à deux doigts pour zoomer, touchez deux fois le terrain pour zoomer ou revenir à la vue d’ensemble. En portrait, la carte pivote pour occuper toute la hauteur.</p>
   </div>
 </div>
 
