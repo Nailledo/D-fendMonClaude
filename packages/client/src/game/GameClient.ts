@@ -28,6 +28,19 @@ type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'hskill'; i: 0 | 1
 const FAM_ACTIONS: Action[] = ['buildArcher', 'buildBarracks', 'buildMage', 'buildArtillery'];
 const DEATH_COLORS: Record<string, number> = { vallee: 0x7cb342, marais: 0x6f9a8a, cendre: 0xd84315 };
 
+/**
+ * Position de l'arc de Patoche en joue (voir la pose « arc » du vertex shader) : main gauche tendue vers la cible,
+ * un peu à gauche de l'axe du corps, à hauteur d'épaule. Les flèches partent de là.
+ */
+function bowPos(hx: number, hz: number, tx: number, tz: number, out: { x: number; y: number; z: number }) {
+  const dx = tx - hx, dz = tz - hz, l = Math.hypot(dx, dz) || 1;
+  const fx = dx / l, fz = dz / l;
+  out.x = hx + fx * 0.7 + fz * 0.12;
+  out.z = hz + fz * 0.7 - fx * 0.12;
+  out.y = 0.88;
+  return out;
+}
+
 export class GameClient {
   readonly map: RuntimeMap;
   readonly world: WorldInfo;
@@ -57,6 +70,8 @@ export class GameClient {
   private fpsAcc = 0;
   private fpsN = 0;
   private tpos = { x: 0, y: 0, z: 0 };
+  /** vies au départ (pour l'état du château) */
+  private maxLives = 1;
   private projScreen = new THREE.Matrix4();
   snapshotBytes = 0;
 
@@ -75,7 +90,10 @@ export class GameClient {
     this.ents = new Entities(r.scene, this.map);
     this.ents.tunnels = this.world.entries;
     this.ents.heightAt = this.world.heightAt;
+    const cs = this.world.castle;
+    this.ents.castleGate = { x: cs.x, z: cs.z, dx: cs.dx, dz: cs.dz };
     this.fx = new Fx(r.scene);
+    this.fx.setGround(this.world.ground);
     this.interp = new Interp(this.map, host.local);
     host.onSnapshot = (b) => {
       this.snapshotBytes += b.byteLength;
@@ -641,6 +659,11 @@ export class GameClient {
     this.ents.cullOn = r.cam.dist < r.cam.fit * 0.85;
     if (this.ents.cullOn) this.ents.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
+    // château : un monstre qui franchit la porte le fait trembler ; il brûle quand les vies s'épuisent
+    const castle = this.world.castle;
+    for (; this.ents.castleEntered > 0; this.ents.castleEntered--) castle.hit(this.fx);
+    this.maxLives = Math.max(this.maxLives, snap.lives);
+    castle.update(dt, this.time, this.ents.castleNear, snap.lives / Math.max(1, this.maxLives), this.fx);
     if (this.prologue) {
       const d = ui.dialog;
       // dialogue passé : la scène se termine (Kessin s'envole avec Ethan) avant de rendre la main
@@ -926,16 +949,27 @@ export class GameClient {
         else if (!this.startPos(srcType, srcId, p)) return;
         // gestes des tireurs : recul de la tour, bras levés de l'unité
         if (srcType === Src.Tower) this.ents.towerFire.set(srcId, this.time);
-        else if (srcType === Src.Unit) { this.ents.uFireTime[srcId] = this.time; this.ents.aim(srcId, target, tx, tz, this.time); }
+        else if (srcType === Src.Unit) {
+          this.ents.uFireTime[srcId] = this.time;
+          this.ents.aim(srcId, target, tx, tz, this.time);
+          if (kind === FIRE_TURRET) {
+            // le carreau sort de la bouche du canon
+            const dx = tx - p.x, dz = tz - p.z, l = Math.hypot(dx, dz) || 1;
+            const m = this.ents.turretMuzzle;
+            p.x += (dx / l) * m.fwd; p.z += (dz / l) * m.fwd;
+            p.y = m.y;
+          }
+        }
         else if (srcType === Src.Hero) {
           const s = this.interp.latest!;
           const hi = s.heroIndex(srcId);
           if (hi >= 0) { this.ents.uFireTime[s.hUnit[hi]] = this.time; this.ents.aim(s.hUnit[hi], target, tx, tz, this.time); }
           // le projectile part de l'arc (ou de l'orbe du bâton), devant le héros, pas du centre de son corps
-          const dx = tx - p.x, dz = tz - p.z, l = Math.hypot(dx, dz) || 1;
-          const fwd = kind === FIRE_HERO_BOLT ? 0.75 : 0.45;
-          p.x += (dx / l) * fwd; p.z += (dz / l) * fwd;
-          p.y = kind === FIRE_HERO_BOLT ? 1.35 : 1.05;
+          if (kind === FIRE_HERO_BOLT) {
+            const dx = tx - p.x, dz = tz - p.z, l = Math.hypot(dx, dz) || 1;
+            p.x += (dx / l) * 0.75; p.z += (dz / l) * 0.75;
+            p.y = 1.35;
+          } else bowPos(p.x, p.z, tx, tz, p);
         }
         const dist = Math.sqrt((tx - p.x) ** 2 + (tz - p.z) ** 2);
         if (kind === 3) {
@@ -1204,21 +1238,27 @@ export class GameClient {
         const [, owner, skill, x, z, hx, hz] = ev;
         const s = this.interp.latest!;
         const hi = s.heroIndex(owner);
+        const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
+        // flèche perçante : un vrai tir à l'arc (bras en joue), pas le geste de sort levé vers le ciel
+        const shot = type === 'lyra' && skill === 0;
         if (hi >= 0) {
-          this.ents.castTime[s.hUnit[hi]] = this.time;
+          if (shot) this.ents.uFireTime[s.hUnit[hi]] = this.time;
+          else this.ents.castTime[s.hUnit[hi]] = this.time;
           // sort ciblé : le héros se tourne vers le point visé
           if ((x - hx) ** 2 + (z - hz) ** 2 > 0.25) this.ents.aim(s.hUnit[hi], 0xffff, x, z, this.time, 0.9);
         }
-        const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
-        if (type === 'lyra' && skill === 0) {
-          // flèche perçante : trait lumineux et sillage de vent
+        if (shot) {
+          // flèche perçante : trait lumineux et sillage de vent, depuis l'arc
           const dx = x - hx, dz = z - hz, l = Math.sqrt(dx * dx + dz * dz) || 1;
+          const b = bowPos(hx, hz, x, z, this.tpos);
+          const sx = b.x, sy = b.y, sz = b.z;
           const ex = hx + (dx / l) * 13, ez = hz + (dz / l) * 13;
-          fx.beams.add(hx, 1.1, hz, ex, 1.1, ez, 0.35, 0.12, 0xc5e1a5);
-          fx.beams.add(hx, 1.1, hz, ex, 1.1, ez, 0.25, 0.04, 0xffffff);
+          fx.beams.add(sx, sy, sz, ex, sy, ez, 0.35, 0.12, 0xc5e1a5);
+          fx.beams.add(sx, sy, sz, ex, sy, ez, 0.25, 0.04, 0xffffff);
+          fx.burst(sx, sy, sz, 8, 0xe8ffd0, 2.5, 0.08, 0.35, true, 0);
           for (let k = 0; k < 26; k++) {
             const t = k / 26;
-            fx.glow.spawn(hx + (ex - hx) * t, 1.1 + (Math.random() - 0.5) * 0.3, hz + (ez - hz) * t, (dx / l) * 2 + (Math.random() - 0.5), Math.random() * 0.8, (dz / l) * 2 + (Math.random() - 0.5), 0.35 + t * 0.3, 0.08, 0xd4f5b0, 0);
+            fx.glow.spawn(sx + (ex - sx) * t, sy + (Math.random() - 0.5) * 0.3, sz + (ez - sz) * t, (dx / l) * 2 + (Math.random() - 0.5), Math.random() * 0.8, (dz / l) * 2 + (Math.random() - 0.5), 0.35 + t * 0.3, 0.08, 0xd4f5b0, 0);
           }
           audio.play('arrow', 1.5);
         } else if (type === 'samuel' && skill === 0) {

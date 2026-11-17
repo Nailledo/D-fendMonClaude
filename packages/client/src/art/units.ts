@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { BufferGeometry, Float32BufferAttribute } from 'three';
 import { GB, Part } from './builder';
 
 const SKIN = 0xf2c9a0;
@@ -228,16 +229,85 @@ export const SOLDIER_MODELS: ((g: GB) => void)[] = [
     g.ball(0.05, 0x76ff03, -0.07, 1.07, 0.14);
     g.setPart(Part.Team).box(0.3, 0.06, 0.3, 0xffffff, 0, 0.47, 0);
   },
-  // 7 Tourelle de Matéo
+  // 7 Tourelle de Matéo (modèle complet : corps qui tombe, portraits ; en jeu, socle et tête sont séparés)
   (g) => {
-    g.cyl(0.4, 0.5, 0.35, 8, 0x5d4037, 0, 0.18, 0);
-    g.setPart(Part.Team).cyl(0.42, 0.42, 0.08, 8, 0xffffff, 0, 0.38, 0);
-    g.setPart(Part.Body);
-    g.box(0.45, 0.35, 0.45, 0xb08d57, 0, 0.6, 0);
-    g.cyl(0.09, 0.11, 0.7, 7, 0x455a64, 0, 0.66, 0.35, Math.PI / 2);
-    g.ball(0.1, 0xff7043, 0, 0.85, -0.1);
+    turretBase(g);
+    turretHead(g);
   },
 ];
+
+/** hauteur du pivot de la tête de la tourelle (au-dessus du socle) */
+const TURRET_HEAD_Y = 0.46;
+
+/** Socle de la tourelle de forge : trépied de bois cerclé de fer sur une dalle de pierre. */
+function turretBase(g: GB) {
+  g.cyl(0.48, 0.55, 0.14, 8, 0x6b6359, 0, 0.07, 0);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.5;
+    g.box(0.09, 0.42, 0.09, 0x6d4c41, Math.cos(a) * 0.26, 0.3, Math.sin(a) * 0.26, Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+  }
+  g.cyl(0.2, 0.24, 0.3, 8, 0x4e342e, 0, 0.3, 0);
+  g.setPart(Part.Team).cyl(0.26, 0.26, 0.06, 8, 0xffffff, 0, 0.43, 0);
+  g.setPart(Part.Body);
+}
+
+/** Tête orientable : chaudière de cuivre, foyer rougeoyant à l'arrière, canon vers l'avant (+z). */
+function turretHead(g: GB, y = TURRET_HEAD_Y) {
+  g.cyl(0.22, 0.24, 0.12, 8, 0x37474f, 0, y + 0.06, 0);
+  g.box(0.42, 0.3, 0.46, 0xb87333, 0, y + 0.27, -0.02);
+  g.box(0.46, 0.06, 0.5, 0x5d4037, 0, y + 0.44, -0.02);
+  g.box(0.3, 0.16, 0.06, 0xff7043, 0, y + 0.25, -0.26);
+  g.box(0.36, 0.04, 0.07, 0x3e2723, 0, y + 0.35, -0.26);
+  g.cyl(0.07, 0.08, 0.28, 6, 0x455a64, 0.12, y + 0.56, -0.12);
+  g.cyl(0.09, 0.11, 0.62, 8, 0x455a64, 0, y + 0.28, 0.48, Math.PI / 2);
+  g.torus(0.11, 0xffc107, 0, y + 0.28, 0.76, 0);
+  for (const sx of [-1, 1]) g.ball(0.05, 0xffc107, sx * 0.22, y + 0.27, 0.12);
+}
+
+/**
+ * Tourelle en deux pièces : socle fixe et tête qui pivote autour de l'axe vertical (origine).
+ * Modèle importé : la cuisson l'avait découpé comme un personnage (jambes, bras), d'où une tourelle qui
+ * « marchait ». On le sépare ici : triangles des « jambes » → socle, le reste → tête, sans partie animée.
+ */
+export function turretGeometry(glb?: THREE.BufferGeometry): { base: THREE.BufferGeometry; head: THREE.BufferGeometry } {
+  if (glb?.index) {
+    const anim = glb.getAttribute('aAnim');
+    const idx = glb.index.array;
+    const base: number[] = [], head: number[] = [];
+    for (let t = 0; t < idx.length; t += 3) {
+      const part = Math.round(anim.getX(idx[t]));
+      (part === 1 || part === 2 ? base : head).push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    const n = glb.attributes.position.count;
+    const still = new Float32BufferAttribute(new Float32Array(n * 4), 4);
+    const one = new Float32BufferAttribute(new Float32Array(n).fill(1), 1);
+    const make = (list: number[]) => {
+      const g = new BufferGeometry();
+      for (const [k, a] of Object.entries(glb.attributes)) g.setAttribute(k, a);
+      g.setAttribute('aAnim', still);
+      g.setAttribute('aWeight', one);
+      g.setIndex(list);
+      g.computeBoundingSphere();
+      return g;
+    };
+    if (base.length && head.length) return { base: make(base), head: make(head) };
+  }
+  let g = cache.get('turret');
+  if (!g) {
+    const b = new GB(71);
+    turretBase(b);
+    g = b.build();
+    cache.set('turret', g);
+  }
+  let h = cache.get('turretHead');
+  if (!h) {
+    const b = new GB(73);
+    turretHead(b);
+    h = b.build();
+    cache.set('turretHead', h);
+  }
+  return { base: g, head: h };
+}
 
 const cache = new Map<string, THREE.BufferGeometry>();
 

@@ -73,6 +73,7 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
     geo.deleteAttribute('_weight');
   } else geo.setAttribute('aWeight', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count).fill(1), 1));
   anchorHeld(geo);
+  softenShoulders(geo);
   if (!geo.getAttribute('color')) {
     const c = new Float32Array(geo.attributes.position.count * 3).fill(1);
     geo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
@@ -107,6 +108,24 @@ function anchorHeld(geo: THREE.BufferGeometry) {
     for (let i = 0; i < a.count; i++) if (Math.round(a.getX(i)) === part) a.setXYZW(i, part, sx, by, sz);
   }
   a.needsUpdate = true;
+}
+
+/**
+ * Épaules : la cuisson range le haut de l'épaule (et l'emmanchure) dans le bras. Bras levé, ce morceau
+ * pivotait en bloc et se détachait du torse. Au-dessus du pivot, le bras reste donc collé au corps ;
+ * en dessous, il suit progressivement la rotation (sur ~15 cm), comme une peau qui s'étire.
+ */
+function softenShoulders(geo: THREE.BufferGeometry) {
+  const a = geo.getAttribute('aAnim') as THREE.BufferAttribute;
+  const w = geo.getAttribute('aWeight') as THREE.BufferAttribute;
+  const pos = geo.attributes.position;
+  for (let i = 0; i < a.count; i++) {
+    const part = Math.round(a.getX(i));
+    if (part !== 3 && part !== 4) continue;
+    const t = Math.min(1, Math.max(0, (a.getZ(i) - pos.getY(i) + 0.03) / 0.18));
+    w.setX(i, Math.min(w.getX(i), t * t * (3 - 2 * t)));
+  }
+  w.needsUpdate = true;
 }
 
 /**
@@ -214,7 +233,6 @@ export function gameModelKeys(biome: Biome, enemyIds: string[], heroIds: string[
   for (const id of heroIds) keys.push(K.hero(id));
   for (let k = 0; k < 8; k++) keys.push(K.soldier(k));
   for (let f = 0; f < 4; f++) for (let l = 0; l < 5; l++) keys.push(K.tower(f, l));
-  keys.push(K.gate(biome));
   if (manifest) for (const k of Object.keys(manifest)) if (k.startsWith(`decor:${biome}:`)) keys.push(k);
   return keys;
 }

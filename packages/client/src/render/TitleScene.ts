@@ -77,6 +77,7 @@ export class TitleScene {
     this.tunnelD = e0 ? (e0.i / Math.max(1, map.paths[0].count - 1)) * map.paths[0].length - 2.4 : -1;
     this.path = map.paths[0];
     this.fx = new Fx(this.group);
+    this.fx.setGround(w.ground);
     const pool = (key: string, fb: () => THREE.BufferGeometry, cap: number) => {
       const g = geoFor(key, fb);
       return new InstPool(g.geo, cap, this.group, settings.shadows, g.map);

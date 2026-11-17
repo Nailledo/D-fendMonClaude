@@ -113,8 +113,9 @@ vec3 transformed = vec3(position);
       float snap = fireP > 0.0 ? 1.0 - smoothstep(0.0, 0.12, fireP) : 0.0;
       l = mix(l, grip(-1.5, 0.12), aim);
       armL.z = -0.45 * aim;
-      r = mix(r, vec2(mix(-1.6, -1.35, draw), 0.0), aim);
-      armR.z = mix(0.0, mix(0.95, 0.55, draw), aim);
+      // main droite : sur la corde contre l'arc, puis ramenée vers la poitrine (corde tirée le long de la flèche)
+      r = mix(r, vec2(mix(-1.55, -1.67, draw), 0.0), aim);
+      armR.z = mix(0.0, mix(0.95, 1.33, draw), aim);
       armR.y = -0.45 * snap * aim;
       twist = -0.5 * aim;
       lean = -0.05 * aim;

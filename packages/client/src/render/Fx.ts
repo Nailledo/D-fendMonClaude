@@ -218,6 +218,17 @@ float noise(vec2 p) {
 }
 `;
 
+/** relief du terrain partagé par les traces au sol (texture de hauteurs ; plat tant qu'aucune n'est donnée) */
+interface GroundUniforms {
+  uGround: { value: THREE.Texture };
+  uGroundSize: { value: THREE.Vector4 };
+}
+function flatGround(): GroundUniforms {
+  const t = new THREE.DataTexture(new Uint16Array([0]), 1, 1, THREE.RedFormat, THREE.HalfFloatType);
+  t.needsUpdate = true;
+  return { uGround: { value: t }, uGroundSize: { value: new THREE.Vector4(1, 1, 1, 1) } };
+}
+
 /**
  * Traces au sol procédurales (aucune texture) : brûlure/cratère, fissures, flaque, cercle runique.
  * Deux lots : normal (brûlures, fissures, flaques) et additif (cercles runiques lumineux).
@@ -232,15 +243,16 @@ class Decals {
   private v = new THREE.Vector3();
   private sc = new THREE.Vector3();
   private yAxis = new THREE.Vector3(0, 1, 0);
-  constructor(parent: THREE.Object3D, additive: boolean, private cap = 96) {
-    const g = new THREE.PlaneGeometry(2, 2);
+  constructor(parent: THREE.Object3D, additive: boolean, ground: GroundUniforms, private cap = 96) {
+    // subdivisé : chaque sommet est posé sur le relief (texture de hauteurs du terrain)
+    const g = new THREE.PlaneGeometry(2, 2, 10, 10);
     g.rotateX(-Math.PI / 2);
     this.aD = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(THREE.DynamicDrawUsage);
     this.aC = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
     g.setAttribute('iDecal', this.aD);
     g.setAttribute('iCol', this.aC);
     const mat = new THREE.ShaderMaterial({
-      uniforms: { uTime: uniforms.uTime },
+      uniforms: { uTime: uniforms.uTime, uGround: ground.uGround, uGroundSize: ground.uGroundSize },
       transparent: true,
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -249,12 +261,16 @@ class Decals {
       polygonOffsetUnits: -2,
       vertexShader: /* glsl */ `
         attribute vec4 iDecal; attribute vec3 iCol;
+        uniform sampler2D uGround; uniform vec4 uGroundSize;
         varying vec2 vUv; varying vec4 vD; varying vec3 vC;
         void main() {
           vUv = uv; vD = iDecal; vC = iCol;
-          // le sol ondule : la trace est avancée vers la caméra pour ne pas passer dessous
-          vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-          mv.xyz += normalize(-mv.xyz) * 0.7;
+          // la trace épouse le relief, à peine au-dessus du sol : les personnages qui marchent dedans la recouvrent
+          vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+          vec2 cell = (wp.xz + uGroundSize.xy * 0.5) / uGroundSize.xy * uGroundSize.zw;
+          wp.y += texture2D(uGround, (cell + 0.5) / (uGroundSize.zw + 1.0)).r;
+          vec4 mv = viewMatrix * wp;
+          mv.xyz += normalize(-mv.xyz) * 0.04;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: /* glsl */ `
@@ -335,7 +351,7 @@ class Decals {
       const g = d.kind === Decal.Rune ? 1 + 2.7 * (Math.min(1, age / 0.3) - 1) ** 3 + 1.7 * (Math.min(1, age / 0.3) - 1) ** 2 : 0.7 + 0.3 * Math.min(1, age / 0.15);
       const r = d.r * Math.max(0.01, g);
       this.q.setFromAxisAngle(this.yAxis, d.rot);
-      this.m4.compose(this.v.set(d.x, 0.06 + i * 0.0004, d.z), this.q, this.sc.set(r, 1, r));
+      this.m4.compose(this.v.set(d.x, 0.04 + i * 0.0004, d.z), this.q, this.sc.set(r, 1, r));
       this.mesh.setMatrixAt(i, this.m4);
       D[i * 4] = d.kind; D[i * 4 + 1] = fin * fout; D[i * 4 + 2] = d.kind === Decal.Rune ? d.spin : d.rot; D[i * 4 + 3] = age;
       C[i * 3] = ((d.c >> 16) & 255) / 255; C[i * 3 + 1] = ((d.c >> 8) & 255) / 255; C[i * 3 + 2] = (d.c & 255) / 255;
@@ -579,6 +595,12 @@ export class Fx {
   private shells: InstPool;
   private rocks: InstPool;
   shots: Shot[] = [];
+  private ground = flatGround();
+  /** Relief du terrain (texture de hauteurs du monde) : les traces au sol le suivent. */
+  setGround(g: { tex: THREE.Texture; w: number; h: number; sx: number; sz: number }) {
+    this.ground.uGround.value = g.tex;
+    this.ground.uGroundSize.value.set(g.w, g.h, g.sx, g.sz);
+  }
 
   constructor(scene: THREE.Object3D) {
     scene.add(this.group);
@@ -586,8 +608,8 @@ export class Fx {
     this.glow = new Particles(this.group, true);
     this.beams = new Beams(this.group);
     this.rings = new Rings(this.group);
-    this.decals = new Decals(this.group, false);
-    this.runes = new Decals(this.group, true, 32);
+    this.decals = new Decals(this.group, false, this.ground);
+    this.runes = new Decals(this.group, true, this.ground, 32);
     this.pillars = new Pillars(this.group);
     this.shards = new Shards(this.group);
     this.flashes = new Flashes(this.group);

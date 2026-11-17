@@ -167,25 +167,6 @@ export function decorGeometry(biome: Biome, name: string, variant: number): THRE
   return g;
 }
 
-/** Porte fortifiée au point de sortie (ce qu'on défend). */
-export function gateGeometry(biome: Biome): THREE.BufferGeometry {
-  const g = new GB(77);
-  const stone = biome === 'cendre' ? 0x4a403c : biome === 'marais' ? 0x7d8277 : 0xb3ab9c;
-  const roof = biome === 'cendre' ? 0x7f0000 : biome === 'marais' ? 0x3c5a3a : 0x1e40af;
-  for (const s of [1, -1]) {
-    g.cyl(1.0, 1.1, 4.2, 8, stone, s * 2.6, 2.1, 0);
-    g.cone(1.3, 1.8, 8, roof, s * 2.6, 5.1, 0);
-    g.box(3.6, 3.2, 1.2, stone, s * 4.6, 1.6, 0.4);
-  }
-  g.box(4.2, 1.4, 1.4, stone, 0, 3.6, 0);
-  for (let k = -2; k <= 2; k++) g.box(0.5, 0.5, 1.5, stone, k * 0.95, 4.5, 0);
-  g.box(2.6, 2.6, 0.3, 0x5d4033, 0, 1.3, 0.2);
-  for (let k = -1; k <= 1; k++) g.box(0.08, 2.6, 0.32, 0x3e2723, k * 0.8, 1.3, 0.22);
-  g.setPart(Part.Team).box(1.2, 1.6, 0.06, 0xffffff, 0, 3.3, 0.72);
-  return g.build();
-}
-
-/** Repère d'apparition des ennemis (portail / grotte). */
 /**
  * Entrée de galerie creusée dans la colline : arche de rochers, étais de bois, intérieur dans l'ombre.
  * Repère local : l'ouverture regarde vers +z (vers la carte), la galerie s'enfonce vers -z sous la colline

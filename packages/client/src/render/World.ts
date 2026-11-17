@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PATH_HALF_WIDTH, Rng, boundaryPoint, type RuntimeMap } from '@dfend/shared';
-import { DECOR, THEMES, decorGeometry, gateGeometry, spawnGeometry, type BiomeTheme } from '../art/decor';
+import { DECOR, THEMES, decorGeometry, spawnGeometry, type BiomeTheme } from '../art/decor';
+import { Castle } from './Castle';
 import { K, geoFor, model } from '../art/models';
 import { slotGeometry } from '../art/towers';
 import { settings } from '../settings';
@@ -36,6 +37,10 @@ export interface WorldInfo {
   lockedPool: InstPool;
   /** hauteur du terrain en (x, z) (interpolée sur la grille) */
   heightAt: (x: number, z: number) => number;
+  /** château au bout du chemin (porte, herse, drapeaux) */
+  castle: Castle;
+  /** même relief en texture (une valeur par sommet de la grille) : les traces au sol l'épousent dans le shader */
+  ground: { tex: THREE.DataTexture; w: number; h: number; sx: number; sz: number };
 }
 
 /**
@@ -70,6 +75,21 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     const dx = p.xs[b.i] - p.xs[j], dz = p.zs[b.i] - p.zs[j], l = Math.hypot(dx, dz) || 1;
     return { x: b.x, z: b.z, i: b.i, path: i, ox: dx / l, oz: dz / l };
   });
+  // château : sa porte enjambe le chemin juste après la sortie de la zone jouable, il s'étend au-delà
+  const ex = boundaryPoint(paths[0], def.hw, def.hh, true);
+  const castleAt = (() => {
+    const p = paths[0], j = Math.min(p.count - 1, ex.i + 10);
+    let dx = p.xs[j] - p.xs[ex.i], dz = p.zs[j] - p.zs[ex.i];
+    const l = Math.hypot(dx, dz) || 1;
+    dx /= l; dz /= l;
+    return { x: ex.x + dx * 2.6, z: ex.z + dz * 2.6, dx, dz };
+  })();
+  /** emprise du château : le terrain y est aplani (cour, remparts) */
+  const castleFlat = (x: number, z: number) => {
+    const ox = x - castleAt.x, oz = z - castleAt.z;
+    const a = ox * castleAt.dx + oz * castleAt.dz, c = Math.abs(ox * -castleAt.dz + oz * castleAt.dx);
+    return (1 - smooth(10.4, 13, c)) * smooth(-4.5, -1.8, a) * (1 - smooth(11.8, 14.5, a));
+  };
   /** distance au chemin visible (sans le tronçon souterrain, en amont de chaque entrée) */
   const distPathSq = (x: number, z: number, step: number) => {
     let best = Infinity;
@@ -134,6 +154,8 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     if (z > def.hh && !opts.surround) h *= 0.45;
     const mh = mound(x, z);
     if (mh > 0.01) h = Math.max(h, mh);
+    const cf = castleFlat(x, z);
+    if (cf > 0) h *= 1 - cf;
     // sol de la galerie : le terrain ne dépasse pas sous la voûte
     for (const e of entries) {
       const dx = x - e.x, dz = z - e.z, a = dx * e.ox + dz * e.oz;
@@ -195,9 +217,8 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
   // ------------------------------------------------ décor
   const dens = settings.decorDensity;
   const occupied: [number, number, number][] = map.slots.map((s) => [s.x, s.z, 1.9]);
-  const ex = boundaryPoint(paths[0], def.hw, def.hh, true);
   const exit = { x: ex.x, z: ex.z };
-  occupied.push([exit.x, exit.z, 6]);
+  occupied.push([exit.x, exit.z, 6], [castleAt.x + castleAt.dx * 5, castleAt.z + castleAt.dz * 5, 11.5]);
   for (const e of entries) occupied.push([e.x, e.z, 4.5], [e.x + e.ox * 2, e.z + e.oz * 2, 4]);
   const items = new Map<string, { x: number; y: number; z: number; yaw: number; s: number }[]>();
   const pickWeighted = (list: [string, number][]) => {
@@ -271,16 +292,9 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     staticInstances(g ? g.geo : decorGeometry(def.biome, name, +v), list, group, big && settings.shadows, g ? g.map : null);
   }
 
-  // ------------------------------------------------ porte et entrées
-  const gi = ex.i;
-  const p0 = paths[0];
-  const gj = Math.min(p0.count - 1, gi + 8);
-  const gateG = geoFor(K.gate(def.biome), () => gateGeometry(def.biome));
-  const gatePool = new InstPool(gateG.geo, 1, group, settings.shadows, gateG.map);
-  gatePool.begin();
-  const gidx = gatePool.push(p0.xs[gj], 0, p0.zs[gj], Math.atan2(p0.nx[gi], p0.nz[gi]) + Math.PI / 2, 0.85);
-  gatePool.setTeam(gidx, 0x1e3a8a);
-  gatePool.end();
+  // ------------------------------------------------ château et entrées
+  // sortie vers la caméra (bas de l'écran) : château bas, pour ne pas masquer la carte
+  const castle = new Castle(group, def.biome, castleAt.x, castleAt.z, castleAt.dx, castleAt.dz, castleAt.dz > 0.5 && !opts.surround);
   // galerie construite en code (taillée pour la colline du terrain), ouverture tournée vers la carte
   const spawnPool = new InstPool(spawnGeometry(def.biome), entries.length, group, settings.shadows);
   spawnPool.begin();
@@ -298,5 +312,10 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     const h = (i: number, j: number) => heights[j * (SX + 1) + i] ?? 0;
     return (h(ix, iz) * (1 - u) + h(ix + 1, iz) * u) * (1 - v) + (h(ix, iz + 1) * (1 - u) + h(ix + 1, iz + 1) * u) * v;
   };
-  return { group, theme, entries, exit, slotPool, lockedPool, heightAt };
+  const half = new Uint16Array(heights.length);
+  for (let i = 0; i < heights.length; i++) half[i] = THREE.DataUtils.toHalfFloat(heights[i]);
+  const tex = new THREE.DataTexture(half, SX + 1, SZ + 1, THREE.RedFormat, THREE.HalfFloatType);
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return { group, theme, entries, exit, slotPool, lockedPool, heightAt, castle, ground: { tex, w: W, h: H, sx: SX, sz: SZ } };
 }

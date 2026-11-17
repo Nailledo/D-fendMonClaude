@@ -6,7 +6,7 @@ import {
 import { enemyGeometry } from '../art/enemies';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
-import { heroGeometry, soldierGeometry } from '../art/units';
+import { heroGeometry, soldierGeometry, turretGeometry } from '../art/units';
 import { HERO_STYLE, heroWeapon } from '../art/weapons';
 import type { Frame } from '../game/Interp';
 import { settings } from '../settings';
@@ -32,6 +32,11 @@ export class Entities {
   /** arme tenue par chaque héros importé (null : art en code, l'arme fait partie du modèle) */
   private weaponPools: (InstPool | null)[] = [];
   private heroStyle: number[] = [];
+  /** tourelle de Matéo : socle fixe et tête orientable (pas d'animation de personnage) */
+  private turretBase: InstPool;
+  private turretHead: InstPool;
+  /** origine des tirs de la tourelle (hauteur, avancée depuis son centre) */
+  turretMuzzle = { y: 0.8, fwd: 0.8 };
   private towerBase = new Map<number, InstPool>();
   private towerTop = new Map<number, InstPool>();
   private hp: THREE.InstancedMesh;
@@ -80,6 +85,13 @@ export class Entities {
   heightAt: ((x: number, z: number) => number) | null = null;
   /** bouches des galeries d'entrée : un ennemi encore dans la galerie (sous la colline) n'est pas dessiné */
   tunnels: { x: number; z: number; ox: number; oz: number }[] = [];
+  /** porte du château : les monstres qui la franchissent disparaissent à l'intérieur (et le château réagit) */
+  castleGate: { x: number; z: number; dx: number; dz: number } | null = null;
+  /** des monstres sont devant la porte (la herse se lève) */
+  castleNear = false;
+  /** monstres entrés depuis la dernière lecture */
+  castleEntered = 0;
+  private eIn = new Uint8Array(N);
   /** champ de la caméra : les entités hors de l'écran (et de la portée de leur ombre) ne sont pas dessinées */
   readonly frustum = new THREE.Frustum();
   cullOn = false;
@@ -128,6 +140,14 @@ export class Entities {
     };
     ENEMIES.forEach((d) => this.enemyPools.push(pool(K.enemy(d.id), () => enemyGeometry(d.id), d.boss ? 2 : 48)));
     for (let k = 0; k < 8; k++) this.soldierPools.push(pool(K.soldier(k), () => soldierGeometry(k), 24));
+    const tm = model(K.soldier(7));
+    const tg = turretGeometry(tm?.geo);
+    this.turretBase = new InstPool(tg.base, 8, this.group, settings.shadows, tm?.map ?? null);
+    this.turretHead = new InstPool(tg.head, 8, this.group, settings.shadows, tm?.map ?? null);
+    // bouche du canon : avant de la tête, à mi-hauteur
+    tg.head.computeBoundingBox();
+    const hb = tg.head.boundingBox!;
+    this.turretMuzzle = { y: ((hb.min.y + hb.max.y) / 2) * 1.1, fwd: hb.max.z * 1.1 };
     for (const h of HERO_IDS) {
       this.heroPools.push(pool(K.hero(h), () => heroGeometry(h), 4));
       // modèle importé : on lui met son arme en main et son animation de combat
@@ -153,6 +173,28 @@ export class Entities {
       map.set(key, p);
     }
     return p;
+  }
+
+  /** orientation de chaque emplacement : la façade (+z du modèle) regarde le point de chemin le plus proche */
+  private slotYaw = new Map<number, number>();
+  private yawOfSlot(si: number) {
+    let y = this.slotYaw.get(si);
+    if (y === undefined) {
+      const s = this.map.slots[si];
+      let best = Infinity;
+      const pt = { x: 0, z: 0 };
+      y = 0;
+      for (const p of this.map.paths) {
+        const pr = p.project(s.x, s.z);
+        if (pr.dist2 < best) {
+          best = pr.dist2;
+          p.at(pr.d, 0, pt);
+          y = Math.atan2(pt.x - s.x, pt.z - s.z);
+        }
+      }
+      this.slotYaw.set(si, y);
+    }
+    return y;
   }
 
   private towerViews = new Map<number, { base: THREE.BufferGeometry; map: THREE.Texture | null; turret: THREE.BufferGeometry | null; turretY: number; muzzleY: number }>();
@@ -232,6 +274,7 @@ export class Entities {
     this.hpN = 0;
     // ------------------------------------------------ ennemis
     for (const p of this.enemyPools) p.begin();
+    this.castleNear = false;
     for (let i = 0; i < f.eN; i++) {
       const id = f.eId[i];
       const def = ENEMIES[f.eType[i]];
@@ -265,6 +308,20 @@ export class Entities {
       const cadence = stunned ? 0 : def.flying || fighting ? base : (v * 4.5) / Math.max(0.6, def.size);
       this.ePhase[id] = stride(this.ePhase[id], cadence, dt);
       const speed = this.ePhase[id];
+      const cg = this.castleGate;
+      if (cg) {
+        if (fresh) this.eIn[id] = 0;
+        const ox = f.eX[i] - cg.x, oz = f.eZ[i] - cg.z;
+        const a = ox * cg.dx + oz * cg.dz;
+        if (Math.abs(ox * -cg.dz + oz * cg.dx) < 3.5 && a > -3.5) {
+          if (a < 1.2) this.castleNear = true;
+          else {
+            // dans le passage sombre de la porte : il entre dans le château
+            if (!this.eIn[id]) { this.eIn[id] = 1; this.castleEntered++; }
+            continue;
+          }
+        }
+      }
       if (!this.inView(f.eX[i], y + def.size * 0.7, f.eZ[i], def.size * 1.6 + 2)) continue;
       if (this.inTunnel(f.eX[i], f.eZ[i])) continue;
       const pool = this.enemyPools[f.eType[i]];
@@ -284,6 +341,8 @@ export class Entities {
     for (const p of this.soldierPools) p.begin();
     for (const p of this.heroPools) p.begin();
     for (const p of this.weaponPools) p?.begin();
+    this.turretBase.begin();
+    this.turretHead.begin();
     this.glow.visible = false;
     for (let i = 0; i < f.uN; i++) {
       const flags = f.uFlags[i];
@@ -343,6 +402,22 @@ export class Entities {
         if (kind === 7) scale = 1.1;
       }
       if (!this.inView(f.uX[i], 0.8, f.uZ[i], 3.5)) continue;
+      if (kind === 7) {
+        // tourelle : surgit du sol, la tête pivote vers sa cible et recule à chaque tir
+        const age = (time - this.uBorn[id]) / 0.35;
+        const s = age < 1 ? scale * (0.6 + 0.4 * Math.sin(age * Math.PI * 0.5) + Math.sin(age * Math.PI) * 0.12) : scale;
+        const ft = time - this.uFireTime[id];
+        const recoil = ft < 0.3 ? Math.max(0.001, ft / 0.3) : 0;
+        const b = this.turretBase.push(f.uX[i], 0, f.uZ[i], 0, s, id, 0, flash, 0);
+        this.turretBase.setTeam(b, team);
+        const kick = recoil ? Math.sin(recoil * Math.PI) * (1 - recoil) * 0.3 : 0;
+        const yw = this.uYaw[id];
+        const h = this.turretHead.push(f.uX[i] - Math.sin(yw) * kick, 0, f.uZ[i] - Math.cos(yw) * kick, yw, s, id, 0, flash, 0);
+        this.turretHead.setTeam(h, team);
+        if (recoil) this.turretHead.setPose(h, recoil, 0, 0, 0);
+        if (f.uHp[i] < 0.999) this.hpBar(f.uX[i], 1.45, f.uZ[i], f.uHp[i], 0.7);
+        continue;
+      }
       const mode = (fighting ? 1 : 0) + style * 2;
       const uhit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
       let cast: number;
@@ -384,6 +459,8 @@ export class Entities {
     for (const p of this.soldierPools) p.end();
     for (const p of this.heroPools) p.end();
     for (const p of this.weaponPools) p?.end();
+    this.turretBase.end();
+    this.turretHead.end();
 
     // ------------------------------------------------ tours
     for (const p of this.towerBase.values()) p.begin();
@@ -397,7 +474,8 @@ export class Entities {
       const model = this.towerView(fam, level);
       const key = fam * 10 + level;
       let born = this.tBorn.get(id);
-      if (born === undefined) { born = time; this.tBorn.set(id, born); }
+      const yaw = this.yawOfSlot(snap.tSlot[i]);
+      if (born === undefined) { born = time; this.tBorn.set(id, born); this.tYaw[id] = yaw; }
       const age = time - born;
       const pop = age < 0.35 ? 0.6 + 0.4 * Math.sin((age / 0.35) * Math.PI * 0.5) + Math.sin((age / 0.35) * Math.PI) * 0.12 : 1;
       const team = PLAYER_COLORS[snap.tOwner[i]] ?? 0xffffff;
@@ -407,7 +485,7 @@ export class Entities {
         continue;
       }
       const base = this.towerPool(this.towerBase, key, model.base, model.map);
-      const b = base.push(slot.x, 0, slot.z, 0, pop, id * 0.9, 0, id === selectedTower ? 0.18 : 0, 0);
+      const b = base.push(slot.x, 0, slot.z, yaw, pop, id * 0.9, 0, id === selectedTower ? 0.18 : 0, 0);
       base.setTeam(b, team);
       const ft = this.towerFire.get(id);
       const recoil = ft !== undefined && time - ft < 0.3 ? Math.max(0.001, (time - ft) / 0.3) : 0;
