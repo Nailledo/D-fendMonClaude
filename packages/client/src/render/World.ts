@@ -5,7 +5,7 @@ import { K, geoFor, model } from '../art/models';
 import { slotGeometry } from '../art/towers';
 import { settings } from '../settings';
 import { InstPool, staticInstances } from './InstPool';
-import { liquidMaterial, worldMaterial } from './materials';
+import { liquidMaterial, terrainMaterial, worldMaterial } from './materials';
 
 function hash(x: number, z: number) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
@@ -97,94 +97,51 @@ export function buildWorld(map: RuntimeMap): WorldInfo {
     heights[i] = h;
     pos.setY(i, h);
   }
-  const geo = plane.toNonIndexed();
-  const gp = geo.attributes.position as THREE.BufferAttribute;
-  const colors = new Float32Array(gp.count * 3);
-  const hill = new THREE.Color(theme.hill), rock = new THREE.Color(theme.hill).lerp(new THREE.Color(theme.dirtEdge), 0.55).multiplyScalar(0.9);
-  const edgeDark = new THREE.Color(theme.fog).multiplyScalar(0.9);
-  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _n = new THREE.Vector3();
-  for (let i = 0; i < gp.count; i += 3) {
-    // couleur par face (aspect facetté), teintée par la hauteur, la pente et la distance au chemin
-    const cx = (gp.getX(i) + gp.getX(i + 1) + gp.getX(i + 2)) / 3;
-    const cz = (gp.getZ(i) + gp.getZ(i + 1) + gp.getZ(i + 2)) / 3;
-    const cy = (gp.getY(i) + gp.getY(i + 1) + gp.getY(i + 2)) / 3;
-    _a.set(gp.getX(i + 1) - gp.getX(i), gp.getY(i + 1) - gp.getY(i), gp.getZ(i + 1) - gp.getZ(i));
-    _b.set(gp.getX(i + 2) - gp.getX(i), gp.getY(i + 2) - gp.getY(i), gp.getZ(i + 2) - gp.getZ(i));
-    const slope = 1 - Math.abs(_n.crossVectors(_a, _b).normalize().y);
-    const n = noise(cx * 0.22, cz * 0.22) * 0.7 + noise(cx * 0.6 + 5, cz * 0.6) * 0.3;
-    _c.set(theme.grass[Math.floor(n * theme.grass.length * 0.999)]);
-    _c2.set(theme.grass[Math.floor(hash(cx, cz) * theme.grass.length)]);
-    _c.lerp(_c2, 0.18);
-    if (cy > 0.8) _c.lerp(hill, smooth(0.8, 4, cy));
-    if (slope > 0.3) _c.lerp(rock, smooth(0.3, 0.7, slope));
-    const dp = distPath(cx, cz);
-    if (dp < PATH_HALF_WIDTH + 1.6) _c.lerp(_c2.set(theme.dirtEdge), 0.5 * smooth(PATH_HALF_WIDTH + 1.6, PATH_HALF_WIDTH, dp));
-    if (cy < -0.1) _c.lerp(_c2.set(theme.dirtEdge), 0.6);
-    // vignette : les bords de la carte se fondent dans la brume
-    const edge = Math.max(Math.abs(cx) / (W / 2), Math.abs(cz) / (H / 2));
-    _c.lerp(edgeDark, smooth(0.62, 1, edge) * 0.55);
-    const k = 0.96 + hash(cz, cx) * 0.07;
-    for (let v = 0; v < 3; v++) {
-      colors[(i + v) * 3] = _c.r * k;
-      colors[(i + v) * 3 + 1] = _c.g * k;
-      colors[(i + v) * 3 + 2] = _c.b * k;
-    }
+  // carte de distances (chemin, mares) lue par le shader du sol : 3 texels par unité
+  const MW = W * 3, MH = H * 3;
+  const maskData = new Uint8Array(MW * MH * 4);
+  for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) {
+    const x = -W / 2 + (i + 0.5) / 3, z = -H / 2 + (j + 0.5) / 3;
+    let d2 = Infinity;
+    for (const p of paths) d2 = Math.min(d2, p.minDist2(x, z, 1));
+    const o = (j * MW + i) * 4;
+    maskData[o] = Math.round(Math.min(1, Math.sqrt(d2) / 6) * 255);
+    maskData[o + 1] = Math.round(Math.max(0, Math.min(1, (distPool(x, z) + 1.5) / 6)) * 255);
+    maskData[o + 3] = 255;
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-  const terrain = new THREE.Mesh(geo, mat);
+  const mask = new THREE.DataTexture(maskData, MW, MH, THREE.RGBAFormat);
+  mask.magFilter = THREE.LinearFilter;
+  mask.minFilter = THREE.LinearFilter;
+  mask.needsUpdate = true;
+  // terrain lisse (sommets partagés) : la couleur vient du shader, plus de facettes en damier
+  plane.computeVertexNormals();
+  const terrain = new THREE.Mesh(plane, terrainMaterial(theme, mask, [-W / 2, -H / 2, W, H], PATH_HALF_WIDTH));
   terrain.receiveShadow = true;
   group.add(terrain);
-
-  // ------------------------------------------------ chemins (rubans)
-  paths.forEach((p, pi) => {
-    const step = 2; // échantillons
-    const verts: number[] = [];
-    const cols: number[] = [];
-    const w = PATH_HALF_WIDTH + 0.15;
-    const dirt = new THREE.Color(theme.dirt), edge = new THREE.Color(theme.dirtEdge);
-    const y = 0.035 + pi * 0.004;
-    for (let i = 0; i + step < p.count; i += step) {
-      const j = Math.min(p.count - 1, i + step);
-      const lx0 = p.xs[i] + p.nx[i] * w, lz0 = p.zs[i] + p.nz[i] * w;
-      const rx0 = p.xs[i] - p.nx[i] * w, rz0 = p.zs[i] - p.nz[i] * w;
-      const lx1 = p.xs[j] + p.nx[j] * w, lz1 = p.zs[j] + p.nz[j] * w;
-      const rx1 = p.xs[j] - p.nx[j] * w, rz1 = p.zs[j] - p.nz[j] * w;
-      // bande centrale + 2 bords
-      const mids = [0.72, -0.72];
-      const L0 = [p.xs[i] + p.nx[i] * w * mids[0], p.zs[i] + p.nz[i] * w * mids[0]];
-      const R0 = [p.xs[i] + p.nx[i] * w * mids[1], p.zs[i] + p.nz[i] * w * mids[1]];
-      const L1 = [p.xs[j] + p.nx[j] * w * mids[0], p.zs[j] + p.nz[j] * w * mids[0]];
-      const R1 = [p.xs[j] + p.nx[j] * w * mids[1], p.zs[j] + p.nz[j] * w * mids[1]];
-      const quad = (a: number[], b: number[], c: number[], d: number[], col: THREE.Color) => {
-        const k = 0.93 + hash(a[0], a[1]) * 0.12;
-        verts.push(a[0], y, a[1], b[0], y, b[1], c[0], y, c[1], b[0], y, b[1], d[0], y, d[1], c[0], y, c[1]);
-        for (let v = 0; v < 6; v++) cols.push(col.r * k, col.g * k, col.b * k);
-      };
-      quad([lx0, lz0], [lx1, lz1], L0, L1, edge);
-      quad(L0, L1, R0, R1, dirt);
-      quad(R0, R1, [rx0, rz0], [rx1, rz1], edge);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    g.computeVertexNormals();
-    const m = new THREE.Mesh(g, mat);
-    m.receiveShadow = true;
-    group.add(m);
-  });
+  void mat; void dists;
 
   // ------------------------------------------------ eau / lave / vase
   const liq = liquidMaterial(theme.liquid);
   for (const [px, pz, r] of pools) {
-    const g = new THREE.CircleGeometry(r + 0.4, 18);
-    g.rotateX(-Math.PI / 2);
-    const edge = new Float32Array(g.attributes.position.count);
-    for (let i = 0; i < edge.length; i++) {
-      const x = g.attributes.position.getX(i), z = g.attributes.position.getZ(i);
-      edge[i] = Math.sqrt(x * x + z * z) / (r + 0.4);
+    // rive irrégulière : rayon modulé par du bruit, anneaux concentriques pour le dégradé
+    const seg = 48, rings = 6, R = r + 0.4;
+    const verts: number[] = [0, 0, 0], edges: number[] = [0], idx: number[] = [];
+    for (let k = 1; k <= rings; k++) for (let a = 0; a < seg; a++) {
+      const ang = (a / seg) * Math.PI * 2, f = k / rings;
+      const wob = 1 + (noise(px + Math.cos(ang) * 2.2, pz + Math.sin(ang) * 2.2) - 0.5) * 0.28 * f;
+      verts.push(Math.cos(ang) * R * f * wob, 0, Math.sin(ang) * R * f * wob);
+      edges.push(f);
     }
-    g.setAttribute('edge', new THREE.BufferAttribute(edge, 1));
+    for (let a = 0; a < seg; a++) idx.push(0, 1 + ((a + 1) % seg), 1 + a);
+    for (let k = 1; k < rings; k++) for (let a = 0; a < seg; a++) {
+      const i0 = 1 + (k - 1) * seg + a, i1 = 1 + (k - 1) * seg + ((a + 1) % seg);
+      const o0 = i0 + seg, o1 = i1 + seg;
+      idx.push(i0, i1, o1, i0, o1, o0);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setAttribute('edge', new THREE.Float32BufferAttribute(edges, 1));
+    g.setIndex(idx);
     const m = new THREE.Mesh(g, liq);
     m.position.set(px, -0.12, pz);
     group.add(m);

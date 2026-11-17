@@ -205,31 +205,185 @@ export function hpBarMaterial(): THREE.ShaderMaterial {
   });
 }
 
-/** Eau / lave / vase animées. */
+const NOISE = /* glsl */ `
+float tHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float tNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(tHash(i), tHash(i + vec2(1.0, 0.0)), f.x), mix(tHash(i + vec2(0.0, 1.0)), tHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+/** petits disques semés au hasard (un par cellule, avec une probabilité) : cailloux, lentilles d'eau, bulles */
+float tDots(vec2 p, float density, float rMin, float rMax) {
+  vec2 c = floor(p), f = fract(p);
+  float best = 0.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 cc = c + vec2(float(i), float(j));
+    float h = tHash(cc);
+    if (h > density) continue;
+    vec2 o = vec2(tHash(cc + 3.7), tHash(cc + 9.1)) * 0.7 + 0.15 - f + vec2(float(i), float(j));
+    float r = mix(rMin, rMax, tHash(cc + 5.3));
+    best = max(best, 1.0 - smoothstep(r * 0.75, r, length(o * vec2(1.0, 1.25))));
+  }
+  return best;
+}
+float tFbm(vec2 p) { return tNoise(p) * 0.55 + tNoise(p * 2.03 + 17.0) * 0.28 + tNoise(p * 4.1 + 31.0) * 0.17; }
+`;
+
+export interface TerrainColors {
+  grass: number[];
+  dirt: number;
+  dirtEdge: number;
+  hill: number;
+  fog: number;
+}
+
+/**
+ * Sol : couleur calculée par pixel (aucune facette en damier).
+ * Herbe en grandes taches + détail fin, roche sur les pentes, collines, et le chemin peint dans le sol
+ * à partir d'une carte de distances (R : distance au chemin, G : distance aux mares), bords irréguliers et cailloux.
+ */
+export function terrainMaterial(t: TerrainColors, mask: THREE.Texture, bounds: [number, number, number, number], pathHalf: number): THREE.MeshLambertMaterial {
+  const m = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const c = (h: number) => new THREE.Color(h);
+  const g = t.grass;
+  const rock = c(t.hill).lerp(c(t.dirtEdge), 0.55).multiplyScalar(0.9);
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, {
+      uMask: { value: mask }, uBounds: { value: new THREE.Vector4(...bounds) }, uPathW: { value: pathHalf },
+      uG0: { value: c(g[0]) }, uG1: { value: c(g[1 % g.length]) }, uG2: { value: c(g[2 % g.length]) }, uG3: { value: c(g[3 % g.length]) },
+      uDirt: { value: c(t.dirt) }, uDirtEdge: { value: c(t.dirtEdge) }, uHill: { value: c(t.hill) }, uRock: { value: rock }, uEdge: { value: c(t.fog).multiplyScalar(0.9) },
+    });
+    shader.vertexShader = 'varying vec3 vWorldP;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = `varying vec3 vWorldP;
+uniform sampler2D uMask; uniform vec4 uBounds; uniform float uPathW;
+uniform vec3 uG0, uG1, uG2, uG3, uDirt, uDirtEdge, uHill, uRock, uEdge;
+${NOISE}
+` + shader.fragmentShader.replace('#include <color_fragment>', /* glsl */ `
+  vec2 wp = vWorldP.xz;
+  vec4 mk = texture2D(uMask, (wp - uBounds.xy) / uBounds.zw);
+  float dPath = mk.r * 6.0;
+  float dPool = mk.g * 6.0 - 1.5;
+  // herbe : grandes taches douces, nuances moyennes, brins fins
+  float n1 = tFbm(wp * 0.07);
+  vec3 col = mix(uG2, uG0, smoothstep(0.3, 0.6, n1));
+  col = mix(col, uG1, smoothstep(0.5, 0.75, tFbm(wp * 0.13 + 9.0)) * 0.8);
+  col = mix(col, uG3, smoothstep(0.62, 0.85, tNoise(wp * 0.45 + 3.0)) * 0.45);
+  col *= 0.92 + 0.12 * tNoise(wp * 3.3) + 0.05 * tNoise(wp * 9.0);
+  // relief : collines et roche sur les pentes
+  vec3 nrm = normalize(cross(dFdx(vWorldP), dFdy(vWorldP)));
+  float slope = 1.0 - abs(nrm.y);
+  col = mix(col, uHill, smoothstep(0.5, 3.5, vWorldP.y) * 0.85);
+  col = mix(col, uRock * (0.9 + 0.2 * tNoise(wp * 2.0)), smoothstep(0.32, 0.6, slope + (tNoise(wp * 1.7) - 0.5) * 0.2));
+  // chemin : bord irrégulier, terre tassée autour, centre plus clair, cailloux
+  float pw = uPathW + (tNoise(wp * 1.4) - 0.5) * 0.35;
+  float inPath = 1.0 - smoothstep(pw - 0.12, pw + 0.06, dPath);
+  float rim = (1.0 - smoothstep(pw, pw + 0.7 + tNoise(wp * 2.2) * 0.4, dPath)) * (1.0 - inPath);
+  vec3 dirt = mix(uDirtEdge, uDirt, smoothstep(pw * 0.95, pw * 0.4, dPath));
+  dirt *= 0.9 + 0.14 * tNoise(wp * 2.6) + 0.06 * tNoise(wp * 8.0);
+  // (calculés seulement sur le chemin : c'est la partie la plus coûteuse du shader)
+  float peb = dPath < pw ? tDots(wp * 3.0, 0.22, 0.08, 0.16) * smoothstep(pw, pw * 0.6, dPath) : 0.0;
+  dirt = mix(dirt, uDirt * 1.22 + 0.05, peb * 0.75);
+  float rut = smoothstep(0.1, 0.0, abs(dPath - pw * 0.45)) * 0.08;
+  dirt *= 1.0 - rut;
+  col = mix(col, mix(col, uDirtEdge, 0.6), rim * 0.75);
+  col = mix(col, dirt, inPath);
+  // berges des mares
+  float shore = 1.0 - smoothstep(-0.2, 0.9 + tNoise(wp * 2.0) * 0.4, dPool);
+  col = mix(col, uDirtEdge * 0.75, shore * 0.8);
+  // les bords de la carte se fondent dans la brume
+  vec2 e2 = abs(wp) / vec2(56.0, 42.0);
+  col = mix(col, uEdge, smoothstep(0.62, 1.0, max(e2.x, e2.y)) * 0.55);
+  diffuseColor.rgb *= col;
+`);
+  };
+  m.customProgramCacheKey = () => 'terrain';
+  return m;
+}
+
+/**
+ * Mares : eau (dégradé du fond vers la rive, vagues, reflets, écume), lave (croûte qui dérive, fissures
+ * incandescentes, pulsation) ou vase (eau trouble, algues, bulles). Attribut `edge` : 0 au centre, 1 sur la rive.
+ */
 export function liquidMaterial(kind: 'eau' | 'lave' | 'vase'): THREE.ShaderMaterial {
   const colors = {
-    eau: [new THREE.Color(0x3aa3c9), new THREE.Color(0x9fe3f0)],
-    lave: [new THREE.Color(0xd9400b), new THREE.Color(0xffd23f)],
-    vase: [new THREE.Color(0x3c5c3a), new THREE.Color(0x8fb36a)],
+    eau: [0x1f6f9f, 0x58c4dc],
+    lave: [0xb52a05, 0xffb02e],
+    vase: [0x24382a, 0x56703e],
   }[kind];
-  return new THREE.ShaderMaterial({
-    uniforms: { uTime: uniforms.uTime, cA: { value: colors[0] }, cB: { value: colors[1] }, uLava: { value: kind === 'lave' ? 1 : 0 } },
+  const mat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      cA: { value: new THREE.Color(colors[0]) }, cB: { value: new THREE.Color(colors[1]) }, uKind: { value: kind === 'eau' ? 0 : kind === 'lave' ? 1 : 2 },
+    }]),
     vertexShader: /* glsl */ `
       varying vec2 vP; varying float vEdge;
       attribute float edge;
-      void main() { vP = (modelMatrix * vec4(position, 1.0)).xz; vEdge = edge;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: /* glsl */ `
-      uniform float uTime; uniform vec3 cA; uniform vec3 cB; uniform float uLava;
-      varying vec2 vP; varying float vEdge;
+      #include <fog_pars_vertex>
       void main() {
-        float w = sin(vP.x * 1.7 + uTime * 0.9) * sin(vP.y * 1.3 - uTime * 0.7) + sin((vP.x + vP.y) * 2.9 + uTime * 1.6) * 0.5;
-        float band = step(0.55, w);
-        vec3 c = mix(cA, cB, band * (0.55 + 0.45 * uLava));
-        c = mix(c, cB, smoothstep(0.75, 1.0, vEdge) * 0.8);
-        if (uLava > 0.5) c *= 1.2 + 0.25 * sin(uTime * 2.0 + vP.x);
-        gl_FragColor = vec4(c, 1.0);
+        vP = (modelMatrix * vec4(position, 1.0)).xz; vEdge = edge;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform vec3 cA; uniform vec3 cB; uniform float uKind;
+      varying vec2 vP; varying float vEdge;
+      #include <fog_pars_fragment>
+      ${NOISE}
+      void main() {
+        float t = uTime, e = vEdge;
+        vec2 p = vP;
+        vec3 col;
+        if (uKind < 0.5) {
+          // eau
+          float w1 = tNoise(p * 0.9 + vec2(t * 0.22, t * 0.15));
+          float w2 = tNoise(p * 2.1 - vec2(t * 0.3, -t * 0.19));
+          float w = w1 * 0.6 + w2 * 0.4;
+          col = mix(cA, cB, smoothstep(0.25, 1.0, e) * 0.85 + (w - 0.5) * 0.15);
+          // reflets : réseau de caustiques déformé par les vagues (lignes douces, sans artefacts de grille)
+          vec2 q = p * 1.6 + vec2(w1, w2) * 2.2;
+          float ca = sin(q.x * 2.3 + t * 0.9) * sin(q.y * 2.1 - t * 0.7) + sin((q.x + q.y) * 1.7 + t * 0.6) * 0.6;
+          float glint = smoothstep(0.7, 1.6, ca);
+          col += glint * 0.28 * (1.0 - e * 0.4);
+          col += (w2 - 0.5) * 0.08;
+          // écume sur la rive
+          float foam = smoothstep(0.84, 0.97, e + (w - 0.5) * 0.14 + sin(t * 1.6 + e * 18.0) * 0.012);
+          col = mix(col, vec3(0.93, 0.98, 1.0), foam * 0.85);
+        } else if (uKind < 1.5) {
+          // lave
+          float n = tFbm(p * 0.6 + vec2(t * 0.05, t * 0.03));
+          float cr = tNoise(p * 1.8 - vec2(t * 0.09, 0.0));
+          float crust = smoothstep(0.42, 0.58, n * 0.6 + cr * 0.4);
+          vec3 hot = mix(cA * 1.3, cB * 1.35, smoothstep(0.35, 0.9, tNoise(p * 2.6 + t * 0.35)));
+          float cracks = 1.0 - smoothstep(0.0, 0.05, abs(n * 0.6 + cr * 0.4 - 0.5));
+          col = mix(hot, vec3(0.16, 0.07, 0.05) + cracks * 0.0, crust * 0.88);
+          col += vec3(1.0, 0.55, 0.15) * cracks * crust * 0.9;
+          col *= 0.92 + 0.12 * sin(t * 2.0 + p.x * 0.7 + p.y * 0.5);
+          col = mix(col, vec3(0.12, 0.06, 0.05), smoothstep(0.86, 1.0, e) * 0.9);
+        } else {
+          // vase
+          float w = tNoise(p * 1.2 + vec2(t * 0.06, -t * 0.04));
+          col = mix(cA, cB, smoothstep(0.3, 1.0, e) * 0.6 + (w - 0.5) * 0.25);
+          // algues : petites taches sombres qui dérivent lentement, lentilles d'eau claires éparses
+          float algae = smoothstep(0.6, 0.75, tFbm(p * 1.6 + vec2(t * 0.02, 4.0)));
+          col = mix(col, vec3(0.17, 0.27, 0.12), algae * 0.55);
+          float duck = tDots(p * 2.2 + vec2(t * 0.03, 0.0), 0.18, 0.12, 0.22) * (1.0 - smoothstep(0.7, 0.95, e));
+          col = mix(col, vec3(0.38, 0.52, 0.22), duck * 0.8);
+          // bulles qui apparaissent et éclatent
+          vec2 cell = floor(p * 2.5);
+          float seed = tHash(cell);
+          float life = fract(t * 0.35 + seed);
+          vec2 q = fract(p * 2.5) - 0.5 - (vec2(tHash(cell + 3.1), tHash(cell + 7.7)) - 0.5) * 0.5;
+          float ring = smoothstep(0.03, 0.0, abs(length(q) - life * 0.25)) * step(0.7, seed) * (1.0 - life);
+          col += ring * 0.35;
+          col = mix(col, vec3(0.2, 0.17, 0.1), smoothstep(0.85, 1.0, e) * 0.7);
+        }
+        gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
+        #include <fog_fragment>
       }`,
   });
+  // horloge partagée (la fusion des uniformes la copierait)
+  mat.uniforms.uTime = uniforms.uTime;
+  return mat;
 }
