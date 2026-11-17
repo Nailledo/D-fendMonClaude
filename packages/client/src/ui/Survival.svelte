@@ -36,16 +36,16 @@
         </button>
       {/each}
     </div>
-    <div class="row">
+    <div class="seg">
       {#each DIFFICULTY_NAMES as d, i}
-        <button class="btn small" class:gold={diff === i} onclick={() => setDifficulty(i as Difficulty)}>{d}</button>
+        <button class:on={diff === i} onclick={() => setDifficulty(i as Difficulty)}>{d}</button>
       {/each}
     </div>
     <HeroPicker value={ui.hero} onpick={setHero} />
     <div class="row">
       <button class="btn gold big grow" onclick={play}>Jouer seul</button>
       <button class="btn" onclick={() => { ui.screen = 'multi'; app.connect(); }}>{@html ICON.users} En coop</button>
-      <button class="btn ghost" onclick={() => (ui.screen = 'title')}>Retour</button>
+      <button class="btn ghost" onclick={() => (ui.screen = 'title')}>{@html ICON.back} Retour</button>
     </div>
   </div>
   <div class="panel lb">
@@ -58,18 +58,26 @@
 </div>
 
 <style>
-  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 640px) 280px; justify-content: center; align-items: start; gap: 16px; padding: 24px 16px; overflow: auto; background: rgba(20, 12, 6, 0.45); }
-  .main { display: flex; flex-direction: column; gap: 12px; }
-  h2, h3 { margin: 0; }
-  .muted { color: #7a6040; margin: 0; }
+  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 660px) 300px; justify-content: center; align-content: start; gap: 16px; padding: 28px 16px; overflow: auto; background: rgba(12, 14, 16, 0.55); }
+  .main { display: flex; flex-direction: column; gap: 14px; padding: 22px; }
+  h2 { margin: 0; font-size: 2.3em; }
+  h3 { margin: 0; font-size: 1.35em; display: flex; align-items: center; gap: 8px; }
+  .muted { color: var(--muted); margin: 0; }
   .maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .map { cursor: pointer; text-align: left; border-radius: 10px; padding: 12px; border: 3px solid transparent; color: #fff; display: flex; flex-direction: column; gap: 4px; min-height: 96px; box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35); }
-  .map span { font-size: 0.82em; opacity: 0.9; }
-  .map.vallee { background: linear-gradient(160deg, #7db955, #3f6e2a); }
-  .map.marais { background: linear-gradient(160deg, #6f8a6a, #2f4234); }
-  .map.cendre { background: linear-gradient(160deg, #a5402a, #3a1d18); }
-  .map.on { border-color: var(--gold); }
-  ol { margin: 8px 0 0; padding-left: 22px; }
-  li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed rgba(90, 58, 34, 0.3); }
+  .map { cursor: pointer; text-align: left; padding: 12px; border: 0; color: #fff; display: flex; flex-direction: column; gap: 6px; min-height: 104px; background: var(--b);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
+  .map b { font-family: var(--font-display); font-size: 1.3em; line-height: 1; }
+  .map span { font-size: 0.84em; opacity: 0.92; }
+  .map.vallee { --b: #5f8f3e; }
+  .map.marais { --b: #46705a; }
+  .map.cendre { --b: #7a3b2e; }
+  .map.on { box-shadow: inset 0 0 0 3px var(--gold), inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
+  .map:hover { filter: brightness(1.1); }
+  .lb { display: flex; flex-direction: column; gap: 8px; }
+  ol { margin: 0; padding: 0; list-style: none; counter-reset: r; }
+  li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(243, 238, 226, 0.1); font-variant-numeric: tabular-nums; counter-increment: r; }
+  li::before { content: counter(r); color: var(--faint); width: 1.6em; }
+  li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li b { color: var(--gold); }
   @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } .maps { grid-template-columns: 1fr; } }
 </style>

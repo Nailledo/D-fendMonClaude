@@ -21,14 +21,14 @@
       <h2>{@html ICON.trophy} Classement survie</h2>
       <button class="btn small" onclick={() => (ui.overlay = null)}>Fermer</button>
     </div>
-    <div class="row wrap">
-      {#each SURVIVAL_MAPS as m}<button class="btn small" class:gold={map === m} onclick={() => (map = m)}>{MAPS[m].name}</button>{/each}
+    <div class="seg">
+      {#each SURVIVAL_MAPS as m}<button class:on={map === m} onclick={() => (map = m)}>{MAPS[m].name}</button>{/each}
     </div>
-    <div class="row">
-      {#each [1, 2, 3, 4] as n}<button class="btn small" class:gold={players === n} onclick={() => (players = n)}>{n} joueur{n > 1 ? 's' : ''}</button>{/each}
+    <div class="seg">
+      {#each [1, 2, 3, 4] as n}<button class:on={players === n} onclick={() => (players = n)}>{n} joueur{n > 1 ? 's' : ''}</button>{/each}
     </div>
-    <div class="row">
-      {#each DIFFICULTY_NAMES as dn, i}<button class="btn small" class:gold={difficulty === i} onclick={() => (difficulty = i as Difficulty)}>{dn}</button>{/each}
+    <div class="seg">
+      {#each DIFFICULTY_NAMES as dn, i}<button class:on={difficulty === i} onclick={() => (difficulty = i as Difficulty)}>{dn}</button>{/each}
     </div>
     {#if error}<p class="muted">Serveur indisponible.</p>{:else if rows.length === 0}<p class="muted">Aucun score pour l’instant.</p>{/if}
     <ol class="scroll">
@@ -40,15 +40,14 @@
 </div>
 
 <style>
-  .box { width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column; gap: 10px; }
+  .box { width: min(580px, 100%); max-height: 88vh; display: flex; flex-direction: column; gap: 10px; }
   .head { display: flex; justify-content: space-between; align-items: center; }
-  h2 { margin: 0; }
-  .wrap { flex-wrap: wrap; }
-  ol { list-style: none; margin: 0; padding: 0; }
-  li { display: flex; gap: 10px; align-items: center; padding: 5px 8px; border-bottom: 1px dashed rgba(90, 58, 34, 0.3); }
-  li.podium { font-weight: 800; }
-  .rank { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, 0.12); font-weight: 800; }
-  li.podium .rank { background: var(--gold); }
-  .d { color: #7a6040; font-size: 0.8em; }
-  .muted { color: #7a6040; margin: 0; }
+  h2 { margin: 0; font-size: 2em; display: flex; align-items: center; gap: 10px; }
+  ol { list-style: none; margin: 6px 0 0; padding: 0; }
+  li { display: flex; gap: 12px; align-items: center; padding: 7px 4px; border-bottom: 1px solid rgba(243, 238, 226, 0.1); font-variant-numeric: tabular-nums; }
+  li.podium { font-weight: 700; }
+  .rank { width: 30px; height: 27px; display: grid; place-items: center; background: var(--raised); font-weight: 700; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+  li.podium .rank { background: var(--gold); color: var(--gold-ink); }
+  .d { color: var(--faint); font-size: 0.82em; }
+  .muted { color: var(--muted); margin: 0; }
 </style>

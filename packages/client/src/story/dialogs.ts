@@ -6,17 +6,17 @@ export interface Line {
 }
 
 export const SPEAKERS: Record<Speaker, { name: string; color: string }> = {
-  samuel: { name: 'Samuel', color: '#3b82f6' },
-  ethan: { name: 'Princesse Ethan', color: '#ec4899' },
-  kessin: { name: 'Kessin', color: '#dc2626' },
-  roi: { name: 'Le Roi Gontran', color: '#eab308' },
-  lyra: { name: 'Lyra', color: '#16a34a' },
-  brom: { name: 'Brom', color: '#b45309' },
-  nox: { name: 'Nox', color: '#7c3aed' },
-  grolbak: { name: 'Grôlbak', color: '#65a30d' },
-  vasiere: { name: 'Mère Vasière', color: '#4d7c0f' },
-  narrateur: { name: 'Narrateur', color: '#6b5a48' },
-  corbeau: { name: 'Corbeau messager', color: '#64748b' },
+  samuel: { name: 'Samuel', color: '#6aa8ff' },
+  ethan: { name: 'Princesse Ethan', color: '#f472b6' },
+  kessin: { name: 'Kessin', color: '#f26464' },
+  roi: { name: 'Le Roi Gontran', color: '#f2c94c' },
+  lyra: { name: 'Lyra', color: '#6fcf74' },
+  brom: { name: 'Brom', color: '#e0954a' },
+  nox: { name: 'Nox', color: '#b48cff' },
+  grolbak: { name: 'Grôlbak', color: '#a3d65c' },
+  vasiere: { name: 'Mère Vasière', color: '#8fbf5a' },
+  narrateur: { name: 'Narrateur', color: '#c9bba4' },
+  corbeau: { name: 'Corbeau messager', color: '#a5b4c8' },
 };
 
 export interface LevelStory {

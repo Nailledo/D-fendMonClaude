@@ -1,3 +1,9 @@
+// polices hébergées avec le jeu (aucune requête vers un service tiers)
+import '@fontsource/atkinson-hyperlegible/400.css';
+import '@fontsource/atkinson-hyperlegible/700.css';
+import '@fontsource/grenze/500.css';
+import '@fontsource/grenze/700.css';
+import '@fontsource/grenze-gotisch/700.css';
 import './app.css';
 import { mount } from 'svelte';
 import { app } from './app';

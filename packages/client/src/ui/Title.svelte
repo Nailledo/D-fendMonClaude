@@ -1,14 +1,23 @@
 <script lang="ts">
+  import { LEVELS } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { app } from '../app';
   import { progress, setName, ui } from '../state.svelte';
   import { ICON } from './icons';
 
+  let editing = $state(false);
   let name = $state(ui.name);
+  let input: HTMLInputElement | undefined = $state();
+  const stars = $derived(progress.stars.reduce((s, l) => s + Math.max(0, ...(l ?? [0])), 0));
+  const next = $derived(Math.min(progress.unlocked, LEVELS.length - 1));
+  const storyLabel = $derived(progress.unlocked === 0 ? 'Commencer l’histoire' : progress.finished ? 'Histoire' : 'Continuer l’histoire');
+  const storySub = $derived(
+    progress.finished ? `Campagne terminée · ${stars} ★ sur ${LEVELS.length * 3}` : `Niveau ${next + 1} · ${LEVELS[next].name}`,
+  );
+
   function go(screen: typeof ui.screen) {
     audio.unlock();
     audio.play('click');
-    if (name.trim()) setName(name.trim());
     if (screen === 'multi') {
       if (!ui.name) setName('Chevalier' + Math.floor(Math.random() * 100));
       app.connect();
@@ -20,81 +29,83 @@
     audio.play('click');
     ui.overlay = o;
   }
+  function edit() {
+    name = ui.name;
+    editing = true;
+    queueMicrotask(() => input?.focus());
+  }
+  function commit() {
+    setName(name.trim());
+    editing = false;
+  }
 </script>
 
-<div class="title ui">
+<div class="titlescreen ui">
   <div class="logo">
-    <div class="crest">{@html ICON.shield}</div>
     <h1>D-Fend</h1>
     <p class="sub">La Quête de Samuel</p>
   </div>
 
-  <div class="menu wood">
-    <label class="name">
-      <span>Votre nom</span>
-      <input type="text" maxlength="16" placeholder="Samuel" bind:value={name} onchange={() => setName(name.trim())} />
-    </label>
-    <button class="btn gold big" onclick={() => go('story')}>
-      Histoire {#if progress.unlocked > 0}<span class="tag">Niveau {progress.unlocked + 1}</span>{/if}
-    </button>
-    <button class="btn big" onclick={() => go('survival')}>Survie</button>
-    <button class="btn big" onclick={() => go('multi')}>{@html ICON.users} Multijoueur</button>
-    <div class="row small">
-      <button class="btn ghost" onclick={() => overlay('encyclo')}>{@html ICON.book} Encyclopédie</button>
-      <button class="btn ghost" onclick={() => overlay('leaderboard')}>{@html ICON.trophy} Classement</button>
+  <nav class="menu" aria-label="Menu principal">
+    <button class="row main" onclick={() => go('story')}><b>{storyLabel}</b><span>{storySub}</span>{@html ICON.chev}</button>
+    <button class="row" onclick={() => go('survival')}><b>Survie</b><span>Vagues sans fin, classement en ligne</span>{@html ICON.chev}</button>
+    <button class="row" onclick={() => go('multi')}><b>Multijoueur</b><span>De 1 à 4 joueurs avec un code de salon</span>{@html ICON.users}</button>
+    <div class="small">
+      <button onclick={() => overlay('encyclo')}>{@html ICON.book}Encyclopédie</button>
+      <button onclick={() => overlay('leaderboard')}>{@html ICON.trophy}Classement</button>
+      <button onclick={() => overlay('help')}>{@html ICON.help}Aide</button>
+      <button onclick={() => overlay('settings')}>{@html ICON.gear}Réglages</button>
     </div>
-    <div class="row small">
-      <button class="btn ghost" onclick={() => overlay('help')}>Comment jouer</button>
-      <button class="btn ghost" onclick={() => overlay('settings')}>{@html ICON.gear} Paramètres</button>
-    </div>
+  </nav>
+
+  <div class="profile panel">
+    <div class="pp">{#if ui.portraits[ui.hero]}<img src={ui.portraits[ui.hero]} alt="" />{/if}</div>
+    {#if editing}
+      <form onsubmit={(e) => { e.preventDefault(); commit(); }}>
+        <label class="sr" for="pname">Votre nom</label>
+        <input id="pname" bind:this={input} type="text" maxlength="16" placeholder="Votre nom" bind:value={name} onblur={commit} onkeydown={(e) => e.key === 'Escape' && (editing = false)} />
+      </form>
+    {:else}
+      <button class="who" onclick={edit} aria-label="Modifier votre nom">
+        <span><b>{ui.name || 'Choisir un nom'}</b><small>{stars} ★ sur {LEVELS.length * 3}</small></span>
+        {@html ICON.edit}
+      </button>
+    {/if}
   </div>
-  <p class="credit">Tout est modélisé, dessiné et composé en code. Aucune image générée.</p>
 </div>
 
 <style>
-  .title {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 26px;
-    padding: 16px;
-    background: radial-gradient(ellipse at center, transparent 30%, rgba(10, 6, 3, 0.55));
+  .titlescreen { position: fixed; inset: 0; padding: clamp(24px, 6vh, 72px) clamp(20px, 6vw, 80px); display: flex; flex-direction: column; justify-content: center; gap: clamp(20px, 5vh, 44px); }
+  .logo { animation: rise 0.5s ease; filter: drop-shadow(0 5px 0 rgba(8, 10, 12, 0.65)); }
+  h1 { margin: 0; font-family: var(--font-logo); font-size: clamp(76px, 12vw, 144px); line-height: 0.88; color: var(--text); }
+  .sub { margin: 6px 0 0 6px; font-family: var(--font-display); font-weight: 700; font-size: clamp(18px, 2.4vw, 27px); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+  .menu { display: flex; flex-direction: column; gap: 10px; width: min(430px, 100%); animation: rise 0.5s ease 0.05s both; filter: var(--drop); }
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 3px 14px; padding: 13px 18px; border: 0; text-align: left; cursor: pointer; color: var(--text);
+    background: linear-gradient(135deg, transparent var(--cut), var(--panel) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut), var(--panel) 0) right / 50.5% 100% no-repeat; }
+  .row:hover { filter: brightness(1.15); }
+  .row:active { transform: translateY(2px); }
+  .row b { font-family: var(--font-display); font-size: 1.75em; line-height: 1; }
+  .row span { grid-column: 1; font-size: 0.93em; color: var(--muted); }
+  .row :global(.icon) { grid-row: 1 / span 2; grid-column: 2; width: 26px; height: 26px; color: var(--muted); }
+  .row.main { color: var(--gold-ink);
+    background: linear-gradient(135deg, transparent var(--cut), var(--gold) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut), var(--gold) 0) right / 50.5% 100% no-repeat; }
+  .row.main span, .row.main :global(.icon) { color: #4a3510; }
+  .small { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+  .small button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px; border: 0; cursor: pointer; font-size: 0.86em; font-weight: 700; color: var(--text);
+    background: linear-gradient(135deg, transparent var(--cut-sm), var(--panel) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut-sm), var(--panel) 0) right / 50.5% 100% no-repeat; }
+  .small button:hover { filter: brightness(1.18); }
+  .small :global(.icon) { width: 22px; height: 22px; color: var(--muted); }
+  .profile { position: absolute; top: 16px; right: 16px; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; }
+  .pp { width: 44px; height: 44px; background: #d9cfb8; overflow: hidden; flex: none; }
+  .pp img { width: 100%; height: 100%; display: block; }
+  .who { display: flex; align-items: center; gap: 12px; border: 0; background: none; cursor: pointer; text-align: left; padding: 0; color: var(--text); }
+  .who b { display: block; font-size: 1.05em; }
+  .who small { display: block; font-size: 0.8em; color: var(--muted); }
+  .who :global(.icon) { color: var(--muted); }
+  .profile input { width: 170px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  @media (max-width: 640px) {
+    .titlescreen { justify-content: flex-end; padding-bottom: 24px; }
+    .small { grid-template-columns: repeat(2, 1fr); }
   }
-  .logo { text-align: center; animation: pop 0.6s ease; }
-  .crest { font-size: 54px; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6)); }
-  h1 {
-    margin: 0;
-    font-size: clamp(56px, 11vw, 120px);
-    font-weight: 800;
-    line-height: 0.95;
-    background: linear-gradient(180deg, #fff3c4 0%, #f2c14e 45%, #b9770e 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    filter: drop-shadow(0 3px 0 #4a2a0a) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.6));
-  }
-  .sub {
-    margin: 6px 0 0;
-    font-family: 'Cinzel', serif;
-    font-size: clamp(18px, 3vw, 28px);
-    color: #fff3d6;
-    text-shadow: 0 2px 6px #000;
-    letter-spacing: 0.08em;
-  }
-  .menu {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 20px;
-    width: min(360px, 100%);
-    animation: rise 0.5s ease;
-  }
-  .menu .btn { width: 100%; display: flex; justify-content: center; gap: 8px; align-items: center; }
-  .row.small .btn { font-size: 0.85em; padding: 8px 6px; }
-  .name { display: flex; flex-direction: column; gap: 4px; font-weight: 700; color: var(--muted); }
-  .tag { font-family: 'Nunito', sans-serif; font-size: 0.65em; background: rgba(0, 0, 0, 0.2); padding: 2px 8px; border-radius: 99px; }
-  .credit { margin: 0; font-size: 0.8em; color: #f3e3bf; text-shadow: 0 1px 3px #000; opacity: 0.85; text-align: center; }
 </style>

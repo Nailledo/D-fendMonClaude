@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ENEMIES, FAMILIES, HEROES, HERO_IDS, TOWERS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
-  import { FAMILY_NAME, ICON } from './icons';
+  import { FAMILY_COLOR, FAMILY_NAME, ICON } from './icons';
 
   let tab = $state<'towers' | 'enemies' | 'heroes'>('towers');
   const enemies = ENEMIES.filter((e) => !e.spawnOnly || e.boss);
@@ -13,15 +13,15 @@
       <h2>{@html ICON.book} Encyclopédie</h2>
       <button class="btn small" onclick={() => (ui.overlay = null)}>Fermer</button>
     </div>
-    <div class="row">
-      <button class="btn small" class:gold={tab === 'towers'} onclick={() => (tab = 'towers')}>Tours</button>
-      <button class="btn small" class:gold={tab === 'enemies'} onclick={() => (tab = 'enemies')}>Ennemis ({progress.seen.length})</button>
-      <button class="btn small" class:gold={tab === 'heroes'} onclick={() => (tab = 'heroes')}>Héros</button>
+    <div class="seg">
+      <button class:on={tab === 'towers'} onclick={() => (tab = 'towers')}>Tours</button>
+      <button class:on={tab === 'enemies'} onclick={() => (tab = 'enemies')}>Ennemis ({progress.seen.length})</button>
+      <button class:on={tab === 'heroes'} onclick={() => (tab = 'heroes')}>Héros</button>
     </div>
     <div class="body scroll">
       {#if tab === 'towers'}
         {#each FAMILIES as f, fi}
-          <h3>{FAMILY_NAME[fi]}</h3>
+          <h3 style="--fc:{FAMILY_COLOR[fi]}">{FAMILY_NAME[fi]}</h3>
           <div class="grid">
             {#each TOWERS[f] as t, l}
               <div class="card">
@@ -67,15 +67,18 @@
 </div>
 
 <style>
-  .box { width: min(980px, 100%); height: min(86vh, 900px); display: flex; flex-direction: column; gap: 10px; }
+  .box { width: min(1000px, 100%); height: min(88vh, 900px); display: flex; flex-direction: column; gap: 14px; }
   .head { display: flex; justify-content: space-between; align-items: center; }
-  h2, h3 { margin: 0; }
-  h3 { margin-top: 8px; }
+  h2 { margin: 0; font-size: 2em; display: flex; align-items: center; gap: 10px; }
+  h3 { margin: 14px 0 8px; font-size: 1.45em; display: flex; align-items: center; gap: 10px; }
+  h3::before { content: ''; width: 14px; height: 14px; background: var(--fc, var(--gold)); }
   .body { flex: 1; padding-right: 6px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
-  .card { display: flex; flex-direction: column; gap: 3px; align-items: center; text-align: center; padding: 8px; border-radius: 10px; background: rgba(0, 0, 0, 0.07); }
-  .card img { width: 96px; height: 96px; }
-  .card.unknown img { filter: brightness(0) opacity(0.45); }
-  .small { font-size: 0.8em; color: #5b4128; }
-  .cost { font-weight: 800; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
+  .card { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; padding: 10px; background: var(--raised); }
+  .card img { width: 96px; height: 96px; background: #d9cfb8; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .card b { font-size: 1.02em; }
+  .card.unknown img { filter: brightness(0) opacity(0.5); }
+  .small { font-size: 0.83em; color: var(--muted); line-height: 1.35; }
+  .small b { color: var(--text); }
+  .cost { font-weight: 700; color: var(--gold); display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 </style>

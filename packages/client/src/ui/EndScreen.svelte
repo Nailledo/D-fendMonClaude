@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { DIFFICULTY_NAMES, LEVELS } from '@dfend/shared';
+  import { DIFFICULTY_NAMES, LEVELS, PLAYER_COLORS } from '@dfend/shared';
   import { app } from '../app';
   import { progress, ui } from '../state.svelte';
   import { ICON } from './icons';
@@ -11,6 +11,7 @@
   $effect(() => {
     if (e.mode === 'survival' && !multi && !ui.submitted) void app.submitScore();
   });
+  const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
   const total = $derived(e.stats.reduce((s, p) => s + p.damage, 0) || 1);
 </script>
 
@@ -31,7 +32,7 @@
       <thead><tr><th>Joueur</th><th>Éliminations</th><th>Dégâts</th><th>Or gagné</th></tr></thead>
       <tbody>
         {#each e.stats as s}
-          <tr><td>{s.name}</td><td>{s.kills}</td><td>{s.damage} <span class="pct">({Math.round((s.damage / total) * 100)} %)</span></td><td>{s.gold}</td></tr>
+          <tr><td>{s.name}</td><td>{s.kills}</td><td class="dmgcell"><span class="bar"><i style="width:{(s.damage / total) * 100}%; background:{hex(PLAYER_COLORS[s.id] ?? 0xf2b33d)}"></i></span>{s.damage} <span class="pct">{Math.round((s.damage / total) * 100)} %</span></td><td>{s.gold}</td></tr>
         {/each}
       </tbody>
     </table>
@@ -46,15 +47,21 @@
 </div>
 
 <style>
-  .end { width: min(560px, 100%); text-align: center; display: flex; flex-direction: column; gap: 10px; animation: pop 0.3s ease; }
-  h1 { margin: 0; font-size: 2.4em; color: #7f1d1d; }
-  h1.won { color: #7a4d06; }
-  .stars { display: flex; justify-content: center; gap: 8px; font-size: 54px; }
-  .stars span { animation: pop 0.4s ease both; }
-  .big { font-size: 1.2em; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
-  th, td { padding: 4px 6px; border-bottom: 1px dashed rgba(90, 58, 34, 0.35); }
-  th { font-family: 'Cinzel', serif; font-size: 0.85em; }
-  .pct { color: #7a6040; font-size: 0.85em; }
-  .btns { justify-content: center; flex-wrap: wrap; }
+  .end { width: min(600px, 100%); text-align: center; display: flex; flex-direction: column; gap: 14px; padding: 26px 24px 22px; animation: pop 0.25s ease; }
+  h1 { margin: 0; font-size: 3em; color: var(--bad); }
+  h1.won { color: var(--gold); }
+  p { margin: 0; color: var(--muted); }
+  .stars { display: flex; justify-content: center; gap: 10px; }
+  .stars span { animation: pop 0.35s ease both; }
+  .stars :global(.icon) { width: 58px; height: 58px; }
+  .big { font-size: 1.2em; color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.93em; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 6px; border-bottom: 1px solid rgba(243, 238, 226, 0.1); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .dmgcell { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .bar { width: 70px; height: 6px; background: var(--line); display: inline-block; }
+  .bar i { display: block; height: 100%; }
+  .pct { color: var(--faint); font-size: 0.85em; min-width: 3.2em; }
+  .btns { justify-content: center; flex-wrap: wrap; margin-top: 4px; }
 </style>

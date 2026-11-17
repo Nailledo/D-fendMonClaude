@@ -1,15 +1,16 @@
 <script lang="ts">
-  import { DIFFICULTY_NAMES, LEVELS, MAPS, type Difficulty } from '@dfend/shared';
+  import { DIFFICULTY_NAMES, ENEMIES, ENEMY_INDEX, HEROES, LEVELS, MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
-  import { HEROES } from '@dfend/shared';
   import { progress, setDifficulty, setHero, ui } from '../state.svelte';
+  import { enemyTraits } from './enemyTraits';
   import HeroPicker from './HeroPicker.svelte';
   import { ICON } from './icons';
 
   // positions des niveaux sur la carte (en %)
   const POS = [[12, 74], [24, 56], [17, 34], [38, 40], [50, 62], [64, 44], [74, 26], [88, 16]];
   const BIOME = ['Vallée d’Aubeclair', 'Vallée d’Aubeclair', 'Vallée d’Aubeclair', 'Marais de Brumenoire', 'Marais de Brumenoire', 'Terres de Cendre', 'Terres de Cendre', 'Citadelle de Kessin'];
+  const DIFF_HINT = ['20 vies, ennemis affaiblis : pour découvrir l’histoire.', '20 vies : la difficulté prévue, exigeante.', 'Une seule vie. Aucune erreur permise.'];
   let sel = $state(Math.min(progress.unlocked, LEVELS.length - 1));
   const nightmareFor = (i: number) => (progress.stars[i]?.[1] ?? 0) >= 3 || (progress.stars[i]?.[2] ?? 0) > 0;
   // Cauchemar mémorisé mais pas encore débloqué sur ce niveau : on retombe sur Vétéran
@@ -17,132 +18,172 @@
   const stars = (i: number) => Math.max(0, ...(progress.stars[i] ?? [0]));
   const nightmareOk = $derived(nightmareFor(sel));
   const totalStars = $derived(LEVELS.reduce((s, _, i) => s + stars(i), 0));
+  const level = $derived(LEVELS[sel]);
+  const paths = $derived(MAPS[level.mapId].paths.length);
+  const foes = $derived(level.roster.map((r) => ENEMIES[ENEMY_INDEX[r.type]]));
+  const boss = $derived(level.boss ? ENEMIES[ENEMY_INDEX[level.boss.type]] : null);
+  const best = $derived(progress.stars[sel] ?? []);
 
   function play() {
     audio.play('click');
-    app.startSolo('story', LEVELS[sel].mapId, diff, ui.hero, sel);
+    app.startSolo('story', level.mapId, diff, ui.hero, sel);
   }
   function coop() {
     audio.play('click');
     ui.screen = 'multi';
     app.connect();
   }
-  const path = POS.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+
+  // ---- fond en facettes, dessiné en code (déterministe) ----
+  const W = 160, H = 100, C = 8;
+  function facets() {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const cols = Math.ceil(W / C), rows = Math.ceil(H / C);
+    const pts: number[][][] = [];
+    for (let y = 0; y <= rows; y++) {
+      pts.push([]);
+      for (let x = 0; x <= cols; x++) {
+        const edge = x === 0 || y === 0 || x === cols || y === rows;
+        pts[y].push([x * C + (edge ? 0 : (rnd() - 0.5) * 4.4), y * C + (edge ? 0 : (rnd() - 0.5) * 4.4)]);
+      }
+    }
+    const PAL = [
+      ['#6fa34a', '#7db356', '#629642'],
+      ['#4e7a5e', '#5d8a6b', '#466e56'],
+      ['#763e32', '#844838', '#68362c'],
+      ['#422624', '#4e2c28', '#3a2020'],
+    ];
+    const out: { d: string; c: string }[] = [];
+    for (let y = 0; y < rows; y++)
+      for (let x = 0; x < cols; x++) {
+        const a = pts[y][x], b = pts[y][x + 1], c = pts[y + 1][x + 1], d = pts[y + 1][x];
+        for (const t of [[a, b, c], [a, c, d]]) {
+          const cx = (t[0][0] + t[1][0] + t[2][0]) / 3, cy = (t[0][1] + t[1][1] + t[2][1]) / 3;
+          const f = (cx / W) * 0.62 + (1 - cy / H) * 0.38;
+          const pal = PAL[f < 0.36 ? 0 : f < 0.56 ? 1 : f < 0.8 ? 2 : 3];
+          out.push({ d: 'M' + t.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + 'Z', c: pal[Math.floor(rnd() * 3)] });
+        }
+      }
+    return out;
+  }
+  const FACETS = facets();
+  const route = POS.map(([x, y], i) => `${i ? 'L' : 'M'}${(x * W) / 100} ${y}`).join(' ');
 </script>
 
 <div class="wrap ui">
-  <div class="map panel">
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="bg">
-      <defs>
-        <radialGradient id="v" cx="20%" cy="65%" r="40%"><stop offset="0" stop-color="#9ccc65" stop-opacity="0.55" /><stop offset="1" stop-color="#9ccc65" stop-opacity="0" /></radialGradient>
-        <radialGradient id="m" cx="45%" cy="52%" r="25%"><stop offset="0" stop-color="#5e7d4a" stop-opacity="0.55" /><stop offset="1" stop-color="#5e7d4a" stop-opacity="0" /></radialGradient>
-        <radialGradient id="c" cx="80%" cy="25%" r="35%"><stop offset="0" stop-color="#bf360c" stop-opacity="0.55" /><stop offset="1" stop-color="#bf360c" stop-opacity="0" /></radialGradient>
-      </defs>
-      <rect width="100" height="100" fill="url(#v)" />
-      <rect width="100" height="100" fill="url(#m)" />
-      <rect width="100" height="100" fill="url(#c)" />
-      <path d="M6 90 Q 20 70 10 50 T 30 20" stroke="#7aa6c2" stroke-width="1.2" fill="none" opacity="0.6" />
-      {#each [[8, 20], [30, 80], [42, 16], [70, 70], [90, 60]] as [x, y]}
-        <g opacity="0.45"><path d="M{x} {y} l2 -5 l2 5z M{x + 3} {y + 1} l2 -4 l2 4z" fill="#5d4037" /></g>
-      {/each}
-      <path d={path} stroke="#7a4a1e" stroke-width="0.8" stroke-dasharray="1.6 1.2" fill="none" />
+  <div class="map">
+    <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" class="bg" aria-hidden="true">
+      {#each FACETS as f}<path d={f.d} fill={f.c} stroke={f.c} stroke-width="0.15" />{/each}
+      <path d={route} fill="none" stroke="#0f1316" stroke-width="12" stroke-linejoin="bevel" vector-effect="non-scaling-stroke" />
+      <path d={route} fill="none" stroke="#e9dcb8" stroke-width="6" stroke-linejoin="bevel" vector-effect="non-scaling-stroke" />
     </svg>
+    <span class="blabel" style="left:5%;top:88%">Vallée d’Aubeclair</span>
+    <span class="blabel" style="left:44%;top:78%">Marais de Brumenoire</span>
+    <span class="blabel" style="left:60%;top:60%">Terres de Cendre</span>
+
     {#each LEVELS as l, i}
       {@const locked = i > progress.unlocked}
-      <button
-        class="node"
-        class:locked
-        class:on={sel === i}
-        class:boss={!!l.boss}
-        style="left:{POS[i][0]}%;top:{POS[i][1]}%"
-        disabled={locked}
-        onclick={() => { sel = i; audio.play('click'); }}
-      >
-        <span class="num">{#if locked}{@html ICON.lock}{:else}{i + 1}{/if}</span>
-        {#if !locked}
-          <span class="stars">{#each [0, 1, 2] as k}{@html k < stars(i) ? ICON.star : ICON.starEmpty}{/each}</span>
-        {/if}
+      {@const done = stars(i) > 0}
+      <button class="node" class:locked class:done class:on={sel === i} disabled={locked}
+        style="left:{POS[i][0]}%;top:{POS[i][1]}%" aria-label="Niveau {i + 1} : {l.name}{locked ? ' (verrouillé)' : ''}"
+        onclick={() => { sel = i; audio.play('click'); }}>
+        <span class="hx">{#if locked}{@html ICON.lock}{:else}{i + 1}{/if}</span>
+        {#if l.boss}<span class="bossmark" title="Boss"></span>{/if}
+        {#if done}<span class="stars">{#each [0, 1, 2] as k}{@html k < stars(i) ? ICON.star : ICON.starEmpty}{/each}</span>{/if}
       </button>
     {/each}
-    <div class="compass">{@html ICON.star} {totalStars} / {LEVELS.length * 3}</div>
+
+    <div class="top">
+      <button class="btn" onclick={() => (ui.screen = 'title')}>{@html ICON.back} Menu</button>
+      <span class="total panel">{@html ICON.star} {totalStars} / {LEVELS.length * 3}</span>
+    </div>
   </div>
 
-  <div class="side panel">
-    <p class="biome">{BIOME[sel]}</p>
-    <h2>{sel + 1}. {LEVELS[sel].name}</h2>
-    <p class="desc">
-      {LEVELS[sel].waves} vagues · {MAPS[LEVELS[sel].mapId].paths.length} chemin{MAPS[LEVELS[sel].mapId].paths.length > 1 ? 's' : ''}
-      {#if LEVELS[sel].boss}· <b class="bossTxt">Boss</b>{/if}
-    </p>
-    <div class="diffs">
-      {#each DIFFICULTY_NAMES as d, i}
-        <button class="btn small" class:gold={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => setDifficulty(i as Difficulty)}>
-          {d}
-        </button>
-      {/each}
+  <aside class="side panel">
+    <div>
+      <p class="eyebrow">{BIOME[sel]} · niveau {sel + 1}</p>
+      <h2>{level.name}</h2>
     </div>
-    <p class="hint">
-      {#if diff === 0}Pour découvrir l’histoire tranquillement.{:else if diff === 1}La difficulté prévue : exigeante.{:else}Une seule vie. Aucune erreur permise.{/if}
-      {#if !nightmareOk}<br /><span class="lock">Cauchemar : obtenez 3 étoiles en Vétéran sur ce niveau.</span>{/if}
-    </p>
-    <div class="heroes">
+    <div class="meta">
+      <span class="chip">{level.waves} vagues</span>
+      <span class="chip">{paths} chemin{paths > 1 ? 's' : ''}</span>
+      {#if boss}<span class="chip bosschip">Boss : {boss.name.split(',')[0]}</span>{/if}
+    </div>
+
+    <section>
+      <h3 class="lbl">Ennemis</h3>
+      <ul class="foes">
+        {#each foes as f}
+          {@const tr = enemyTraits(f)}
+          <li><span>{f.name}</span>{#if tr[0]}<em>{tr[0]}</em>{/if}</li>
+        {/each}
+      </ul>
+    </section>
+
+    <section>
+      <h3 class="lbl">Difficulté</h3>
+      <div class="seg">
+        {#each DIFFICULTY_NAMES as d, i}
+          <button class:on={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => setDifficulty(i as Difficulty)}>
+            {#if i === 2 && !nightmareOk}{@html ICON.lock}{/if}{d}{#if (best[i] ?? 0) > 0}<small> · {best[i]} ★</small>{/if}
+          </button>
+        {/each}
+      </div>
+      <p class="hint">{DIFF_HINT[diff]}{#if !nightmareOk}<br /><span class="lock">Cauchemar : obtenez 3 étoiles en Vétéran sur ce niveau.</span>{/if}</p>
+    </section>
+
+    <section>
+      <h3 class="lbl">Héros</h3>
       <HeroPicker value={ui.hero} onpick={setHero} compact />
       <p class="hint"><b>{HEROES[ui.hero].name}</b>, {HEROES[ui.hero].title.toLowerCase()}. {HEROES[ui.hero].passive.desc}</p>
-    </div>
-    <div class="col">
-      <button class="btn gold big" onclick={play}>Jouer seul</button>
+    </section>
+
+    <div class="cta">
+      <button class="btn gold big" onclick={play}>Jouer</button>
       <button class="btn" onclick={coop}>{@html ICON.users} Jouer en coop</button>
-      <button class="btn ghost" onclick={() => (ui.screen = 'title')}>Retour</button>
     </div>
-  </div>
+  </aside>
 </div>
 
 <style>
-  .wrap {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 16px;
-    padding: 16px;
-    background: rgba(20, 12, 6, 0.45);
-  }
-  .map { position: relative; overflow: hidden; padding: 0; }
+  .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 360px; gap: 0; background: #1b2124; }
+  .map { position: relative; overflow: hidden; min-height: 0; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .node {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    border: 3px solid var(--wood-dark);
-    background: radial-gradient(circle at 35% 30%, #fff4cf, #e0b75a);
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    font-family: 'Cinzel', serif;
-    font-weight: 800;
-    font-size: 20px;
-    color: var(--ink);
-    box-shadow: 0 4px 0 var(--wood-dark), 0 6px 14px rgba(0, 0, 0, 0.35);
-    transition: transform 0.15s;
-  }
-  .node:hover:not(:disabled) { transform: translate(-50%, -50%) scale(1.1); }
-  .node.on { outline: 4px solid rgba(242, 193, 78, 0.8); outline-offset: 3px; }
-  .node.boss { background: radial-gradient(circle at 35% 30%, #ffd1c4, #c2410c); color: #fff; }
-  .node.locked { filter: grayscale(1) brightness(0.8); cursor: not-allowed; }
-  .stars { position: absolute; bottom: -18px; display: flex; font-size: 13px; }
-  .compass { position: absolute; right: 14px; bottom: 10px; font-weight: 800; }
-  .side { display: flex; flex-direction: column; gap: 10px; overflow: auto; }
-  .side h2 { margin: 0; font-size: 1.4em; }
-  .biome { margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75em; font-weight: 800; color: #8a5a2b; }
-  .desc, .hint { margin: 0; font-size: 0.9em; }
-  .bossTxt { color: var(--red); }
-  .lock { color: #7a4d06; font-weight: 700; }
-  .heroes { display: flex; flex-direction: column; gap: 6px; }
-  .diffs { display: flex; gap: 6px; flex-wrap: wrap; }
-  .col .btn { width: 100%; }
-  @media (max-width: 760px) {
-    .wrap { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .blabel { position: absolute; transform: translate(0, -50%); font-family: var(--font-display); font-weight: 700; font-size: clamp(13px, 1.4vw, 18px); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 255, 255, 0.82); pointer-events: none; white-space: nowrap; }
+  .node { position: absolute; transform: translate(-50%, -50%); width: 60px; height: 54px; padding: 0; border: 0; background: none; cursor: pointer; filter: var(--drop); }
+  .hx { position: absolute; inset: 0; display: grid; place-items: center; background: #3a4349; color: var(--muted); font-family: var(--font-display); font-weight: 700; font-size: 24px;
+    clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+  .node.done .hx { background: var(--gold); color: var(--gold-ink); }
+  .node:not(.locked):not(.done) .hx { background: var(--text); color: var(--gold-ink); }
+  .node.on::before { content: ''; position: absolute; inset: -9px; background: var(--gold); clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%, 25% 2%, 27.5% 9%, 7% 50%, 27.5% 91%, 72.5% 91%, 93% 50%, 72.5% 9%, 27.5% 9%); }
+  .node:hover:not(:disabled) .hx { filter: brightness(1.1); }
+  .node.locked { cursor: not-allowed; }
+  .hx :global(.icon) { width: 22px; height: 22px; }
+  .bossmark { position: absolute; right: -4px; top: -6px; width: 18px; height: 16px; background: var(--life); clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+  .stars { position: absolute; left: 50%; bottom: -20px; transform: translateX(-50%); display: flex; gap: 1px; }
+  .stars :global(.icon) { width: 17px; height: 17px; }
+  .top { position: absolute; left: 16px; top: 16px; display: flex; gap: 8px; align-items: stretch; }
+  .total { display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .side { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 22px 22px 18px; margin: 16px 16px 16px 0; --cut: 12px; }
+  .eyebrow { margin: 0 0 6px; }
+  h2 { margin: 0; font-size: 2.1em; }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bosschip { color: var(--bad); border-color: var(--bad); }
+  section { display: flex; flex-direction: column; gap: 8px; }
+  .lbl { margin: 0; font-family: var(--font-ui); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .foes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: 0.93em; }
+  .foes li { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .foes em { font-style: normal; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+  .seg :global(.icon) { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+  .seg small { font-weight: 400; opacity: 0.8; }
+  .hint { margin: 0; font-size: 0.9em; color: var(--muted); }
+  .hint b { color: var(--text); }
+  .lock { color: var(--gold); font-weight: 700; }
+  .cta { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+  .cta .btn { width: 100%; }
+  @media (max-width: 860px) {
+    .wrap { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 45vh) 1fr; }
+    .side { margin: 0; }
   }
 </style>

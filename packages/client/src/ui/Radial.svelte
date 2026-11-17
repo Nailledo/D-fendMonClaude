@@ -3,7 +3,7 @@
   import { app } from '../app';
   import { ui } from '../state.svelte';
   import { keyLabel, keys } from '../settings';
-  import { FAMILY_ICON, ICON } from './icons';
+  import { FAMILY_COLOR, FAMILY_ICON, ICON } from './icons';
   import { sellValue as sellOf } from './towerStats';
 
   const sel = $derived(ui.sel!);
@@ -39,7 +39,7 @@
       <button class="opt" class:poor={gold < t.cost} style={at(-90 + i * 90)}
         onpointerenter={() => { tip = { title: t.name, text: t.desc + ' ' + statLine(f, 0), cost: t.cost }; if (app.game) app.game.hoverFam = i; }}
         onclick={() => g()?.build(i)}>
-        {@html FAMILY_ICON[i]}
+        <span class="face hex" style="--fc:{FAMILY_COLOR[i]}">{@html FAMILY_ICON[i]}</span>
         <span class="cost">{t.cost}</span>
         <span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery][i])}</span>
       </button>
@@ -50,7 +50,7 @@
       <button class="opt up" class:poor={gold < next.cost} style={at(-90)}
         onpointerenter={() => { tip = { title: next.name, text: next.desc + ' ' + statLine(fam, lvl + 1), cost: next.cost }; if (app.game) app.game.hoverLevel = lvl + 1; }}
         onclick={() => g()?.upgrade()}>
-        {@html ICON.up}<span class="cost">{next.cost}</span><span class="kbd">{keyLabel(keys.upgrade)}</span>
+        <span class="face hex" style="--fc:var(--gold)">{@html ICON.up}</span><span class="cost">{next.cost}</span><span class="kbd">{keyLabel(keys.upgrade)}</span>
       </button>
     {:else if lvl === 2}
       {#each [1, 2] as s}
@@ -58,7 +58,7 @@
         <button class="opt spec" class:poor={gold < spec.cost} style={at(s === 1 ? -130 : -50)}
           onpointerenter={() => { tip = { title: spec.name, text: spec.desc + ' ' + statLine(fam, 2 + s), cost: spec.cost }; if (app.game) app.game.hoverLevel = 2 + s; }}
           onclick={() => g()?.upgrade(s as 1 | 2)}>
-          {#if ui.portraits[`t_${sel.fam}_${2 + s}`]}<img src={ui.portraits[`t_${sel.fam}_${2 + s}`]} alt="" />{:else}{@html FAMILY_ICON[sel.fam ?? 0]}{/if}
+          <span class="face hex" style="--fc:{FAMILY_COLOR[sel.fam ?? 0]}">{#if ui.portraits[`t_${sel.fam}_${2 + s}`]}<img src={ui.portraits[`t_${sel.fam}_${2 + s}`]} alt="" />{:else}{@html FAMILY_ICON[sel.fam ?? 0]}{/if}</span>
           <span class="cost">{spec.cost}</span>
         </button>
       {/each}
@@ -76,11 +76,11 @@
       {/each}
     {/if}
     <button class="opt sell" style={at(90)} onpointerenter={() => (tip = { title: 'Vendre', text: `Rend ${sellValue} or (100 % pendant 3 s après un achat).` })} onclick={() => g()?.sell()}>
-      {@html ICON.sell}<span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
+      <span class="face hex neutral">{@html ICON.sell}</span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
     </button>
     {#if fam === 'barracks'}
       <button class="opt" style={at(180)} onpointerenter={() => (tip = { title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
-        {@html ICON.flag}<span class="kbd">{keyLabel(keys.rally)}</span>
+        <span class="face hex neutral">{@html ICON.flag}</span><span class="kbd">{keyLabel(keys.rally)}</span>
       </button>
     {/if}
   {/if}
@@ -93,30 +93,32 @@
 </div>
 
 <style>
-  .radial { position: absolute; left: 0; top: 0; width: 0; height: 0; animation: pop 0.15s ease; }
-  .ring { position: absolute; left: -76px; top: -76px; width: 152px; height: 152px; border-radius: 50%; border: 3px dashed rgba(255, 243, 196, 0.55); pointer-events: none; }
-  .opt {
-    position: absolute; transform: translate(-50%, -50%); width: 58px; height: 58px; border-radius: 50%; cursor: pointer;
-    border: 3px solid var(--wood-dark); background: radial-gradient(circle at 35% 30%, #fff4cf, #d9a94e);
-    font-size: 28px; display: grid; place-items: center; padding: 0; color: var(--ink);
-    box-shadow: 0 3px 0 var(--wood-dark), 0 6px 12px rgba(0, 0, 0, 0.45); transition: transform 0.1s;
-  }
-  .opt:hover { transform: translate(-50%, -50%) scale(1.12); }
-  .opt.poor { filter: grayscale(0.8) brightness(0.8); }
-  .opt.up { background: radial-gradient(circle at 35% 30%, #dcfce7, #4caf50); }
-  .opt.sell { background: radial-gradient(circle at 35% 30%, #fff7d1, #c98a14); }
-  .opt.spec { width: 66px; height: 66px; overflow: visible; }
-  .opt.spec img { width: 62px; height: 62px; border-radius: 50%; }
-  .opt.skill { width: 74px; height: 74px; font-size: 10px; font-weight: 800; background: radial-gradient(circle at 35% 30%, #e0e7ff, #6366f1); color: #fff; text-shadow: 0 1px 2px #000; line-height: 1.05; text-align: center; padding: 6px; }
-  .opt.skill.max { background: radial-gradient(circle at 35% 30%, #fff7d1, #c98a14); }
+  .radial { position: absolute; left: 0; top: 0; width: 0; height: 0; animation: pop 0.12s ease; filter: var(--drop); }
+  .ring { position: absolute; left: -76px; top: -76px; width: 152px; height: 152px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45); pointer-events: none; }
+  .opt { position: absolute; transform: translate(-50%, -50%); width: 66px; height: 60px; cursor: pointer; border: 0; padding: 0; background: none; display: grid; place-items: center; transition: transform 0.1s; }
+  .opt:hover { transform: translate(-50%, -50%) scale(1.08); }
+  .face { width: 66px; height: 60px; display: grid; place-items: center; background: var(--fc); color: var(--line); box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.22); }
+  .face :global(.icon) { width: 30px; height: 30px; }
+  .face.neutral { background: var(--raised-2); color: var(--text); }
+  .face.neutral :global(.icon) { color: var(--gold); }
+  .opt:hover .face { filter: brightness(1.12); }
+  .opt.poor .face { filter: saturate(0.15) brightness(0.7); }
+  .opt.spec { width: 72px; height: 66px; }
+  .opt.spec .face { width: 72px; height: 66px; overflow: hidden; }
+  .opt.spec img { width: 64px; height: 64px; }
+  .opt.skill { width: 86px; height: 62px; color: var(--text); font-size: 11px; font-weight: 700; line-height: 1.1; text-align: center; padding: 6px 6px 14px;
+    background: linear-gradient(135deg, transparent var(--cut-sm), var(--raised) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut-sm), var(--raised) 0) right / 50.5% 100% no-repeat; }
+  .opt.skill.max { color: var(--gold); }
   .sname { display: block; }
-  .pips { position: absolute; bottom: 8px; display: flex; gap: 3px; }
-  .pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0, 0, 0, 0.4); }
-  .pips i.on { background: #fde047; }
-  .cost { position: absolute; bottom: -12px; font-size: 12px; font-weight: 800; color: #ffe08a; background: #2b1d12; padding: 0 6px; border-radius: 99px; }
-  .opt .kbd { position: absolute; top: -6px; right: -6px; font-size: 11px; }
-  .tip { position: absolute; left: 92px; top: -40px; width: 260px; padding: 8px 10px; font-size: 0.82em; z-index: 5; }
-  .tip.flip { left: auto; right: 92px; }
-  .tc { display: inline-flex; align-items: center; gap: 2px; font-weight: 800; color: #7a4d06; }
-  .tc.poor { color: var(--red); }
+  .pips { position: absolute; bottom: 7px; display: flex; gap: 3px; }
+  .pips i { width: 7px; height: 7px; background: var(--line); }
+  .pips i.on { background: var(--gold); }
+  .cost { position: absolute; bottom: -13px; font-size: 12.5px; font-weight: 700; color: var(--gold); background: var(--line); padding: 0 7px; font-variant-numeric: tabular-nums; }
+  .opt .kbd { position: absolute; top: -8px; right: -4px; font-size: 11px; }
+  .tip { position: absolute; left: 96px; top: -44px; width: 270px; padding: 10px 12px; font-size: 0.86em; z-index: 5; display: flex; flex-direction: column; gap: 4px; }
+  .tip b { font-family: var(--font-display); font-size: 1.3em; }
+  .tip div { color: var(--muted); }
+  .tip.flip { left: auto; right: 96px; }
+  .tc { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .tc.poor { color: var(--bad); }
 </style>

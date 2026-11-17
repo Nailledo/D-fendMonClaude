@@ -3,7 +3,7 @@
   import { app } from '../app';
   import { keyLabel, keys } from '../settings';
   import { ui } from '../state.svelte';
-  import { FAMILY_NAME, ICON } from './icons';
+  import { FAMILY_COLOR, FAMILY_NAME, ICON } from './icons';
   import { LEVEL_LABEL, compareStats, sellValue, towerStats, towerTags } from './towerStats';
 
   const sel = $derived(ui.sel!);
@@ -22,7 +22,7 @@
   };
 </script>
 
-<div class="tp panel ui" role="region" aria-label="Tour sélectionnée" style="--fc:{['#4c9a2a', '#2f6fa8', '#7c4dc4', '#c25e1f'][fi]}" onpointerleave={() => hover(-1)}>
+<div class="tp panel ui" role="region" aria-label="Tour sélectionnée" style="--fc:{FAMILY_COLOR[fi]}; --accent:{FAMILY_COLOR[fi]}" onpointerleave={() => hover(-1)}>
   <div class="th">
     <small>{FAMILY_NAME[fi]} · {LEVEL_LABEL[lvl]}</small>
     <b>{cur.name}</b>
@@ -46,7 +46,7 @@
     <div class="specs">
       {#each [1, 2] as s}
         {@const spec = TOWERS[fam][2 + s]}
-        <button class="spec" class:poor={gold < spec.cost} onpointerenter={() => hover(2 + s)} onfocus={() => hover(2 + s)} onclick={() => g()?.upgrade(s as 1 | 2)}>
+        <button class="spec" style="--fc:{FAMILY_COLOR[fi]}" class:poor={gold < spec.cost} onpointerenter={() => hover(2 + s)} onfocus={() => hover(2 + s)} onclick={() => g()?.upgrade(s as 1 | 2)}>
           <b>{spec.name}</b>
           <span class="desc">{spec.desc}</span>
           <span class="mini">{#each towerStats(fam, 2 + s).slice(0, 4) as r}<span>{r.label} <i>{r.text}</i></span>{/each}</span>
@@ -77,39 +77,40 @@
 </div>
 
 <style>
-  .tp { position: absolute; right: 10px; bottom: 10px; width: min(360px, calc(100vw - 20px)); padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; font-size: 0.92em; border-top: 5px solid var(--fc); max-height: calc(100vh - 140px); overflow: auto; }
-  .th { display: flex; flex-direction: column; gap: 1px; }
-  .th small { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fc); }
-  .th b { font-family: 'Cinzel', serif; font-size: 1.3em; line-height: 1.1; }
-  .cmp, .stats { display: grid; grid-template-columns: 1fr auto auto auto; gap: 3px 10px; font-variant-numeric: tabular-nums; align-items: baseline; }
+  .tp { position: absolute; right: 10px; bottom: 10px; width: min(360px, calc(100vw - 20px)); padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 10px; font-size: 0.93em; max-height: calc(100vh - 140px); overflow: auto; }
+  .th { display: flex; flex-direction: column; gap: 3px; }
+  .th small { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fc); }
+  .th b { font-family: var(--font-display); font-size: 1.6em; line-height: 1; }
+  .cmp, .stats { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 10px; font-variant-numeric: tabular-nums; align-items: baseline; }
   .stats { grid-template-columns: 1fr auto; }
-  .k { color: #6b5030; }
-  .from { color: #6b5030; text-align: right; }
-  .arr { color: #9a8060; }
-  .to, .v { font-weight: 800; text-align: right; }
-  .to.better { color: #2e7d32; }
-  .to.worse { color: #b23a2a; }
+  .k, .from, .arr { color: var(--muted); }
+  .from { text-align: right; }
+  .to, .v { font-weight: 700; text-align: right; }
+  .to.better { color: var(--good); }
+  .to.worse { color: var(--bad); }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .tags span { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 7px; border: 1px solid rgba(43, 29, 18, 0.4); border-radius: 3px; }
+  .tags span { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 7px; border: 1px solid rgba(243, 238, 226, 0.3); }
   .btns { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
   .btns.one { grid-template-columns: 1fr; }
-  .btns .btn, .rally { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 8px 10px; font-size: 0.95em; }
-  .poor { filter: grayscale(0.7) brightness(0.85); }
-  .hint { margin: 0; font-size: 0.92em; }
+  .btns .btn, .rally { padding: 9px 10px; font-size: 0.95em; }
+  .poor { opacity: 0.6; }
+  .hint { margin: 0; color: var(--muted); }
   .specs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .spec, .sk { cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; border: 2px solid var(--wood); background: rgba(255, 255, 255, 0.45); color: var(--ink); font: inherit; }
-  .spec:hover, .sk:hover:not(:disabled), .spec:focus-visible, .sk:focus-visible { border-color: var(--gold-2); background: rgba(255, 255, 255, 0.7); }
-  .sk:disabled { cursor: default; opacity: 0.75; }
-  .spec b, .sk b { font-size: 0.98em; }
-  .desc { font-size: 12.5px; color: #5a4128; line-height: 1.3; }
-  .mini { display: flex; flex-direction: column; gap: 1px; font-size: 12px; color: #5a4128; }
-  .mini i { font-style: normal; font-weight: 800; color: var(--ink); }
-  .cost { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: #7a4d06; margin-top: auto; }
+  .spec, .sk { cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 5px; padding: 10px; border: 0; color: var(--text); font: inherit;
+    background: linear-gradient(135deg, transparent var(--cut-sm), var(--raised) 0) left / 50.5% 100% no-repeat, linear-gradient(-45deg, transparent var(--cut-sm), var(--raised) 0) right / 50.5% 100% no-repeat; }
+  .spec { box-shadow: inset 0 3px 0 var(--fc); }
+  .spec:hover, .sk:hover:not(:disabled), .spec:focus-visible, .sk:focus-visible { filter: brightness(1.18); }
+  .sk:disabled { cursor: default; opacity: 0.7; }
+  .spec b, .sk b { font-size: 1em; }
+  .desc { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+  .mini { display: flex; flex-direction: column; gap: 1px; font-size: 12px; color: var(--muted); }
+  .mini i { font-style: normal; font-weight: 700; color: var(--text); }
+  .cost { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--gold); margin-top: auto; font-variant-numeric: tabular-nums; }
   .skills { display: grid; grid-template-columns: 1fr; gap: 6px; }
   .sn { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .pips { display: flex; gap: 3px; }
-  .pips i { width: 9px; height: 9px; border-radius: 50%; background: rgba(0, 0, 0, 0.2); }
-  .pips i.on { background: #d99a1e; }
-  .undo { margin: 0; font-size: 12px; color: #6b5030; }
+  .pips i { width: 9px; height: 9px; background: var(--line); }
+  .pips i.on { background: var(--gold); }
+  .undo { margin: 0; font-size: 12px; color: var(--faint); }
   .kbd { margin-left: 2px; }
 </style>

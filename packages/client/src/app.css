@@ -1,20 +1,42 @@
+/* =========================================================================
+   Facette : l'interface taillée comme le décor low-poly.
+   Aplats uniquement, coins biseautés, une ombre dure, aucune texture ni dégradé décoratif.
+   La couleur porte l'information : or = argent, rouge = vies, une couleur par famille de tours.
+   ========================================================================= */
 :root {
-  --ink: #2b1d12;
-  --parch: #f3e3bf;
-  --parch-2: #e6cf9c;
-  --parch-dark: #c9a96a;
-  --wood: #5a3a22;
-  --wood-2: #7a5130;
-  --wood-dark: #3a2414;
-  --gold: #f2c14e;
-  --gold-2: #d99a1e;
-  --red: #c0392b;
-  --green: #4caf50;
-  --blue: #3b82f6;
-  --text: #fff7e6;
-  --muted: #cdb894;
-  --shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-  --radius: 10px;
+  /* surfaces */
+  --panel: #232a2f;
+  --raised: #2f383e;
+  --raised-2: #3a444b;
+  --sunken: #171c20;
+  --line: #0f1316;
+  --edge: #46525a;
+  /* texte */
+  --text: #f3eee2;
+  --muted: #a7b1ac;
+  --faint: #6f7b77;
+  /* sens */
+  --gold: #f2b33d;
+  --gold-ink: #23190a;
+  --life: #ef5350;
+  --good: #8fd36b;
+  --bad: #ff8a80;
+  --xp: #5aa7e8;
+  --magic: #c4a8ff;
+  /* familles de tours */
+  --f-arch: #6dbe45;
+  --f-bar: #4a90c2;
+  --f-mag: #9b6bdf;
+  --f-art: #e07b39;
+  /* forme */
+  --cut: 10px;
+  --cut-sm: 7px;
+  --drop: drop-shadow(0 3px 0 rgba(8, 10, 12, 0.6));
+  --drop-sm: drop-shadow(0 2px 0 rgba(8, 10, 12, 0.6));
+  /* typographie */
+  --font-logo: 'Grenze Gotisch', 'Grenze', Georgia, serif;
+  --font-display: 'Grenze', Georgia, serif;
+  --font-ui: 'Atkinson Hyperlegible', system-ui, sans-serif;
   --scale: 1;
   color-scheme: dark;
 }
@@ -25,10 +47,11 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #1b140d;
-  font-family: 'Nunito', system-ui, sans-serif;
+  background: #14181b;
+  font-family: var(--font-ui);
   color: var(--text);
   font-size: calc(15px * var(--scale));
+  line-height: 1.35;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -43,130 +66,151 @@ html, body {
   touch-action: none;
 }
 
-#app {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
+#app { position: fixed; inset: 0; pointer-events: none; }
 #app > * { pointer-events: none; }
+/* un écran marqué .ui reçoit les clics (le sélecteur doit battre #app > *) */
+#app > .ui, .ui { pointer-events: auto; }
 
-.ui { pointer-events: auto; }
-
-h1, h2, h3, .title { font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.02em; }
-
+h1, h2, h3, .title { font-family: var(--font-display); font-weight: 700; line-height: 1.05; letter-spacing: 0; text-wrap: balance; }
 button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-/* ---------- Panneaux ---------- */
-.panel {
+/* ---------- Panneaux biseautés ----------
+   Le fond est dessiné par deux demi-dégradés à bord franc : coin haut-gauche et coin bas-droit coupés.
+   L'ombre portée suit la découpe (filter), le contenu n'est jamais rogné (infobulles, badges). */
+.panel, .wood {
+  --pbg: var(--panel);
   pointer-events: auto;
-  background:
-    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%),
-    linear-gradient(180deg, var(--parch), var(--parch-2));
-  color: var(--ink);
-  border-radius: var(--radius);
-  border: 3px solid var(--wood);
-  box-shadow: var(--shadow), inset 0 0 0 2px rgba(255, 255, 255, 0.35), inset 0 0 40px rgba(120, 80, 30, 0.25);
-  padding: 18px 20px;
-}
-
-.wood {
-  pointer-events: auto;
-  background:
-    repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.07) 0 3px, transparent 3px 11px),
-    linear-gradient(180deg, var(--wood-2), var(--wood));
-  border: 2px solid var(--wood-dark);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   color: var(--text);
+  border: 0;
+  border-radius: 0;
+  padding: 16px 18px;
+  background:
+    linear-gradient(var(--accent, transparent), var(--accent, transparent)) var(--cut) 0 / calc(100% - var(--cut)) 4px no-repeat,
+    linear-gradient(135deg, transparent var(--cut), var(--pbg) 0) left / 50.5% 100% no-repeat,
+    linear-gradient(-45deg, transparent var(--cut), var(--pbg) 0) right / 50.5% 100% no-repeat;
+  filter: var(--drop);
 }
+.wood { padding: 0; }
+.panel.raised { --pbg: var(--raised); }
 
+/* ---------- Boutons ---------- */
 .btn {
+  --bbg: var(--raised);
+  --bfg: var(--text);
   pointer-events: auto;
   cursor: pointer;
-  border: 2px solid var(--wood-dark);
-  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
   padding: 9px 18px;
-  font-weight: 800;
-  color: #fff8e8;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
-  background: linear-gradient(180deg, #8a5a33, #5e3b20);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 3px 0 var(--wood-dark), 0 5px 10px rgba(0, 0, 0, 0.35);
-  transition: transform 0.08s, filter 0.12s;
+  font-weight: 700;
+  color: var(--bfg);
+  background:
+    linear-gradient(135deg, transparent var(--cut-sm), var(--bbg) 0) left / 50.5% 100% no-repeat,
+    linear-gradient(-45deg, transparent var(--cut-sm), var(--bbg) 0) right / 50.5% 100% no-repeat;
+  filter: var(--drop-sm);
+  transition: transform 0.08s;
 }
-.btn:hover { filter: brightness(1.15); }
-.btn:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 0 var(--wood-dark); }
-.btn:disabled { filter: grayscale(0.8) brightness(0.8); cursor: not-allowed; }
-.btn.gold { background: linear-gradient(180deg, #f6cf62, #c98a14); color: #3a2208; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); border-color: #7a4d06; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 3px 0 #7a4d06, 0 5px 10px rgba(0, 0, 0, 0.35); }
-.btn.red { background: linear-gradient(180deg, #d8534a, #8e2a22); }
-.btn.green { background: linear-gradient(180deg, #6fbf59, #357a2a); }
-.btn.big { font-size: 1.15em; padding: 12px 26px; font-family: 'Cinzel', serif; }
-.btn.small { padding: 5px 10px; font-size: 0.85em; }
-.btn.ghost { background: rgba(0, 0, 0, 0.25); border-color: rgba(255, 255, 255, 0.2); box-shadow: none; }
+.btn:hover:not(:disabled) { --bbg: var(--raised-2); }
+.btn:active:not(:disabled) { transform: translateY(2px); filter: none; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.gold { --bbg: var(--gold); --bfg: var(--gold-ink); }
+.btn.gold:hover:not(:disabled) { --bbg: #f7c35e; }
+.btn.red { --bbg: #b8403b; --bfg: #fff; }
+.btn.red:hover:not(:disabled) { --bbg: #cc4a44; }
+.btn.green { --bbg: #3f7d32; --bfg: #fff; }
+.btn.ghost { --bbg: rgba(255, 255, 255, 0.06); filter: none; }
+.btn.ghost:hover:not(:disabled) { --bbg: rgba(255, 255, 255, 0.12); }
+.btn.big { font-family: var(--font-display); font-size: 1.35em; padding: 10px 24px; }
+.btn.small { padding: 6px 11px; font-size: 0.88em; }
+.btn .icon { width: 1.2em; height: 1.2em; }
 
+/* sélecteur segmenté (difficulté, mode…) */
+.seg { display: flex; flex-wrap: wrap; gap: 0; background: var(--line); padding: 2px; }
+.seg > button { flex: 1; cursor: pointer; border: 0; padding: 8px 10px; font-weight: 700; font-size: 0.9em; background: var(--raised); color: var(--text); }
+.seg > button + button { margin-left: 2px; }
+.seg > button:hover:not(:disabled) { background: var(--raised-2); }
+.seg > button.on { background: var(--text); color: var(--panel); }
+.seg > button:disabled { color: var(--faint); background: var(--sunken); cursor: not-allowed; }
+.seg > button.on:disabled { background: var(--muted); color: var(--panel); }
+
+/* ---------- Champs ---------- */
 input[type='text'], select {
   pointer-events: auto;
   font: inherit;
   padding: 8px 10px;
-  border-radius: 8px;
-  border: 2px solid var(--wood);
-  background: #fffaf0;
-  color: var(--ink);
+  border-radius: 0;
+  border: 2px solid var(--edge);
+  background: var(--sunken);
+  color: var(--text);
   outline: none;
 }
-input[type='text']:focus, select:focus { border-color: var(--gold-2); box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.35); }
-input[type='range'] { pointer-events: auto; accent-color: var(--gold-2); width: 100%; }
-input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold-2); width: 18px; height: 18px; }
+input[type='text']::placeholder { color: var(--faint); }
+input[type='text']:focus, select:focus { border-color: var(--gold); }
+input[type='range'] { pointer-events: auto; accent-color: var(--gold); width: 100%; }
+input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold); width: 18px; height: 18px; flex: none; }
 
+/* ---------- Fond des fenêtres ---------- */
 .overlay-bg {
   position: fixed;
   inset: 0;
   pointer-events: auto;
-  background: radial-gradient(ellipse at center, rgba(20, 12, 6, 0.55), rgba(10, 6, 3, 0.85));
+  background: rgba(12, 14, 16, 0.72);
   display: grid;
   place-items: center;
   padding: 16px;
   z-index: 40;
-  animation: fade 0.2s ease;
+  animation: fade 0.15s ease;
 }
 
 @keyframes fade { from { opacity: 0; } }
-@keyframes pop { from { transform: scale(0.92); opacity: 0; } }
-@keyframes rise { from { transform: translateY(14px); opacity: 0; } }
+@keyframes pop { from { transform: scale(0.96); opacity: 0; } }
+@keyframes rise { from { transform: translateY(10px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 
+/* ---------- Utilitaires ---------- */
 .gold-text { color: var(--gold); }
 .muted { color: var(--muted); }
 .row { display: flex; gap: 10px; align-items: center; }
 .col { display: flex; flex-direction: column; gap: 10px; }
 .grow { flex: 1; }
 .center { text-align: center; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 
-.chip {
+.chip, .tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: 99px;
-  background: rgba(0, 0, 0, 0.3);
-  font-weight: 800;
+  padding: 2px 8px;
+  border: 1px solid rgba(243, 238, 226, 0.3);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .kbd {
   display: inline-block;
-  min-width: 1.5em;
-  padding: 0 5px;
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
+  min-width: 1.6em;
+  padding: 0 4px;
+  background: var(--line);
+  border: 1px solid var(--edge);
+  color: var(--text);
   font-size: max(11px, 0.72em);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.5em;
   text-align: center;
-  font-family: 'Nunito', sans-serif;
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
 }
 
-.icon { width: 1.2em; height: 1.2em; display: inline-block; vertical-align: -0.2em; }
+.icon { width: 1.2em; height: 1.2em; display: inline-block; vertical-align: -0.22em; flex: none; }
 
 /* Badges de raccourcis sur les boutons du jeu : visibles au survol, au focus clavier,
    en maintenant Alt (classe .keys-held) ou si l'option est cochée (.show-keys). */
@@ -180,24 +224,28 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold-2); widt
 /* chiffres de dégâts */
 .dn {
   position: absolute;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 15px;
   color: #fff;
-  text-shadow: 0 1px 2px #000, 0 0 3px #000;
+  text-shadow: 0 2px 0 #000;
   transform: translate(-50%, -50%);
   opacity: 0;
   pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
-.dn.crit { color: #ffd54f; font-size: 19px; }
+.dn.crit { color: var(--gold); font-size: 19px; }
 .dn.go { animation: dn 0.8s ease-out forwards; }
 @keyframes dn {
   0% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
   100% { opacity: 0; transform: translate(-50%, -190%) scale(0.9); }
 }
 
-.scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--wood) transparent; }
+.scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
+
+/* hexagone : options de construction, appel de vague, nœuds de carte */
+.hex { clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
 
 @media (max-width: 720px) {
-  html, body { font-size: calc(13px * var(--scale)); }
+  html, body { font-size: calc(14px * var(--scale)); }
   .panel { padding: 12px 14px; }
 }

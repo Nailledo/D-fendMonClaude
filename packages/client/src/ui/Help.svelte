@@ -37,9 +37,12 @@
 </div>
 
 <style>
-  .box { width: min(680px, 100%); max-height: 86vh; }
+  .box { width: min(700px, 100%); max-height: 88vh; }
   .head { display: flex; justify-content: space-between; align-items: center; }
-  h2, h3 { margin: 0; }
-  h3 { margin-top: 12px; }
-  p, ul { margin: 6px 0; line-height: 1.45; }
+  h2 { margin: 0; font-size: 2em; }
+  h3 { margin: 18px 0 4px; font-size: 1.4em; color: var(--gold); }
+  p, ul { margin: 6px 0; line-height: 1.5; max-width: 66ch; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--gold); }
 </style>

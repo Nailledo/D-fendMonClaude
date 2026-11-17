@@ -133,5 +133,7 @@ Variables d’environnement :
 ## Notes
 
 - Le classement utilise `node:sqlite` (intégré à Node 22) plutôt que `better-sqlite3`, pour éviter toute compilation native dans l’image Docker.
-- La carte de campagne est un parchemin dessiné en SVG ; l’écran titre est un diorama 3D animé.
+- Interface « Facette » : aplats sombres aux coins biseautés et hexagones, comme les facettes du décor low-poly ; une couleur par famille de tours, l’or pour l’argent, le rouge pour les vies. Jetons et composants de base dans `packages/client/src/app.css`, icônes au trait dans `packages/client/src/ui/icons.ts`.
+- Polices hébergées avec le jeu (Grenze, Grenze Gotisch, Atkinson Hyperlegible via `@fontsource`) : aucune requête vers un service tiers.
+- La carte de campagne est dessinée en code (facettes en SVG) ; l’écran titre est un diorama 3D animé.
 - Les menus sont en Svelte 5 ; le HUD est mis à jour à 10 Hz, les éléments qui suivent la caméra (menu radial, boutons de vague) sont positionnés directement à chaque frame.

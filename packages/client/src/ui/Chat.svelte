@@ -48,11 +48,12 @@
 <style>
   .chat { pointer-events: none; display: flex; flex-direction: column; gap: 6px; width: 100%; }
   .chat.open { pointer-events: auto; }
-  .chat.inline { background: rgba(30, 20, 12, 0.8); border-radius: 10px; padding: 10px; border: 2px solid var(--wood); flex: 1; }
+  .chat.inline { background: var(--sunken); padding: 10px; flex: 1; }
   .msgs { max-height: 180px; display: flex; flex-direction: column; gap: 2px; }
   .inline .msgs { flex: 1; max-height: 260px; }
-  .m { font-size: 0.9em; text-shadow: 0 1px 2px #000; background: rgba(0, 0, 0, 0.35); padding: 2px 8px; border-radius: 6px; width: fit-content; max-width: 100%; }
-  .row input { flex: 1; }
+  .m { font-size: 0.92em; background: rgba(15, 19, 22, 0.8); padding: 3px 9px; width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
+  .inline .m { background: none; padding: 1px 0; }
+  .row input { flex: 1; min-width: 0; }
   .quick { display: flex; flex-wrap: wrap; gap: 4px; }
-  .quick .btn { font-size: 0.75em; padding: 3px 8px; }
+  .quick .btn { font-size: 0.78em; padding: 4px 8px; }
 </style>
