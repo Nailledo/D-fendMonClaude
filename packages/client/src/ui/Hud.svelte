@@ -269,19 +269,19 @@
   .hud { position: fixed; inset: 0; pointer-events: none; --bb: 0px; }
 
   /* ===== ressources : des jetons crème, l'icône 3D déborde à gauche ===== */
-  .top { position: absolute; top: calc(14px + var(--sat)); left: calc(30px + var(--sal)); display: flex; gap: 30px; align-items: center; flex-wrap: wrap; row-gap: 10px; max-width: calc(100vw - 260px); pointer-events: none; }
-  .stat { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 16px 0 42px; border: var(--bw) solid var(--ink); border-radius: 99px;
+  .top { position: absolute; top: calc(12px + var(--sat)); left: calc(12px + var(--sal)); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; row-gap: 10px; max-width: calc(100vw - 260px); pointer-events: none; }
+  .stat { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 46px; padding: 0 16px 0 6px; border: var(--bw) solid var(--ink); border-radius: 99px;
     background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); font-family: var(--font-display); font-size: 1.75em; line-height: 1; font-variant-numeric: tabular-nums; pointer-events: auto; }
-  .stat :global(.icon) { position: absolute; left: -20px; top: 50%; transform: translateY(-50%); width: 56px; height: 56px; }
-  .stat :global(svg.icon) { width: 30px; height: 30px; left: 6px; }
+  .stat :global(.icon) { flex: none; width: 34px; height: 34px; margin: 0; vertical-align: 0; }
+  .stat :global(svg.icon) { width: 26px; height: 26px; }
   .stat b { font-weight: 400; }
-  .stat small { color: var(--muted); font-size: 0.66em; margin-left: -6px; }
+  .stat small { color: var(--muted); font-size: 0.66em; margin-left: -4px; }
   .stat.gold b { color: #a05f00; }
   .stat.life.low { background: var(--toon-red); color: #fff; animation: lowlife 0.9s ease-in-out infinite; }
   @keyframes lowlife { 50% { transform: scale(1.06); } }
   .segs { display: block; width: 110px; height: 14px; border: 2px solid var(--ink); border-radius: 99px; background: #d8bf8f; overflow: hidden; margin-left: 2px; }
   .segs i { display: block; height: 100%; background: var(--blue); border-right: 2px solid var(--ink); transition: width 0.3s; }
-  .next { font-family: var(--font-display); font-size: 1.3em; color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; transform: rotate(-2deg); }
+  .next { margin-left: 8px; font-family: var(--font-display); font-size: 1.3em; color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; transform: rotate(-2deg); }
   .next b { font-weight: 400; color: var(--gold-fill); font-variant-numeric: tabular-nums; }
   .call { font-size: 1.12em; max-width: 440px; line-height: 1.15; }
   .muts { position: absolute; top: calc(74px + var(--sat)); left: calc(14px + var(--sal)); display: flex; gap: 6px; flex-wrap: wrap; }
@@ -307,7 +307,7 @@
   .wavebtn {
     position: absolute; left: -32px; top: -32px; width: 64px; height: 64px; cursor: pointer; border: var(--bw) solid var(--ink); padding: 0; border-radius: 50%;
     background: var(--toon-red); color: #fff; display: grid; place-items: center; touch-action: manipulation;
-    box-shadow: 0 0 0 4px #fff, 0 0 0 7px var(--ink), 0 6px 0 4px var(--hue-shadow); transition: transform 0.1s;
+    box-shadow: 0 0 0 4px #fff, 0 0 0 7px var(--ink), 0 6px 12px 4px rgba(43, 26, 18, 0.25); transition: transform 0.1s;
   }
   .wavebtn :global(.icon) { width: 30px; height: 30px; }
   .wavebtn:has(:global(.ico3d)) { background: #e5493c; }
@@ -339,14 +339,16 @@
   .radialAnchor { position: absolute; left: 0; top: 0; visibility: hidden; }
 
   /* ===== héros et sorts ===== */
-  .bottomleft { position: absolute; left: calc(14px + var(--sal)); bottom: calc(16px + var(--sab)); display: flex; align-items: flex-end; gap: 16px; }
-  .heroCard { display: flex; gap: 12px; padding: 10px 14px 10px 10px; align-items: center; border-radius: 22px; background: var(--toon-cream); }
-  .portrait { position: relative; width: 92px; height: 92px; border: var(--bw) solid var(--ink); background: var(--toon-blue); cursor: pointer; padding: 0; overflow: visible; flex: none; border-radius: 50%; box-shadow: 0 4px 0 var(--ink); touch-action: manipulation; transition: transform 0.08s; }
+  /* bureau : héros, compétences et sorts dans une seule barre, tout centré verticalement */
+  .bottomleft { position: absolute; left: calc(12px + var(--sal)); bottom: calc(12px + var(--sab)); display: flex; align-items: center; gap: 14px;
+    padding: 10px 14px 10px 10px; background: var(--toon-cream); border: var(--bw) solid var(--ink); border-radius: 22px; box-shadow: var(--rim), var(--shadow); pointer-events: auto; }
+  .heroCard { display: flex; gap: 12px; padding: 0; align-items: center; background: none; border: 0; box-shadow: none; border-radius: 0; }
+  .portrait { position: relative; width: 84px; height: 84px; border: var(--bw) solid var(--ink); background: var(--toon-blue); cursor: pointer; padding: 0; overflow: visible; flex: none; border-radius: 50%; box-shadow: 0 4px 0 var(--ink); touch-action: manipulation; transition: transform 0.08s; }
   .portrait:hover { transform: translateY(-2px); }
   .portrait img { width: 100%; height: 100%; display: block; border-radius: 50%; }
   .portrait.dead img { filter: grayscale(1) brightness(0.5); }
-  .lvl { position: absolute; left: -8px; bottom: -8px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--toon-gold); border: var(--bw) solid var(--ink); box-shadow: 0 2px 0 var(--ink);
-    color: var(--ink); font-family: var(--font-display); font-size: 19px; font-variant-numeric: tabular-nums; }
+  .lvl { position: absolute; left: -4px; bottom: -4px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--toon-gold); border: var(--bw) solid var(--ink); box-shadow: 0 2px 0 var(--ink);
+    color: var(--ink); font-family: var(--font-display); font-size: 17px; font-variant-numeric: tabular-nums; }
   .phbar { display: none; }
   .resp { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-display); font-size: 34px; color: #fff; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; }
   .hcol { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
@@ -366,25 +368,27 @@
   .skill .si { display: contents; }
   .skill .si :global(svg.icon) { width: 26px; height: 26px; }
   .skill:has(.si :global(.ico3d)) { background: var(--ink); }
-  .skill .si :global(.ico3d) { width: 50px; height: 50px; margin: 0; }
-  .skill.ult:not(.locked) { box-shadow: 0 0 0 3px var(--gold-fill), 0 0 0 5px var(--ink), 0 3px 0 4px var(--ink); }
+  .skill .si :global(.ico3d) { width: 100%; height: 100%; margin: 0; vertical-align: 0; }
+  .skill.ult:not(.locked) { border-color: var(--gold-lo); }
   .skill.locked { background: #d9c5a0; box-shadow: none; border-style: dashed; cursor: default; }
   .skill.locked :global(.icon) { width: 24px; height: 24px; opacity: 0.75; }
   .skill.locked .sn { display: block; position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); font-size: 10.5px; font-weight: 900; white-space: nowrap; padding: 0 5px; border-radius: 99px; background: var(--ink); color: var(--on-dark); }
   .skill:disabled:not(.locked) { opacity: 0.55; cursor: default; }
-  .skill .kbd, .spell .kbd { position: absolute; bottom: -8px; right: -10px; font-size: 11px; line-height: 16px; }
+  .skill .kbd, .spell .kbd { position: absolute; bottom: -6px; right: -6px; font-size: 11px; line-height: 14px; }
   /* recharge : voile circulaire qui se découvre */
   .cd { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; font-family: var(--font-display); font-size: 20px; color: #fff; font-variant-numeric: tabular-nums; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill;
     background: conic-gradient(rgba(43, 26, 18, 0.72) calc(var(--p, 1) * 360deg), rgba(43, 26, 18, 0.18) 0); }
-  .spells { display: flex; gap: 16px; padding-bottom: 6px; }
-  .spell { position: relative; width: 80px; height: 80px; padding: 0; cursor: pointer; display: grid; place-items: center; border: var(--bw) solid var(--ink); border-radius: 50%; color: var(--ink);
-    background: var(--toon-cream); box-shadow: 0 4px 0 var(--ink), 0 9px 0 var(--hue-shadow); touch-action: manipulation; transition: transform 0.08s; }
+  .spells { display: flex; gap: 12px; align-items: center; padding-left: 14px; border-left: 2.5px dashed var(--ink-soft); align-self: stretch; }
+  .spell { position: relative; width: 62px; height: 62px; padding: 0; cursor: pointer; display: grid; place-items: center; border: var(--bw) solid var(--ink); border-radius: 50%; color: var(--ink);
+    background: var(--toon-cream); box-shadow: 0 3px 0 var(--ink); touch-action: manipulation; transition: transform 0.08s; overflow: visible; }
   .spell:has(:global(.ico3d)) { background: var(--ink); }
-  .spell.ready { box-shadow: 0 0 0 4px var(--gold-fill), 0 0 0 7px var(--ink), 0 4px 0 7px var(--ink); }
-  .spell.ready::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 3px solid #fff; opacity: 0; animation: ready 2.4s ease-out infinite; pointer-events: none; }
-  @keyframes ready { 0% { opacity: 0.9; transform: scale(0.95); } 60%, 100% { opacity: 0; transform: scale(1.25); } }
-  .spell :global(.icon) { width: 36px; height: 36px; }
-  .spell :global(.ico3d) { width: 104%; height: 104%; }
+  /* prêt : le contour passe au doré et un halo discret pulse */
+  .spell.ready { border-color: var(--gold-lo); }
+  .spell.ready::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--gold-fill); opacity: 0; animation: ready 2.4s ease-out infinite; pointer-events: none; }
+  @keyframes ready { 0% { opacity: 0.9; transform: scale(0.96); } 60%, 100% { opacity: 0; transform: scale(1.18); } }
+  .spell :global(.icon) { width: 32px; height: 32px; }
+  .spell :global(.ico3d) { width: 100%; height: 100%; margin: 0; vertical-align: 0; }
+  .spell .cd { inset: 0; }
   .spell:hover { transform: translateY(-2px); }
   .spell:active { transform: translateY(2px) scale(0.96); }
 
@@ -417,9 +421,9 @@
     .call { display: none; }
   }
   @media (max-width: 820px) {
-    .hud:not(.touch) .bottomleft { flex-direction: column; align-items: flex-start; }
-    .hud:not(.touch) .chatwrap { bottom: 240px; }
-    .top { gap: 24px; font-size: 0.88em; }
+    .hud:not(.touch) .spells { padding-left: 10px; }
+    .hud:not(.touch) .chatwrap { bottom: 150px; }
+    .top { gap: 8px; font-size: 0.88em; }
     .segs { display: none; }
   }
 
@@ -428,10 +432,10 @@
      tiroir d'informations au-dessus, cibles d'au moins 44 px.
      ===================================================================== */
   .hud.touch { --bb: 80px; }
-  .touch .top { top: calc(10px + var(--sat)); left: calc(24px + var(--sal)); gap: 24px; row-gap: 12px; flex-wrap: wrap; max-width: calc(100vw - 32px - 170px - var(--sal) - var(--sar)); font-size: 0.82em; }
-  .touch .stat { height: 40px; padding: 0 12px 0 32px; }
-  .touch .stat :global(.icon) { width: 46px; height: 46px; left: -16px; }
-  .touch .stat :global(svg.icon) { width: 24px; height: 24px; left: 4px; }
+  .touch .top { top: calc(8px + var(--sat)); left: calc(8px + var(--sal)); gap: 8px; row-gap: 12px; flex-wrap: wrap; max-width: calc(100vw - 32px - 170px - var(--sal) - var(--sar)); font-size: 0.82em; }
+  .touch .stat { height: 40px; padding: 0 12px 0 4px; }
+  .touch .stat :global(.icon) { width: 30px; height: 30px; }
+  .touch .stat :global(svg.icon) { width: 22px; height: 22px; }
   .touch .segs, .touch .next { display: none; }
   .touch .topright { top: calc(8px + var(--sat)); right: calc(8px + var(--sar)); gap: 8px; }
   .touch .sysbtn { min-width: 46px; width: 46px; height: 46px; padding: 0; border-radius: 50%; }
@@ -442,8 +446,9 @@
   .touch .pl { font-size: 0.8em; padding: 2px 8px 2px 16px; }
   .touch .ping { display: none; }
 
-  .touch .bottomleft { left: calc(8px + var(--sal)); right: calc(8px + var(--sar)); bottom: calc(8px + var(--sab)); justify-content: space-between; align-items: flex-end; gap: 8px; pointer-events: none; }
-  .touch .heroCard { gap: 10px; padding: 6px 10px 6px 6px; border-radius: 99px; align-items: center; }
+  .touch .bottomleft { left: calc(8px + var(--sal)); right: calc(8px + var(--sar)); bottom: calc(8px + var(--sab)); justify-content: space-between; align-items: flex-end; gap: 8px; pointer-events: none;
+    padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+  .touch .heroCard { gap: 10px; padding: 6px 10px 6px 6px; border-radius: 99px; align-items: center; background: var(--toon-cream); border: var(--bw) solid var(--ink); box-shadow: var(--rim), var(--shadow-sm); }
   .touch .portrait { width: 60px; height: 60px; box-shadow: 0 3px 0 var(--ink); }
   .touch .lvl { left: -5px; bottom: -5px; width: 26px; height: 26px; font-size: 14px; border-width: 2.5px; }
   .touch .phbar { display: block; position: absolute; left: 8px; right: 8px; bottom: -4px; height: 9px; border: 2px solid var(--ink); border-radius: 99px; background: #5a3f33; overflow: hidden; }
@@ -454,8 +459,8 @@
   .touch .skill { width: 50px; height: 50px; }
   .touch .skill .si :global(.ico3d) { width: 52px; height: 52px; }
   .touch .cd { font-size: 17px; }
-  .touch .spells { gap: 10px; pointer-events: auto; padding-bottom: 2px; }
-  .touch .spell { width: 64px; height: 64px; }
+  .touch .spells { gap: 10px; pointer-events: auto; padding: 6px; border: var(--bw) solid var(--ink); border-radius: 99px; background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); align-self: auto; }
+  .touch .spell { width: 56px; height: 56px; }
   .touch .heroCard, .touch .spells { pointer-events: auto; }
 
   .touch .targeting { bottom: calc(var(--bb) + 18px + var(--sab)); white-space: normal; text-align: center; max-width: calc(100vw - 24px); padding: 6px 6px 6px 16px; font-size: 0.92em; }
@@ -487,13 +492,13 @@
     .touch .skill { width: 44px; height: 44px; }
     .touch .skill .si :global(.ico3d) { width: 46px; height: 46px; }
     .touch .portrait { width: 52px; height: 52px; }
-    .touch .spells { gap: 12px; padding-right: 6px; }
-    .touch .spell { width: 56px; height: 56px; }
+    .touch .spells { gap: 6px; padding: 4px; }
+    .touch .spell { width: 50px; height: 50px; }
   }
   @media (max-width: 370px) {
     .touch .skill { width: 40px; height: 40px; }
     .touch .portrait { width: 48px; height: 48px; }
-    .touch .spell { width: 50px; height: 50px; }
-    .touch .top { gap: 20px; font-size: 0.74em; }
+    .touch .spell { width: 46px; height: 46px; }
+    .touch .top { gap: 6px; font-size: 0.74em; }
   }
 </style>

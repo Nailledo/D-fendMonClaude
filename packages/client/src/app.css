@@ -51,17 +51,18 @@
   --r-xs: 8px;
   --bw: 3px;
   --hue-shadow: rgba(70, 30, 80, 0.24);
-  --shadow: 0 4px 0 var(--ink), 0 10px 0 var(--hue-shadow);
-  --shadow-sm: 0 3px 0 var(--ink), 0 7px 0 var(--hue-shadow);
+  --shadow: 0 4px 0 var(--ink), 0 9px 16px rgba(43, 26, 18, 0.22);
+  --shadow-sm: 0 3px 0 var(--ink), 0 6px 10px rgba(43, 26, 18, 0.18);
   --rim: inset 0 3px 0 rgba(255, 255, 255, 0.6);
   --drop: drop-shadow(0 4px 0 var(--ink));
   --drop-sm: drop-shadow(0 2px 0 var(--ink));
   /* les 3 paliers d'ombrage */
-  --toon-cream: linear-gradient(180deg, var(--panel-hi) 0 18%, var(--panel) 18% 84%, var(--panel-lo) 84% 100%);
-  --toon-gold: linear-gradient(180deg, var(--gold-hi) 0 20%, var(--gold-fill) 20% 80%, var(--gold-lo) 80% 100%);
-  --toon-red: linear-gradient(180deg, #ff7a6a 0 20%, #e5493c 20% 80%, #b42d24 80% 100%);
-  --toon-blue: linear-gradient(180deg, #78acf7 0 20%, #3f7ee0 20% 80%, #2b5db2 80% 100%);
-  --toon-green: linear-gradient(180deg, #9ad86e 0 20%, #5fae3a 20% 80%, #3f8a24 80% 100%);
+  /* bandes en pixels : reflet fin en haut, ombre fine en bas, quelle que soit la hauteur */
+  --toon-cream: linear-gradient(180deg, var(--panel-hi) 0 5px, var(--panel) 5px calc(100% - 6px), var(--panel-lo) calc(100% - 6px) 100%);
+  --toon-gold: linear-gradient(180deg, var(--gold-hi) 0 5px, var(--gold-fill) 5px calc(100% - 6px), var(--gold-lo) calc(100% - 6px) 100%);
+  --toon-red: linear-gradient(180deg, #ff7a6a 0 5px, #e5493c 5px calc(100% - 6px), #b42d24 calc(100% - 6px) 100%);
+  --toon-blue: linear-gradient(180deg, #78acf7 0 5px, #3f7ee0 5px calc(100% - 6px), #2b5db2 calc(100% - 6px) 100%);
+  --toon-green: linear-gradient(180deg, #9ad86e 0 5px, #5fae3a 5px calc(100% - 6px), #3f8a24 calc(100% - 6px) 100%);
   /* marges de sécurité (encoche, barre système) */
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
@@ -133,6 +134,8 @@ button { font: inherit; color: inherit; }
   background: var(--panel);
   box-shadow: inset 0 5px 0 var(--accent, rgba(255, 255, 255, 0.7)), var(--shadow);
 }
+/* carte posée dans un panneau : aplat clair, contour, sans dégradé */
+.card-flat { background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); }
 .wood { padding: 0; }
 .panel.raised { background: var(--raised); }
 
@@ -159,7 +162,7 @@ button { font: inherit; color: inherit; }
   -webkit-tap-highlight-color: transparent;
 }
 .btn:hover:not(:disabled) { filter: brightness(1.06) saturate(1.08); }
-.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: var(--rim), 0 0 0 var(--ink), 0 3px 0 var(--hue-shadow); }
+.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: var(--rim), 0 0 0 var(--ink); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.gold { --bbg: var(--toon-gold); --bfg: var(--ink); }
 .btn.red { --bbg: var(--toon-red); --bfg: #fff; }
@@ -173,13 +176,13 @@ button { font: inherit; color: inherit; }
 .btn.small { padding: 5px 11px; font-size: 0.88em; border-radius: var(--r-xs); box-shadow: var(--rim), 0 2px 0 var(--ink); }
 .btn .icon { width: 1.2em; height: 1.2em; }
 
-/* sélecteur segmenté (difficulté, mode…) : une rangée de touches, celle choisie est enfoncée */
-.seg { display: flex; flex-wrap: wrap; gap: 0; background: var(--ink); padding: 3px; border-radius: var(--r-sm); }
-.seg > button { flex: 1; cursor: pointer; border: 0; border-radius: 9px; padding: 8px 10px; font-weight: 900; font-size: 0.9em; background: var(--toon-cream); color: var(--text); }
-.seg > button + button { margin-left: 3px; }
-.seg > button:hover:not(:disabled) { filter: brightness(1.05); }
-.seg > button.on { background: var(--toon-gold); box-shadow: inset 0 3px 0 rgba(120, 60, 0, 0.35); }
-.seg > button:disabled { color: var(--faint); background: #d9c5a0; cursor: not-allowed; }
+/* sélecteur (onglets, difficulté…) : des touches séparées, celle choisie est dorée et enfoncée */
+.seg { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 3px; }
+.seg > button { flex: 1; cursor: pointer; border: 2.5px solid var(--ink); border-radius: 99px; padding: 6px 12px; font-weight: 900; font-size: 0.9em; background: var(--panel-hi); color: var(--text);
+  box-shadow: 0 3px 0 var(--ink); transition: transform 0.08s, box-shadow 0.08s; white-space: nowrap; }
+.seg > button:hover:not(:disabled):not(.on) { background: #fff; }
+.seg > button.on { background: var(--gold-fill); transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.seg > button:disabled { color: var(--faint); background: #e6d5b3; border-style: dashed; box-shadow: none; transform: translateY(2px); cursor: not-allowed; }
 .seg > button.on:disabled { background: var(--raised-2); color: var(--muted); }
 
 /* ---------- Champs ---------- */

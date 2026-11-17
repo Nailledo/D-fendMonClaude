@@ -145,10 +145,10 @@
   .opt { position: absolute; transform: translate(-50%, -50%); width: 66px; height: 66px; cursor: pointer; border: 0; padding: 0; background: none; display: grid; place-items: center; transition: transform 0.12s; touch-action: manipulation; }
   .opt:hover { transform: translate(-50%, -50%) scale(1.1); z-index: 2; }
   .face { width: 66px; height: 66px; display: grid; place-items: center; background: var(--fc); color: var(--ink); border: var(--bw) solid var(--ink);
-    box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.45), inset 0 -6px 0 rgba(43, 26, 18, 0.25), 0 4px 0 var(--ink), 0 9px 0 var(--hue-shadow); }
+    box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.45), inset 0 -6px 0 rgba(43, 26, 18, 0.25), 0 4px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
   .face :global(.icon) { width: 32px; height: 32px; }
   /* médaillon 3D : un disque cerné d'encre */
-  .face:has(:global(.ico3d)) { background: var(--ink); box-shadow: 0 4px 0 var(--ink), 0 9px 0 var(--hue-shadow); }
+  .face:has(:global(.ico3d)) { background: var(--ink); box-shadow: 0 4px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
   .face :global(.ico3d) { width: 106%; height: 106%; max-width: none; }
   .sicon :global(.ico3d) { width: 46px; height: 46px; margin-top: -10px; }
   .face.neutral { background: var(--toon-cream); color: var(--ink); }
@@ -159,7 +159,7 @@
   .opt.spec .face { width: 76px; height: 76px; overflow: hidden; background: linear-gradient(180deg, #a9d3f2 0 55%, #7cc242 55%); }
   .opt.spec img { width: 70px; height: 70px; }
   .opt.skill { width: 70px; height: 70px; color: var(--ink); font-size: 11px; font-weight: 900; line-height: 1.1; text-align: center; padding: 6px 6px 14px;
-    background: var(--toon-cream); border: var(--bw) solid var(--ink); border-radius: 50%; box-shadow: var(--rim), 0 4px 0 var(--ink), 0 9px 0 var(--hue-shadow); }
+    background: var(--toon-cream); border: var(--bw) solid var(--ink); border-radius: 50%; box-shadow: var(--rim), 0 4px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
   .opt.skill.max { background: var(--toon-gold); }
   .sname { display: block; }
   .sicon :global(svg.icon) { width: 32px; height: 32px; margin-top: -6px; }

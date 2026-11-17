@@ -94,7 +94,7 @@
   .row { position: relative; display: flex; align-items: center; gap: 14px; border: var(--bw) solid var(--ink); text-align: left; cursor: pointer; color: var(--ink);
     border-radius: var(--r); background: var(--toon-cream); box-shadow: var(--rim), var(--shadow); transition: transform 0.08s, box-shadow 0.08s, filter 0.12s; padding: 0; }
   .row:hover { filter: brightness(1.06) saturate(1.1); }
-  .row:active { transform: translateY(4px); box-shadow: var(--rim), 0 0 0 var(--ink), 0 4px 0 var(--hue-shadow); }
+  .row:active { transform: translateY(4px); box-shadow: var(--rim), 0 0 0 var(--ink); }
   .lbl { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .lbl b { font-family: var(--font-display); font-weight: 400; font-size: 1.6em; line-height: 1; }
   .lbl span { font-size: 0.86em; font-weight: 900; }
@@ -106,30 +106,29 @@
   .go :global(.icon) { width: 28px; height: 28px; margin-left: 4px; fill: #fff; }
 
   .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .modes .row { min-height: 76px; padding: 0 12px 0 82px; color: #fff; text-shadow: none; }
+  .modes .row { min-height: 76px; padding: 0 12px 0 10px; gap: 10px; color: #fff; text-shadow: none; }
   .modes .row.surv { background: var(--toon-red); }
   .modes .row.coop { background: var(--toon-blue); }
   .modes .lbl b { -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; font-size: 1.75em; }
   .modes .lbl span { color: rgba(255, 255, 255, 0.92); text-shadow: 0 2px 0 rgba(43, 26, 18, 0.5); }
-  /* l'icône 3D déborde du bouton, comme un jouet posé dessus */
-  .pop { position: absolute; left: 2px; top: -22px; width: 78px; height: 78px; display: grid; place-items: center; transform: rotate(-10deg); }
-  .coop .pop { transform: rotate(8deg); }
-  .pop :global(.ico3d) { width: 78px; height: 78px; filter: drop-shadow(0 3px 0 rgba(43, 26, 18, 0.5)); }
-  .pop :global(svg.icon) { width: 40px; height: 40px; color: #fff; }
+  /* icône dans une pastille, centrée verticalement */
+  .pop { flex: none; width: 54px; height: 54px; display: grid; place-items: center; }
+  .pop :global(.icon) { width: 54px; height: 54px; margin: 0; vertical-align: 0; }
+  .pop :global(svg.icon) { width: 28px; height: 28px; color: #fff; }
 
   .small { display: flex; justify-content: space-between; padding: 0 6px 22px; }
   .small button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0; border: 0; background: none; cursor: pointer; }
-  .small i { display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; border: var(--bw) solid var(--ink); background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); color: var(--ink); transition: transform 0.08s; }
+  .small i { display: grid; place-items: center; width: 68px; height: 68px; border-radius: 50%; border: var(--bw) solid var(--ink); background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); color: var(--ink); transition: transform 0.08s; }
   .small button:hover i { filter: brightness(1.06); transform: translateY(-2px); }
   .small button:active i { transform: translateY(3px); box-shadow: var(--rim); }
   .small span { font-family: var(--font-display); font-size: 15px; color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; white-space: nowrap; }
   .small :global(svg.icon) { width: 32px; height: 32px; stroke-width: 2.4; }
-  .small :global(.ico3d) { width: 48px; height: 48px; }
+  .small :global(.ico3d) { width: 42px; height: 42px; margin: 0; vertical-align: 0; }
 
   /* profil : pastille crème, portrait qui déborde */
-  .profile { position: absolute; top: calc(24px + var(--sat)); right: calc(26px + var(--sar)); display: flex; align-items: center; height: 62px; padding: 0 16px 0 74px;
+  .profile { position: absolute; top: calc(20px + var(--sat)); right: calc(20px + var(--sar)); display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 16px 0 6px;
     background: var(--toon-cream); border: var(--bw) solid var(--ink); border-radius: 99px; box-shadow: var(--rim), var(--shadow-sm); }
-  .pp { position: absolute; left: -10px; top: -12px; width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: var(--bw) solid var(--ink); background: var(--toon-blue); box-shadow: 0 4px 0 var(--ink); }
+  .pp { flex: none; width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: var(--bw) solid var(--ink); background: var(--toon-blue); }
   .pp img { width: 100%; height: 100%; display: block; }
   .who { display: flex; align-items: center; gap: 12px; border: 0; background: none; cursor: pointer; text-align: left; padding: 0; color: var(--ink); }
   .who b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 1.4em; line-height: 1; }
@@ -152,18 +151,18 @@
     .go { width: 50px; height: 50px; }
     .go :global(.icon) { width: 22px; height: 22px; }
     .modes { gap: 10px; }
-    .modes .row { min-height: 58px; padding: 0 8px 0 56px; }
+    .modes .row { min-height: 58px; padding: 0 8px 0 6px; gap: 6px; }
     .modes .lbl b { font-size: 1.3em; }
     .modes .lbl span { display: none; }
-    .pop { width: 58px; height: 58px; top: -14px; left: 0; }
-    .pop :global(.ico3d) { width: 58px; height: 58px; }
+    .pop { width: 40px; height: 40px; }
+    .pop :global(.icon) { width: 36px; height: 36px; }
     .small { padding: 0 2px 20px; }
     .small i { width: 54px; height: 54px; }
     .small :global(svg.icon) { width: 26px; height: 26px; }
     .small :global(.ico3d) { width: 38px; height: 38px; }
     .small span { font-size: 12.5px; -webkit-text-stroke-width: 3.5px; }
-    .profile { top: calc(12px + var(--sat)); right: 12px; height: 48px; padding: 0 12px 0 56px; }
-    .pp { width: 60px; height: 60px; left: -6px; top: -9px; }
+    .profile { top: calc(12px + var(--sat)); right: 12px; height: 48px; padding: 0 12px 0 4px; gap: 8px; }
+    .pp { width: 36px; height: 36px; }
     .who b { font-size: 1.15em; }
     .who small { font-size: 0.8em; }
     .profile input { width: 140px; }
@@ -173,7 +172,7 @@
   @media (max-height: 520px) and (min-width: 641px) {
     .titlescreen { flex-direction: row; justify-content: space-between; align-items: flex-end; padding: calc(12px + var(--sat)) calc(16px + var(--sar)) calc(10px + var(--sab)) calc(20px + var(--sal)); }
     .logo { align-self: flex-start; margin-top: 6px; }
-    h1 { font-size: clamp(52px, 13vh, 78px); -webkit-text-stroke-width: 8px; text-shadow: 0 5px 0 var(--ink), 0 9px 0 var(--hue-shadow); }
+    h1 { font-size: clamp(52px, 13vh, 78px); -webkit-text-stroke-width: 8px; text-shadow: 0 5px 0 var(--ink), 0 8px 14px rgba(43, 26, 18, 0.25); }
     .sub { font-size: 14px; padding: 2px 12px 4px; margin-top: 6px; }
     .menu { width: min(350px, 44vw); gap: 10px; margin-top: 64px; }
     .row.main { min-height: 64px; padding: 0 12px 0 10px; gap: 10px; }
@@ -182,18 +181,18 @@
     .go { width: 42px; height: 42px; }
     .go :global(.icon) { width: 18px; height: 18px; }
     .modes { gap: 8px; }
-    .modes .row { min-height: 48px; padding: 0 8px 0 48px; }
+    .modes .row { min-height: 48px; padding: 0 8px 0 5px; gap: 6px; }
     .modes .lbl b { font-size: 1.15em; }
     .modes .lbl span { display: none; }
-    .pop { width: 48px; height: 48px; top: -10px; left: 0; }
-    .pop :global(.ico3d) { width: 48px; height: 48px; }
+    .pop { width: 34px; height: 34px; }
+    .pop :global(.icon) { width: 30px; height: 30px; }
     .small { padding: 0 0 18px; }
     .small i { width: 44px; height: 44px; }
     .small :global(svg.icon) { width: 22px; height: 22px; }
     .small :global(.ico3d) { width: 32px; height: 32px; }
     .small span { font-size: 11px; -webkit-text-stroke-width: 3px; }
-    .profile { top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); height: 44px; padding: 0 12px 0 52px; }
-    .pp { width: 54px; height: 54px; left: -6px; top: -8px; }
+    .profile { top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); height: 44px; padding: 0 12px 0 4px; gap: 8px; }
+    .pp { width: 34px; height: 34px; }
     .who b { font-size: 1.1em; }
   }
 </style>

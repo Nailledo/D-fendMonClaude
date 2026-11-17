@@ -66,7 +66,7 @@
   .muted { color: var(--muted); margin: 0; }
   .maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .map { cursor: pointer; text-align: left; padding: 12px; border: var(--bw) solid var(--ink); color: #fff; display: flex; flex-direction: column; gap: 6px; min-height: 104px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0 18%, transparent 18% 82%, rgba(0, 0, 0, 0.22) 82%), var(--b);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0 5px, transparent 5px calc(100% - 6px), rgba(0, 0, 0, 0.22) calc(100% - 6px)), var(--b);
     border-radius: var(--r-sm); box-shadow: var(--shadow-sm); text-shadow: 0 2px 0 rgba(43, 26, 18, 0.6); transition: transform 0.08s; }
   .map b { font-family: var(--font-display); font-weight: 400; font-size: 1.4em; line-height: 1; }
   .map span { font-size: 0.84em; opacity: 0.92; }
