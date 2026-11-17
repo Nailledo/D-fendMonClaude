@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { ENEMIES, FAMILIES, HEROES, HERO_IDS, TOWERS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
   import { FAMILY_COLOR, FAMILY_NAME, ICON } from './icons';
@@ -29,8 +30,8 @@
                 {#if ui.portraits[`t_${fi}_${l}`]}<img src={ui.portraits[`t_${fi}_${l}`]} alt="" />{/if}
                 <b>{t.name}</b>
                 <span class="small">{t.desc}</span>
-                <span class="cost">{@html ICON.coin} {t.cost}</span>
-                {#if t.skills}{#each t.skills as s}<span class="small">{@html UPGRADE_ICON[s.id] ?? ''} <b>{s.name}</b> : {s.desc}</span>{/each}{/if}
+                <span class="cost"><Ico k="coin" fb={ICON.coin} /> {t.cost}</span>
+                {#if t.skills}{#each t.skills as s}<span class="small"><Ico k={'up_' + s.id} fb={UPGRADE_ICON[s.id] ?? ''} /> <b>{s.name}</b> : {s.desc}</span>{/each}{/if}
               </div>
             {/each}
           </div>
@@ -57,8 +58,8 @@
               {#if ui.portraits['full_' + h]}<img src={ui.portraits['full_' + h]} alt="" />{/if}
               <b>{d.name}</b><span class="small"><i>{d.title}</i></span>
               <span class="small">{d.desc}</span>
-              <span class="small">{@html PASSIVE_ICON[h] ?? ''} <b>{d.passive.name}</b> : {d.passive.desc}</span>
-              {#each d.skills as s, i}<span class="small">{@html SKILL_ICON[h]?.[i] ?? ''} <b>{s.name}</b> : {s.desc}</span>{/each}
+              <span class="small"><Ico k={'pa_' + h} fb={PASSIVE_ICON[h] ?? ''} /> <b>{d.passive.name}</b> : {d.passive.desc}</span>
+              {#each d.skills as s, i}<span class="small"><Ico k={`sk_${h}_${i}`} fb={SKILL_ICON[h]?.[i] ?? ''} /> <b>{s.name}</b> : {s.desc}</span>{/each}
             </div>
           {/each}
         </div>
@@ -83,4 +84,6 @@
   .small b { color: var(--text); }
   .small :global(svg.icon) { width: 1.7em; height: 1.7em; vertical-align: -0.55em; }
   .cost { font-weight: 700; color: var(--gold); display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  /* médaillons des compétences et passifs : lisibles dans les listes */
+  .small :global(.icon.ico3d) { width: 1.9em; height: 1.9em; vertical-align: -0.62em; }
 </style>

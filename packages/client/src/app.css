@@ -226,6 +226,8 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--gold); width:
 }
 
 .icon { width: 1.2em; height: 1.2em; display: inline-block; vertical-align: -0.22em; flex: none; }
+/* icônes 3D (images rendues) : un peu plus grandes que les pictogrammes au trait, qui ont moins de marge */
+.icon.ico3d { width: 1.5em; height: 1.5em; vertical-align: -0.38em; }
 
 /* Badges de raccourcis sur les boutons du jeu : visibles au survol, au focus clavier,
    en maintenant Alt (classe .keys-held) ou si l'option est cochée (.show-keys). */

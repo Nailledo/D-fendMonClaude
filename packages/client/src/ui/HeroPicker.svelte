@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { HEROES, HERO_IDS, type HeroId } from '@dfend/shared';
   import { ui } from '../state.svelte';
   import { PASSIVE_ICON, SKILL_ICON } from './skillIcons';
@@ -21,9 +22,9 @@
       <b>{cur.name}</b> <span class="muted">— {cur.title}</span>
       <p>{cur.desc}</p>
       <ul>
-        <li>{@html PASSIVE_ICON[cur.id] ?? ''} <b>Passif :</b> {cur.passive.name}. {cur.passive.desc}</li>
+        <li><Ico k={'pa_' + cur.id} fb={PASSIVE_ICON[cur.id] ?? ''} /> <b>Passif :</b> {cur.passive.name}. {cur.passive.desc}</li>
         {#each cur.skills as s, i}
-          <li>{@html SKILL_ICON[cur.id]?.[i] ?? ''} <b>{i === 2 ? 'Ultime' : 'Compétence ' + (i + 1)} :</b> {s.name} <span class="muted">(niv. {s.unlock}, {s.cd} s)</span>. {s.desc}</li>
+          <li><Ico k={`sk_${cur.id}_${i}`} fb={SKILL_ICON[cur.id]?.[i] ?? ''} /> <b>{i === 2 ? 'Ultime' : 'Compétence ' + (i + 1)} :</b> {s.name} <span class="muted">(niv. {s.unlock}, {s.cd} s)</span>. {s.desc}</li>
         {/each}
       </ul>
     </div>
@@ -43,4 +44,6 @@
   .info li { margin: 3px 0; }
   .info li :global(svg.icon) { width: 1.6em; height: 1.6em; vertical-align: -0.45em; }
   .muted { color: var(--muted); }
+  /* médaillons des compétences et passifs : lisibles dans les listes */
+  li :global(.icon.ico3d) { width: 1.9em; height: 1.9em; vertical-align: -0.62em; }
 </style>

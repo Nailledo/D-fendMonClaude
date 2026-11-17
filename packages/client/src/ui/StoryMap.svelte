@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { DIFFICULTY_NAMES, ENEMIES, ENEMY_INDEX, HEROES, LEVELS, MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
@@ -88,15 +89,15 @@
       <button class="node" class:locked class:done class:on={sel === i} disabled={locked}
         style="left:{POS[i][0]}%;top:{POS[i][1]}%" aria-label="Niveau {i + 1} : {l.name}{locked ? ' (verrouillé)' : ''}"
         onclick={() => { sel = i; audio.play('click'); }}>
-        <span class="hx">{#if locked}{@html ICON.lock}{:else}{i + 1}{/if}</span>
+        <span class="hx">{#if locked}<Ico k="lock" fb={ICON.lock} />{:else}{i + 1}{/if}</span>
         {#if l.boss}<span class="bossmark" title="Boss"></span>{/if}
-        {#if done}<span class="stars">{#each [0, 1, 2] as k}{@html k < stars(i) ? ICON.star : ICON.starEmpty}{/each}</span>{/if}
+        {#if done}<span class="stars">{#each [0, 1, 2] as k}<Ico k={k < stars(i) ? 'star' : 'starEmpty'} fb={k < stars(i) ? ICON.star : ICON.starEmpty} />{/each}</span>{/if}
       </button>
     {/each}
 
     <div class="top">
       <button class="btn" onclick={() => (ui.screen = 'title')}>{@html ICON.back} Menu</button>
-      <span class="total panel">{@html ICON.star} {totalStars} / {LEVELS.length * 3}</span>
+      <span class="total panel"><Ico k="star" fb={ICON.star} /> {totalStars} / {LEVELS.length * 3}</span>
     </div>
   </div>
 
@@ -126,7 +127,7 @@
       <div class="seg">
         {#each DIFFICULTY_NAMES as d, i}
           <button class:on={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => setDifficulty(i as Difficulty)}>
-            {#if i === 2 && !nightmareOk}{@html ICON.lock}{/if}{d}{#if (best[i] ?? 0) > 0}<small> · {best[i]} ★</small>{/if}
+            {#if i === 2 && !nightmareOk}<Ico k="lock" fb={ICON.lock} />{/if}{d}{#if (best[i] ?? 0) > 0}<small> · {best[i]} ★</small>{/if}
           </button>
         {/each}
       </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { DIFFICULTY_NAMES, MAPS, SURVIVAL_MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
@@ -49,7 +50,7 @@
     </div>
   </div>
   <div class="panel lb">
-    <h3>{@html ICON.trophy} Meilleurs scores (solo, {DIFFICULTY_NAMES[diff]})</h3>
+    <h3><Ico k="trophy" fb={ICON.trophy} /> Meilleurs scores (solo, {DIFFICULTY_NAMES[diff]})</h3>
     {#if top.length === 0}<p class="muted">Aucun score pour l’instant. À vous l’honneur !</p>{/if}
     <ol>
       {#each top.slice(0, 10) as r}<li><span>{r.name}</span><b>vague {r.wave}</b></li>{/each}

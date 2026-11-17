@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { FAMILIES, TOWERS, UNDO_SELL_S } from '@dfend/shared';
   import { app } from '../app';
   import { keyLabel, keys } from '../settings';
@@ -59,7 +60,7 @@
           <b>{spec.name}</b>
           <span class="desc">{spec.desc}</span>
           <span class="mini">{#each towerStats(fam, 2 + s).slice(0, 4) as r}<span>{r.label} <i>{r.text}</i></span>{/each}</span>
-          <span class="cost">{@html ICON.coin}{spec.cost}</span>
+          <span class="cost"><Ico k="coin" fb={ICON.coin} />{spec.cost}</span>
         </button>
       {/each}
     </div>
@@ -72,7 +73,7 @@
         <button class="sk" class:poor={rank < 3 && gold < s.costs[rank]} disabled={rank >= 3} onclick={() => g()?.skill(i as 0 | 1)}>
           <span class="sn"><b>{s.name}</b><span class="pips">{#each [0, 1, 2] as k}<i class:on={k < rank}></i>{/each}</span></span>
           <span class="desc">{s.desc}</span>
-          <span class="cost">{#if rank < 3}{@html ICON.coin}{s.costs[rank]}{:else}Maximum{/if}</span>
+          <span class="cost">{#if rank < 3}<Ico k="coin" fb={ICON.coin} />{s.costs[rank]}{:else}Maximum{/if}</span>
         </button>
       {/each}
     </div>
@@ -80,7 +81,7 @@
   {/if}
 
   {#if fam === 'barracks' && mine}
-    <button class="btn ghost rally" onclick={() => g()?.startRally()}>{@html ICON.flag} Déplacer le point de ralliement<span class="kbd">{keyLabel(keys.rally)}</span></button>
+    <button class="btn ghost rally" onclick={() => g()?.startRally()}><Ico k="flag" fb={ICON.flag} /> Déplacer le point de ralliement<span class="kbd">{keyLabel(keys.rally)}</span></button>
   {/if}
   {#if mine}
     <p class="undo">{prep ? 'Préparation : la revente rend tout l’or tant que la première vague n’est pas lancée.' : `Remboursement intégral pendant ${UNDO_SELL_S} s après un achat.`}</p>

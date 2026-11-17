@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { DIFFICULTY_NAMES, LEVELS, PLAYER_COLORS } from '@dfend/shared';
   import { app } from '../app';
   import { progress, ui } from '../state.svelte';
@@ -20,7 +21,7 @@
     {#if e.mode === 'story'}
       <h1 class:won={e.won}>{e.won ? 'Victoire !' : 'Défaite…'}</h1>
       {#if e.won}
-        <div class="stars">{#each [0, 1, 2] as k}<span class:on={k < e.stars} style="animation-delay:{0.2 + k * 0.25}s">{@html k < e.stars ? ICON.star : ICON.starEmpty}</span>{/each}</div>
+        <div class="stars">{#each [0, 1, 2] as k}<span class:on={k < e.stars} style="animation-delay:{0.2 + k * 0.25}s"><Ico k={k < e.stars ? 'star' : 'starEmpty'} fb={k < e.stars ? ICON.star : ICON.starEmpty} /></span>{/each}</div>
       {:else}
         <p>Les forces de Kessin ont franchi vos défenses. Relevez-vous, chevalier !</p>
       {/if}

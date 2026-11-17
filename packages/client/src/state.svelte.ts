@@ -79,6 +79,8 @@ export const ui = $state({
   banner: null as null | { title: string; sub: string; id: number },
   debug: { on: false, fps: 0, calls: 0, tris: 0, ents: 0, ping: 0, kb: 0 },
   portraits: {} as Record<string, string>,
+  /** icônes 3D générées au démarrage (clé → image) */
+  icons: {} as Record<string, string>,
   submitted: false,
   /** écran tactile : interface agrandie, confirmations en deux appuis */
   touch: typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches,

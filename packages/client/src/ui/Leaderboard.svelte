@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { DIFFICULTY_NAMES, MAPS, SURVIVAL_MAPS, type Difficulty } from '@dfend/shared';
   import { ui } from '../state.svelte';
   import { ICON } from './icons';
@@ -18,7 +19,7 @@
 <div class="overlay-bg">
   <div class="panel box">
     <div class="head">
-      <h2>{@html ICON.trophy} Classement survie</h2>
+      <h2><Ico k="trophy" fb={ICON.trophy} /> Classement survie</h2>
       <button class="btn small" onclick={() => (ui.overlay = null)}>Fermer</button>
     </div>
     <div class="seg">

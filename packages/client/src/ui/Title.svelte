@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { LEVELS } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { app } from '../app';
@@ -49,12 +50,12 @@
   <nav class="menu" aria-label="Menu principal">
     <button class="row main" onclick={() => go('story')}><b>{storyLabel}</b><span>{storySub}</span>{@html ICON.chev}</button>
     <div class="modes">
-      <button class="row" onclick={() => go('survival')}><b>Survie</b><span>Vagues sans fin, classement en ligne</span>{@html ICON.horn}</button>
+      <button class="row" onclick={() => go('survival')}><b>Survie</b><span>Vagues sans fin, classement en ligne</span><Ico k="horn" fb={ICON.horn} /></button>
       <button class="row" onclick={() => go('multi')}><b>Multijoueur</b><span>De 1 à 4 joueurs avec un code de salon</span>{@html ICON.users}</button>
     </div>
     <div class="small">
       <button onclick={() => overlay('encyclo')}><i>{@html ICON.book}</i><span>Encyclopédie</span></button>
-      <button onclick={() => overlay('leaderboard')}><i>{@html ICON.trophy}</i><span>Classement</span></button>
+      <button onclick={() => overlay('leaderboard')}><i><Ico k="trophy" fb={ICON.trophy} /></i><span>Classement</span></button>
       <button onclick={() => overlay('help')}><i>{@html ICON.help}</i><span>Aide</span></button>
       <button onclick={() => overlay('settings')}><i>{@html ICON.gear}</i><span>Réglages</span></button>
     </div>
@@ -97,6 +98,8 @@
     background: var(--panel); border-radius: var(--r-sm); }
   .small button:hover { filter: brightness(1.18); }
   .small :global(.icon) { width: 22px; height: 22px; color: var(--muted); }
+  .small :global(.ico3d) { width: 28px; height: 28px; }
+  .row :global(.ico3d) { width: 34px; height: 34px; }
   .small i { display: contents; }
   .modes { display: flex; flex-direction: column; gap: 10px; }
   .profile { position: absolute; top: 16px; right: 16px; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; }

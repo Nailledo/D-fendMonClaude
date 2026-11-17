@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { FAMILIES, TOWERS } from '@dfend/shared';
   import { app } from '../app';
   import { ui } from '../state.svelte';
@@ -77,7 +78,7 @@
       <button class="opt" class:poor={gold < t.cost} class:armed={armed === 'b' + i} style={at(-90 + i * 90)}
         onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp, i)}
         onclick={() => act('b' + i, tp, () => g()?.build(i), i)}>
-        <span class="face hex" style="--fc:{FAMILY_COLOR[i]}">{@html FAMILY_ICON[i]}</span>
+        <span class="face hex" style="--fc:{FAMILY_COLOR[i]}"><Ico k={'fam_' + i} fb={FAMILY_ICON[i]} /></span>
         <span class="cost">{t.cost}</span>
         <span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery][i])}</span>
       </button>
@@ -89,7 +90,7 @@
       <button class="opt up" class:poor={gold < next.cost} class:armed={armed === 'up'} style={at(-90)}
         onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp, -1, lvl + 1)}
         onclick={() => act('up', tp, () => g()?.upgrade(), -1, lvl + 1)}>
-        <span class="face hex" style="--fc:var(--gold)">{@html ICON.up}</span><span class="cost">{next.cost}</span><span class="kbd">{keyLabel(keys.upgrade)}</span>
+        <span class="face hex" style="--fc:var(--gold)"><Ico k="up" fb={ICON.up} /></span><span class="cost">{next.cost}</span><span class="kbd">{keyLabel(keys.upgrade)}</span>
       </button>
     {:else if lvl === 2}
       {#each [1, 2] as s}
@@ -98,7 +99,7 @@
         <button class="opt spec" class:poor={gold < spec.cost} class:armed={armed === 's' + s} style={at(s === 1 ? -130 : -50)}
           onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp, -1, 2 + s)}
           onclick={() => act('s' + s, tp, () => g()?.upgrade(s as 1 | 2), -1, 2 + s)}>
-          <span class="face hex" style="--fc:{FAMILY_COLOR[sel.fam ?? 0]}">{#if ui.portraits[`t_${sel.fam}_${2 + s}`]}<img src={ui.portraits[`t_${sel.fam}_${2 + s}`]} alt="" />{:else}{@html FAMILY_ICON[sel.fam ?? 0]}{/if}</span>
+          <span class="face hex" style="--fc:{FAMILY_COLOR[sel.fam ?? 0]}">{#if ui.portraits[`t_${sel.fam}_${2 + s}`]}<img src={ui.portraits[`t_${sel.fam}_${2 + s}`]} alt="" />{:else}<Ico k={'fam_' + (sel.fam ?? 0)} fb={FAMILY_ICON[sel.fam ?? 0]} />{/if}</span>
           <span class="cost">{spec.cost}</span>
         </button>
       {/each}
@@ -110,7 +111,7 @@
         <button class="opt skill" class:poor={rank < 3 && gold < cost} class:max={rank >= 3} class:armed={armed === 'k' + i} style={at(i === 0 ? -130 : -50)}
           onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)}
           onclick={() => rank < 3 && act('k' + i, tp, () => g()?.skill(i as 0 | 1))}>
-          {#if UPGRADE_ICON[s.id]}<span class="sicon">{@html UPGRADE_ICON[s.id]}</span>{:else}<span class="sname">{s.name}</span>{/if}
+          {#if UPGRADE_ICON[s.id]}<span class="sicon"><Ico k={'up_' + s.id} fb={UPGRADE_ICON[s.id]} /></span>{:else}<span class="sname">{s.name}</span>{/if}
           <span class="pips">{#each [0, 1, 2] as k}<i class:on={k < rank}></i>{/each}</span>
           {#if rank < 3}<span class="cost">{cost}</span>{/if}
         </button>
@@ -119,18 +120,18 @@
     {#if sel.mine}
       {@const tp = { title: 'Vendre', text: prep ? `Rend ${sellValue} or : remboursement intégral tant que la première vague n’est pas lancée.` : `Rend ${sellValue} or (100 % pendant 3 s après un achat).` }}
       <button class="opt sell" class:armed={armed === 'sell'} style={at(90)} onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)} onclick={() => act('sell', tp, () => g()?.sell())}>
-        <span class="face hex neutral">{@html ICON.sell}</span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
+        <span class="face hex neutral"><Ico k="sell" fb={ICON.sell} /></span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
       </button>
       {#if fam === 'barracks'}
         <button class="opt" style={at(180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview({ title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
-          <span class="face hex neutral">{@html ICON.flag}</span><span class="kbd">{keyLabel(keys.rally)}</span>
+          <span class="face hex neutral"><Ico k="flag" fb={ICON.flag} /></span><span class="kbd">{keyLabel(keys.rally)}</span>
         </button>
       {/if}
     {/if}
   {/if}
   {#if tip && !ui.touch}
     <div class="tip panel" class:flip use:fit>
-      <b>{tip.title}</b>{#if tip.cost !== undefined} <span class="tc" class:poor={gold < tip.cost}>{@html ICON.coin}{tip.cost}</span>{/if}
+      <b>{tip.title}</b>{#if tip.cost !== undefined} <span class="tc" class:poor={gold < tip.cost}><Ico k="coin" fb={ICON.coin} />{tip.cost}</span>{/if}
       <div>{tip.text}</div>
     </div>
   {/if}
@@ -145,6 +146,11 @@
   .face { width: 62px; height: 62px; display: grid; place-items: center; background: var(--fc); color: var(--line); border: 3px solid rgba(255, 255, 255, 0.85);
     box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.22), 0 3px 0 rgba(8, 10, 12, 0.6), 0 6px 14px rgba(0, 0, 0, 0.35); }
   .face :global(.icon) { width: 30px; height: 30px; }
+  /* médaillon 3D : il remplace la pastille colorée */
+  .face:has(:global(.ico3d)) { background: none; border: 0; box-shadow: none; }
+  .face :global(.ico3d) { width: 112%; height: 112%; max-width: none; filter: drop-shadow(0 3px 0 rgba(8, 10, 12, 0.5)); }
+  .opt.armed .face :global(.ico3d) { filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 6px var(--gold)); }
+  .sicon :global(.ico3d) { width: 42px; height: 42px; margin-top: -8px; }
   .face.neutral { background: var(--raised-2); color: var(--text); }
   .face.neutral :global(.icon) { color: var(--gold); }
   .opt:hover .face { filter: brightness(1.12); }

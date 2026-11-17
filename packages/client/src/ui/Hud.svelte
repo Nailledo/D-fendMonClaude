@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ico from './Ico.svelte';
   import { ENEMIES, FAMILIES, HEROES, HERO_IDS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
@@ -81,9 +82,9 @@
 <div class="hud" class:touch={ui.touch}>
   <!-- barre du haut -->
   <div class="top panel ui">
-    <span class="stat life" class:low={h.lives <= 5} title="Vies">{@html ICON.heart}<b>{h.lives}</b></span>
-    <span class="stat gold" title="Votre or">{@html ICON.coin}<b>{h.gold}</b></span>
-    <span class="stat" title="Vague">{@html ICON.horn}<b>{h.wave}</b>{#if h.totalWaves}<small>/{h.totalWaves}</small>{/if}</span>
+    <span class="stat life" class:low={h.lives <= 5} title="Vies"><Ico k="heart" fb={ICON.heart} /><b>{h.lives}</b></span>
+    <span class="stat gold" title="Votre or"><Ico k="coin" fb={ICON.coin} /><b>{h.gold}</b></span>
+    <span class="stat" title="Vague"><Ico k="horn" fb={ICON.horn} /><b>{h.wave}</b>{#if h.totalWaves}<small>/{h.totalWaves}</small>{/if}</span>
     {#if h.totalWaves && h.totalWaves <= 20}
       <span class="segs" aria-hidden="true">{#each Array(h.totalWaves) as _, k}<i class:on={k < h.wave}></i>{/each}</span>
     {/if}
@@ -132,7 +133,7 @@
         onpointerenter={(e) => e.pointerType !== 'touch' && showPreview(i, e.currentTarget)} onpointerleave={() => (openWave = -1)}
         onfocus={(e) => showPreview(i, e.currentTarget)} onblur={() => (openWave = -1)}
         onclick={(e) => waveTap(i, e)}>
-        {@html LINE.skull}
+        <Ico k="skull" fb={LINE.skull} />
         {#if h.nextWave > 0}<span class="sec">{h.nextWave} s</span>{/if}
       </button>
       {#if openWave === i && preview}
@@ -193,9 +194,9 @@
           <button class="skill" class:ult={i === 2} class:locked disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
             title="{s.name} — {s.desc} (recharge {s.cd} s){locked ? ` — niveau ${s.unlock} requis` : ''}">
             {#if locked}
-              {@html LINE.lock}<span class="sn">Niv. {s.unlock}</span>
+              <Ico k="lock" fb={LINE.lock} /><span class="sn">Niv. {s.unlock}</span>
             {:else}
-              <span class="si">{@html HERO_SKILL_ICON[hero.id]?.[i] ?? SKILL_ICON[s.icon] ?? ''}</span><span class="sn">{s.short}</span>
+              <span class="si"><Ico k={`sk_${hero.id}_${i}`} fb={HERO_SKILL_ICON[hero.id]?.[i] ?? SKILL_ICON[s.icon] ?? ''} /></span><span class="sn">{s.short}</span>
               {#if cd > 0}<span class="cd" style="--p:{frac(cd, s.cd)}">{cd}</span>{/if}
             {/if}
             <span class="kbd">{keyLabel(i === 0 ? keys.skill1 : i === 1 ? keys.skill2 : keys.ult)}</span>
@@ -209,7 +210,7 @@
   <div class="spells ui">
     {#each SPELLS as sp, i}
       <button class="spell" class:ready={h.spells[i] <= 0} aria-label={sp.name} onclick={() => g()?.castSpell(i as 0 | 1)} title="{sp.name} — {sp.desc} (recharge {sp.cd} s)">
-        {@html i === 0 ? ICON.meteor : ICON.helmet}
+        <Ico k={i === 0 ? 'meteor' : 'reinforce'} fb={i === 0 ? ICON.meteor : ICON.helmet} />
         {#if h.spells[i] > 0}<span class="cd" style="--p:{frac(h.spells[i], sp.cd)}">{h.spells[i]}</span>{/if}
         <span class="kbd">{keyLabel(i === 0 ? keys.spell1 : keys.spell2)}</span>
       </button>
@@ -223,10 +224,10 @@
       {#each h.players as p}
         <div class="pl" class:off={!p.connected} class:gone={!p.active} style="--c:{hex(PLAYER_COLORS[p.id] ?? 0xffffff)}">
           <b>{p.name}</b>
-          <span class="pg">{@html ICON.coin}{p.gold}</span>
+          <span class="pg"><Ico k="coin" fb={ICON.coin} />{p.gold}</span>
           {#if !p.active}<i>parti</i>{:else if !p.connected}<i>reconnexion…</i>{:else}<span class="ping">{p.ping} ms</span>{/if}
           {#if p.id !== ui.game?.you && p.active}
-            <button class="btn small ghost" title="Donner 50 or" onclick={() => g()?.gift(p.id)}>{@html ICON.gift}</button>
+            <button class="btn small ghost" title="Donner 50 or" onclick={() => g()?.gift(p.id)}><Ico k="gift" fb={ICON.gift} /></button>
           {/if}
         </div>
       {/each}
@@ -238,7 +239,7 @@
   {#if ui.touch && ui.radialTip && (sel?.kind === 'build' || sel?.kind === 'tower')}
     {@const tp = ui.radialTip}
     <div class="info panel ui tipsheet sheet-{ui.sheet}">
-      <div class="tsh"><b>{tp.title}</b>{#if tp.cost !== undefined}<span class="tc" class:poor={h.gold < tp.cost}>{@html ICON.coin}{tp.cost}</span>{/if}</div>
+      <div class="tsh"><b>{tp.title}</b>{#if tp.cost !== undefined}<span class="tc" class:poor={h.gold < tp.cost}><Ico k="coin" fb={ICON.coin} />{tp.cost}</span>{/if}</div>
       <div class="small">{tp.text}</div>
       <div class="again">Touchez encore l'icône pour confirmer</div>
     </div>
@@ -320,6 +321,10 @@
     box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.22), 0 3px 0 rgba(8, 10, 12, 0.6), 0 6px 14px rgba(0, 0, 0, 0.35);
   }
   .wavebtn :global(.icon) { width: 28px; height: 28px; }
+  /* médaillon 3D du crâne : il remplace la pastille rouge */
+  .wavebtn:has(:global(.ico3d)) { background: none; border: 0; box-shadow: none; }
+  .wavebtn :global(.ico3d) { position: absolute; inset: -6px; width: calc(100% + 12px) !important; height: calc(100% + 12px) !important; margin: 0 !important; filter: drop-shadow(0 3px 0 rgba(8, 10, 12, 0.55)); }
+  .wavebtn:has(:global(.ico3d)) .sec { z-index: 1; bottom: -6px; background: var(--line); border-radius: 99px; padding: 0 6px; }
   .wavebtn:hover { background: #f46663; }
   .wavebtn.first { animation: beat 1.4s ease-in-out infinite; }
   .wavebtn.first::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--life); animation: ping 1.4s ease-out infinite; }
@@ -390,6 +395,8 @@
   .skill :global(.icon) { width: 21px; height: 21px; }
   .skill .si { display: contents; }
   .skill .si :global(svg.icon) { width: 28px; height: 28px; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)); }
+  .skill .si :global(.ico3d) { width: 34px; height: 34px; margin: -3px 0 -2px; }
+  .skill.locked :global(.ico3d) { width: 22px; height: 22px; opacity: 0.7; }
   .skill.ult { color: var(--gold); box-shadow: var(--rim), inset 0 0 0 2px rgba(242, 179, 61, 0.45); }
   .skill.locked, .skill.ult.locked { background: transparent; box-shadow: none; outline: 1px dashed rgba(243, 238, 226, 0.25); outline-offset: -1px; color: var(--faint); }
   .skill:disabled { cursor: default; }
@@ -405,6 +412,7 @@
   .spell.ready::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--gold); opacity: 0; animation: ready 2.4s ease-out infinite; pointer-events: none; }
   @keyframes ready { 0% { opacity: 0.8; transform: scale(0.95); } 60%, 100% { opacity: 0; transform: scale(1.25); } }
   .spell :global(.icon) { width: 32px; height: 32px; }
+  .spell :global(.ico3d) { width: 94%; height: 94%; }
   .spell:hover { background: var(--raised); }
   .spell:active { transform: scale(0.93); }
 
@@ -446,6 +454,7 @@
   .touch .top { top: calc(8px + var(--sat)); left: calc(8px + var(--sal)); gap: 12px; padding: 6px 14px; border-radius: 99px; flex-wrap: nowrap; max-width: calc(100vw - 16px - 152px - var(--sal) - var(--sar)); font-size: 0.92em; }
   .touch .stat { gap: 5px; font-size: 1.2em; }
   .touch .stat :global(.icon) { width: 1.05em; height: 1.05em; }
+  .touch .stat :global(.ico3d) { width: 1.3em; height: 1.3em; }
   .touch .segs, .touch .next { display: none; }
   .touch .top .call { display: none; }
   .touch .topright { top: calc(8px + var(--sat)); right: calc(8px + var(--sar)); gap: 6px; }
@@ -470,6 +479,8 @@
   .touch .skill .sn { display: none; }
   .touch .skill.locked .sn { display: block; font-size: 10px; }
   .touch .skill .si :global(svg.icon) { width: 30px; height: 30px; }
+  .touch .skill .si :global(.ico3d) { width: 46px; height: 46px; margin: 0; }
+  .touch .skill.locked :global(.ico3d) { width: 24px; height: 24px; }
   .touch .cd { font-size: 16px; }
   .touch .spells { gap: 8px; pointer-events: auto; }
   .touch .spell { width: 62px; height: 62px; }
