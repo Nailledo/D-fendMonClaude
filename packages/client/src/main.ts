@@ -7,6 +7,7 @@ import '@fontsource/grenze-gotisch/700.css';
 import './app.css';
 import { mount } from 'svelte';
 import { app } from './app';
+import { ensureModels, loadManifest, portraitModelKeys } from './art/models';
 import { renderPortraits } from './render/portraits';
 import { detectLayout, settings } from './settings';
 import { ui } from './state.svelte';
@@ -18,6 +19,10 @@ document.documentElement.classList.toggle('show-keys', !!settings.showKeys);
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 app.init(canvas);
 ui.portraits = renderPortraits();
+// les portraits sont refaits avec les modèles importés (ceux qu'on voit en jeu) dès qu'ils sont chargés
+void loadManifest()
+  .then(() => ensureModels(portraitModelKeys()))
+  .then(() => (ui.portraits = renderPortraits()));
 void detectLayout();
 if (new URLSearchParams(location.search).has('bench')) app.startBench();
 // reconnexion automatique à une partie en cours (jeton conservé)

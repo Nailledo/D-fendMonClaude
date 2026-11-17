@@ -58,13 +58,13 @@ export function compareStats(fam: Family, from: number, to: number) {
   });
 }
 
-/** Or rendu à la revente (hors remboursement intégral juste après un achat). */
-export function sellValue(fi: number, level: number, sk: [number, number]): number {
+/** Or rendu à la revente ; `full` : remboursement intégral (préparation, ou juste après un achat). */
+export function sellValue(fi: number, level: number, sk: [number, number], full = false): number {
   const fam = FAMILIES[fi];
   let c = investedCost(fam, level);
   const skills = TOWERS[fam][level].skills;
   if (skills) for (let i = 0; i < 2; i++) for (let r = 0; r < sk[i]; r++) c += skills[i].costs[r];
-  return Math.floor(c * SELL_RATIO);
+  return Math.floor(c * (full ? 1 : SELL_RATIO));
 }
 
 export const LEVEL_LABEL = ['Niveau 1 sur 3', 'Niveau 2 sur 3', 'Niveau 3 sur 3', 'Spécialisation', 'Spécialisation'];

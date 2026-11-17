@@ -20,7 +20,8 @@
   const g = () => app.game;
   const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
   const multi = $derived(!!ui.game?.multi);
-  const entries = $derived(app.game?.world.entries.length ?? 0);
+  // la partie est créée après l'affichage du HUD (chargement des modèles) : ui.gameId rend ces valeurs réactives
+  const entries = $derived(ui.gameId >= 0 ? app.game?.world.entries.length ?? 0 : 0);
   const me = $derived(h.players.find((p) => p.id === ui.game?.you));
   let waveEls: HTMLElement[] = $state([]);
   let dmgLayer: HTMLElement | undefined = $state();
@@ -35,7 +36,7 @@
   // ---- aperçu de la vague suivante ----
   const activePlayers = $derived(Math.max(1, h.players.filter((p) => p.active).length));
   const preview = $derived.by(() => {
-    const cfg = app.game?.cfg;
+    const cfg = ui.gameId >= 0 ? app.game?.cfg : undefined;
     if (!cfg || (h.totalWaves && h.wave >= h.totalWaves)) return null;
     return previewWave(cfg, h.wave + 1, activePlayers);
   });
@@ -87,7 +88,7 @@
       <span class="segs" aria-hidden="true">{#each Array(h.totalWaves) as _, k}<i class:on={k < h.wave}></i>{/each}</span>
     {/if}
     {#if h.nextWave > 0}<span class="next">Vague suivante dans <b>{h.nextWave} s</b></span>{/if}
-    {#if h.state === 0}<span class="next call">{ui.touch ? 'Touchez le crâne pour lancer la vague' : 'Appelez la première vague quand vous êtes prêts'}</span>{/if}
+    {#if h.state === 0}<span class="next call">Préparation : construisez, la revente rend tout</span>{/if}
   </div>
 
   {#if h.mutations.length}
@@ -153,6 +154,19 @@
       {/if}
     </div>
   {/each}
+
+  <!-- appel de vague : bouton explicite (en plus du crâne à l'entrée du chemin) -->
+  {#if !ui.dialog && !ui.end && !h.targeting && !(ui.touch && sel) && preview && (h.state === 0 || h.nextWave > 0)}
+    <button class="callwave ui" class:prep={h.state === 0} onclick={() => { openWave = -1; g()?.callWave(); }}
+      aria-label="Lancer la vague {preview.wave}">
+      <span class="cwi">{@html ICON.play}</span>
+      <span class="cwt">
+        {#if h.state === 0}<b>Lancer la vague 1</b>{:else}<b>Vague suivante</b> <em>{h.nextWave} s</em>{/if}
+        <small>{#if bonus > 0 && h.state !== 0}+{bonus} or{multi ? ' chacun' : ''} si vous l'appelez maintenant{:else}{preview.entries.slice(0, 3).map((en) => `${en.count} × ${ENEMIES[en.type].name}`).join(' · ')}{/if}</small>
+      </span>
+      {#if !ui.touch}<span class="kbd">{keyLabel(keys.wave)}</span>{/if}
+    </button>
+  {/if}
 
   <!-- menu radial -->
   <div class="radialAnchor" bind:this={radialEl}>
@@ -331,6 +345,26 @@
 
   .radialAnchor { position: absolute; left: 0; top: 0; visibility: hidden; }
 
+  /* bouton d'appel de vague */
+  .callwave { position: absolute; left: 50%; bottom: calc(126px + var(--sab)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 18px 8px 8px; border: 0; cursor: pointer;
+    border-radius: 99px; background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 2px var(--raised-2), var(--rim), var(--shadow); text-align: left; max-width: calc(100vw - 24px); touch-action: manipulation; animation: rise 0.2s ease; }
+  .callwave:hover { background: var(--raised); }
+  .callwave:active { transform: translateX(-50%) translateY(2px); }
+  .cwi { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--life); color: #fff; }
+  .cwi :global(.icon) { width: 20px; height: 20px; margin-left: 2px; }
+  .cwt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .cwt b { font-family: var(--font-display); font-size: 1.25em; line-height: 1.05; white-space: nowrap; }
+  .cwt em { font-style: normal; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .cwt small { color: var(--muted); font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .callwave .kbd { margin-left: 4px; opacity: 1; }
+  /* préparation : gros bouton doré qui attire l'œil */
+  .callwave.prep { background: var(--gold); color: var(--gold-ink); box-shadow: 0 3px 0 #9c6c14, 0 8px 22px rgba(0, 0, 0, 0.3); padding: 10px 24px 10px 10px; animation: rise 0.2s ease, callpulse 1.6s ease-in-out 0.3s infinite; }
+  .callwave.prep:hover { background: #f7c35e; }
+  .callwave.prep .cwt small { color: #6b4a12; }
+  .callwave.prep .cwi { width: 46px; height: 46px; }
+  .callwave.prep .cwt b { font-size: 1.45em; }
+  @keyframes callpulse { 50% { box-shadow: 0 3px 0 #9c6c14, 0 0 0 8px rgba(242, 179, 61, 0.28), 0 8px 22px rgba(0, 0, 0, 0.3); } }
+
   /* héros et sorts */
   .bottomleft { position: absolute; left: calc(10px + var(--sal)); bottom: calc(10px + var(--sab)); display: flex; align-items: flex-end; gap: 10px; }
   .heroCard { display: flex; gap: 12px; padding: 10px 12px; align-items: stretch; }
@@ -441,6 +475,13 @@
   .touch .spell { width: 62px; height: 62px; }
   .touch .heroCard, .touch .spells { pointer-events: auto; }
 
+  .touch .callwave { bottom: calc(var(--bb) + 14px + var(--sab)); }
+  .touch .callwave.prep { padding: 7px 18px 7px 7px; gap: 10px; }
+  .touch .callwave.prep .cwi { width: 40px; height: 40px; }
+  .touch .callwave.prep .cwt b { font-size: 1.25em; }
+  .touch .callwave:not(.prep) { padding: 5px 14px 5px 5px; gap: 8px; }
+  .touch .callwave:not(.prep) .cwi { width: 34px; height: 34px; }
+  .touch .callwave:not(.prep) .cwt b { font-size: 1.05em; }
   .touch .targeting { bottom: calc(var(--bb) + 16px + var(--sab)); white-space: normal; text-align: center; max-width: calc(100vw - 24px); padding: 6px 6px 6px 16px; font-size: 0.92em; }
   .touch .chatwrap { bottom: calc(var(--bb) + 14px + var(--sab)); width: min(340px, calc(100vw - 16px)); left: calc(8px + var(--sal)); }
   .touch .banner { top: 18%; }

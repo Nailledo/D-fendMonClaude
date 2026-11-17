@@ -29,6 +29,24 @@ describe('simulation', () => {
     expect(sim.players[0].kills).toBeGreaterThan(0);
   });
 
+  it('rembourse intégralement pendant la préparation, partiellement ensuite', () => {
+    const sim = new Sim(cfg());
+    const gold = sim.players[0].gold;
+    const free = sim.map.slots.map((s, i) => ({ s, i })).filter((o) => !o.s.locked);
+    sim.apply(0, { k: 'build', slot: free[0].i, fam: 0 });
+    for (let i = 0; i < 20 * 10; i++) sim.step(); // bien après le délai d'annulation
+    expect(sim.state).toBe(GameState.Waiting);
+    sim.apply(0, { k: 'sell', tower: sim.towers[0].id });
+    expect(sim.players[0].gold).toBe(gold);
+    sim.apply(0, { k: 'build', slot: free[0].i, fam: 0 });
+    const cost = gold - sim.players[0].gold;
+    sim.apply(0, { k: 'wave' });
+    for (let i = 0; i < 20 * 10; i++) sim.step();
+    const before = sim.players[0].gold;
+    sim.apply(0, { k: 'sell', tower: sim.towers[0].id });
+    expect(sim.players[0].gold - before).toBe(Math.floor(cost * 0.6));
+  });
+
   it('refuse les commandes invalides', () => {
     const sim = new Sim(cfg());
     const gold = sim.players[0].gold;

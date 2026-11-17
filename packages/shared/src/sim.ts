@@ -145,6 +145,8 @@ export interface Tower {
   rallyZ: number;
   units: Unit[];
   invested: number;
+  /** or payé par chaque joueur (id → montant) : remboursé à chacun pendant la préparation */
+  paid: Record<number, number>;
   lastBuy: number;
   /** joueur qui a payé le dernier achat (le remboursement intégral ne vaut que pour ses propres achats) */
   lastBuyer: number;
@@ -571,7 +573,7 @@ export class Sim {
         p.gold -= def.cost;
         const t: Tower = {
           id: this.nextId++, slot, owner: pid, fam, fi, level: 0, sk: [0, 0], cdT: sec(0.3), burstLeft: 0, burstT: 0,
-          stunT: 0, aim: null, rallyX: s.x, rallyZ: s.z, units: [], invested: def.cost, lastBuy: this.tick, lastBuyer: pid, s1T: 0, s2T: 0, x: s.x, z: s.z,
+          stunT: 0, aim: null, rallyX: s.x, rallyZ: s.z, units: [], invested: def.cost, paid: { [pid]: def.cost }, lastBuy: this.tick, lastBuyer: pid, s1T: 0, s2T: 0, x: s.x, z: s.z,
         };
         if (fam === 'barracks') {
           // point de ralliement : le point du chemin le plus proche
@@ -601,6 +603,7 @@ export class Sim {
         if (p.gold < def.cost) return;
         p.gold -= def.cost;
         t.invested += def.cost;
+        t.paid[pid] = (t.paid[pid] ?? 0) + def.cost;
         t.level++;
         t.lastBuy = this.tick;
         t.lastBuyer = pid;
@@ -615,6 +618,7 @@ export class Sim {
         if (p.gold < def.cost) return;
         p.gold -= def.cost;
         t.invested += def.cost;
+        t.paid[pid] = (t.paid[pid] ?? 0) + def.cost;
         t.level = 2 + c.s;
         t.lastBuy = this.tick;
         t.lastBuyer = pid;
@@ -634,6 +638,7 @@ export class Sim {
         if (p.gold < cost) return;
         p.gold -= cost;
         t.invested += cost;
+        t.paid[pid] = (t.paid[pid] ?? 0) + cost;
         t.sk[c.i]++;
         t.lastBuy = this.tick;
         t.lastBuyer = pid;
@@ -644,8 +649,12 @@ export class Sim {
       case 'sell': {
         const t = this.ownTower(pid, c.tower);
         if (!t) return;
+        // remboursement intégral : juste après un achat, ou pendant la préparation (avant la première vague)
         const undo = t.lastBuyer === pid && this.tick - t.lastBuy <= sec(UNDO_SELL_S);
-        p.gold += Math.floor(t.invested * (undo ? 1 : SELL_RATIO));
+        if (this.state === GameState.Waiting) {
+          // chaque joueur récupère exactement ce qu'il a payé
+          for (const q of this.players) q.gold += t.paid[q.id] ?? 0;
+        } else p.gold += Math.floor(t.invested * (undo ? 1 : SELL_RATIO));
         this.removeTower(t);
         break;
       }

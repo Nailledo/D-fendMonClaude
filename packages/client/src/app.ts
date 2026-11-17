@@ -160,6 +160,7 @@ class App {
         if (gen !== this.launchGen) return;
         ui.loading = false;
         this.game = new GameClient(this.renderer, cfg, host, you, () => this.leaveGame());
+        ui.gameId++;
       });
   }
   private launchGen = 0;

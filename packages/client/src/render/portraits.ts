@@ -3,9 +3,14 @@ import { ENEMIES } from '@dfend/shared';
 import { enemyGeometry } from '../art/enemies';
 import { heroGeometry, soldierGeometry } from '../art/units';
 import { towerModel } from '../art/towers';
-import { worldMaterial } from './materials';
+import { K, model } from '../art/models';
+import { toonGradient, worldMaterial } from './materials';
 
-/** Rend une fois les modèles 3D en petites images (portraits, encyclopédie). */
+/**
+ * Rend les modèles 3D en petites images (portraits, encyclopédie).
+ * Les modèles importés (ceux qu'on voit en jeu) sont utilisés dès qu'ils sont chargés,
+ * sinon l'art construit en code : appeler à nouveau une fois les modèles chargés.
+ */
 export function renderPortraits(): Record<string, string> {
   const out: Record<string, string> = {};
   const size = 160;
@@ -26,8 +31,25 @@ export function renderPortraits(): Record<string, string> {
   scene.add(sun);
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   const mat = worldMaterial();
-  const shot = (key: string, geo: THREE.BufferGeometry, face: boolean) => {
-    const mesh = new THREE.Mesh(geo, mat);
+  const texMats = new Map<THREE.Texture, THREE.Material>();
+  const matFor = (map: THREE.Texture | null) => {
+    if (!map) return mat;
+    let m = texMats.get(map);
+    if (!m) {
+      const t = new THREE.MeshToonMaterial({ vertexColors: true, map, gradientMap: toonGradient() });
+      if (map.userData.cutout) { t.alphaTest = 0.5; t.side = THREE.DoubleSide; }
+      texMats.set(map, (m = t));
+    }
+    return m;
+  };
+  /** modèle importé s'il est chargé, sinon art en code */
+  const pick = (key: string, fb: () => THREE.BufferGeometry) => {
+    const m = model(key);
+    return m ? { geo: m.geo, map: m.map } : { geo: fb(), map: null };
+  };
+  const shot = (key: string, src: { geo: THREE.BufferGeometry; map: THREE.Texture | null }, face: boolean) => {
+    const geo = src.geo;
+    const mesh = new THREE.Mesh(geo, matFor(src.map));
     scene.add(mesh);
     geo.computeBoundingBox();
     const bb = geo.boundingBox!;
@@ -42,15 +64,16 @@ export function renderPortraits(): Record<string, string> {
     out[key] = canvas.toDataURL('image/png');
     scene.remove(mesh);
   };
-  for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot(id, heroGeometry(id), true);
-  for (const id of ['samuel', 'lyra', 'brom', 'nox']) shot('full_' + id, heroGeometry(id), false);
-  for (const e of ENEMIES) shot('e_' + e.id, enemyGeometry(e.id), false);
-  shot('kessin', enemyGeometry('kessin1'), true);
-  shot('grolbak', enemyGeometry('grolbak'), true);
-  shot('vasiere', enemyGeometry('vasiere'), true);
-  shot('corbeau', enemyGeometry('corbeau'), false);
-  for (let f = 0; f < 4; f++) for (let l = 0; l < 5; l++) shot(`t_${f}_${l}`, towerModel(f, l).base, false);
-  for (let k = 0; k < 8; k++) shot('s_' + k, soldierGeometry(k), false);
+  for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot(id, pick(K.hero(id), () => heroGeometry(id)), true);
+  for (const id of ['samuel', 'lyra', 'brom', 'nox']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
+  for (const e of ENEMIES) shot('e_' + e.id, pick(K.enemy(e.id), () => enemyGeometry(e.id)), false);
+  shot('kessin', pick(K.enemy('kessin1'), () => enemyGeometry('kessin1')), true);
+  shot('grolbak', pick(K.enemy('grolbak'), () => enemyGeometry('grolbak')), true);
+  shot('vasiere', pick(K.enemy('vasiere'), () => enemyGeometry('vasiere')), true);
+  shot('corbeau', pick(K.enemy('corbeau'), () => enemyGeometry('corbeau')), false);
+  for (let f = 0; f < 4; f++) for (let l = 0; l < 5; l++) shot(`t_${f}_${l}`, pick(K.tower(f, l), () => towerModel(f, l).base), false);
+  for (let k = 0; k < 8; k++) shot('s_' + k, pick(K.soldier(k), () => soldierGeometry(k)), false);
+  for (const m of texMats.values()) m.dispose();
   gl.dispose();
   gl.forceContextLoss();
   return out;

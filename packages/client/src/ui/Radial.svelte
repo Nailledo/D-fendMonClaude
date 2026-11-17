@@ -27,7 +27,9 @@
   const fam = $derived(sel.fam !== undefined ? FAMILIES[sel.fam] : 'archer');
   const lvl = $derived(sel.level ?? 0);
   const sk = $derived(sel.sk ?? [0, 0]);
-  const sellValue = $derived(sellOf(sel.fam ?? 0, lvl, sk as [number, number]));
+  /** avant la première vague, la revente rend tout */
+  const prep = $derived(ui.hud.state === 0);
+  const sellValue = $derived(sellOf(sel.fam ?? 0, lvl, sk as [number, number], prep));
   const statLine = (fi: string, l: number) => {
     const t = TOWERS[fi as keyof typeof TOWERS][l];
     if (t.soldiers) return `${t.soldiers.count} soldats · ${t.soldiers.hp} PV · ${t.soldiers.dmg[0]}-${t.soldiers.dmg[1]} dégâts · armure ${Math.round(t.soldiers.armor * 100)} %`;
@@ -115,7 +117,7 @@
       {/each}
     {/if}
     {#if sel.mine}
-      {@const tp = { title: 'Vendre', text: `Rend ${sellValue} or (100 % pendant 3 s après un achat).` }}
+      {@const tp = { title: 'Vendre', text: prep ? `Rend ${sellValue} or : remboursement intégral tant que la première vague n’est pas lancée.` : `Rend ${sellValue} or (100 % pendant 3 s après un achat).` }}
       <button class="opt sell" class:armed={armed === 'sell'} style={at(90)} onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)} onclick={() => act('sell', tp, () => g()?.sell())}>
         <span class="face hex neutral">{@html ICON.sell}</span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
       </button>

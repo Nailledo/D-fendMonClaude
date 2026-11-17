@@ -14,7 +14,8 @@
   const sk = $derived((sel.sk ?? [0, 0]) as [number, number]);
   const cur = $derived(TOWERS[fam][lvl]);
   const next = $derived(lvl < 2 ? TOWERS[fam][lvl + 1] : null);
-  const sell = $derived(sellValue(fi, lvl, sk));
+  const prep = $derived(ui.hud.state === 0);
+  const sell = $derived(sellValue(fi, lvl, sk, prep));
   const mine = $derived(sel.mine !== false);
   const ownerName = $derived(ui.hud.players.find((p) => p.id === sel.owner)?.name ?? 'un allié');
   const g = () => app.game;
@@ -82,7 +83,7 @@
     <button class="btn ghost rally" onclick={() => g()?.startRally()}>{@html ICON.flag} Déplacer le point de ralliement<span class="kbd">{keyLabel(keys.rally)}</span></button>
   {/if}
   {#if mine}
-    <p class="undo">Remboursement intégral pendant {UNDO_SELL_S} s après un achat.</p>
+    <p class="undo">{prep ? 'Préparation : la revente rend tout l’or tant que la première vague n’est pas lancée.' : `Remboursement intégral pendant ${UNDO_SELL_S} s après un achat.`}</p>
   {:else}
     <p class="undo">Vous payez avec votre or ; seul {ownerName} peut vendre la tour.</p>
   {/if}
