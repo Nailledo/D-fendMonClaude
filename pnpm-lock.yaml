@@ -56,9 +56,6 @@ importers:
       '@fontsource/im-fell-english-sc':
         specifier: ^5.3.0
         version: 5.3.0
-      '@fontsource/lilita-one':
-        specifier: ^5.3.0
-        version: 5.3.0
       '@fontsource/nunito':
         specifier: ^5.3.0
         version: 5.3.0
@@ -716,9 +713,6 @@ packages:
 
   '@fontsource/im-fell-english@5.3.0':
     resolution: {integrity: sha512-FcgdWfY9WeUM2gQkfmwhn4Ed9LVtlll8LSSZvHfbsUrnHK5tHHnGg6BgwAfHogp52adU3eE89J/3B52qV3b+Vw==}
-
-  '@fontsource/lilita-one@5.3.0':
-    resolution: {integrity: sha512-bNW3tD+m5pOsAQpW/NvtRbFthFe+B73hDJK2DLLCFCtF+1p+UMBgo7ibxdcb9Sftr06LKAVbt080wiMdSqGbOg==}
 
   '@fontsource/nunito@5.3.0':
     resolution: {integrity: sha512-vw9TaTQJ/zpEpKrsODuPmOvaVjXgdda6B+xXA4YqjrdeJ62MLgVoDerdRXFQHyBnSCt2yQ2nHKCHPP/Pv7Xq4Q==}
@@ -1956,8 +1950,6 @@ snapshots:
   '@fontsource/im-fell-english-sc@5.3.0': {}
 
   '@fontsource/im-fell-english@5.3.0': {}
-
-  '@fontsource/lilita-one@5.3.0': {}
 
   '@fontsource/nunito@5.3.0': {}
 

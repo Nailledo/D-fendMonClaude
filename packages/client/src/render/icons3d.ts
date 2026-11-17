@@ -697,8 +697,8 @@ export function renderIcons3D(keys: string[] = Object.keys(ICONS3D), size = 192)
 /** Libère le contexte WebGL des icônes (une fois toutes générées). */
 export function disposeIcons3D() {
   if (!gl) return;
+  gl.setSize(1, 1, false);
   gl.dispose();
-  gl.forceContextLoss();
   gl = null;
 }
 

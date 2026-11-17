@@ -271,7 +271,7 @@ if (iPose.x > 0.0 && iPose.w != 0.0) vColor.rgb += vec3(0.35, 0.3, 0.15) * sin(3
  * (occlusion cuite, teinte, flash) ; sans, les couleurs de sommets font tout.
  */
 export function animMaterial(map: THREE.Texture | null = null): THREE.MeshToonMaterial {
-  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), map: map ?? undefined });
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), ...(map ? { map } : {}) });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
     shader.vertexShader = ANIM_HEAD + shader.vertexShader.replace('#include <begin_vertex>', ANIM_BEGIN).replace('#include <color_vertex>', COLOR_PATCH);

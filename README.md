@@ -152,6 +152,6 @@ Variables d’environnement :
 
 - Le classement utilise `node:sqlite` (intégré à Node 22) plutôt que `better-sqlite3`, pour éviter toute compilation native dans l’image Docker.
 - Interface « Coffre à jouets » : panneaux crème cernés d’encre, ombrage en 3 paliers et ombres colorées, comme les modèles 3D ; une couleur par famille de tours, l’or pour l’argent, le rouge pour les vies. Les écrans de récit (dialogues, carte de campagne, fin de chapitre) passent en « Livre du conteur » (classe `.paper` : papier, encre, aquarelle). Jetons et composants de base dans `packages/client/src/app.css`, icônes au trait dans `packages/client/src/ui/icons.ts`.
-- Polices hébergées avec le jeu via `@fontsource` (Lilita One et Nunito pour l’interface, IM Fell English pour les écrans de récit) : aucune requête vers un service tiers.
+- Polices hébergées avec le jeu (aucune requête vers un service tiers) : Nunito et IM Fell English via `@fontsource`, et pour les titres une copie corrigée de Lilita One renommée « DFend Titres » (`packages/client/src/fonts/`, licence OFL).
 - La carte de campagne est peinte en code (lavis d’aquarelle et encre en SVG) ; l’écran titre est un diorama 3D animé.
 - Les menus sont en Svelte 5 ; le HUD est mis à jour à 10 Hz, les éléments qui suivent la caméra (menu radial, boutons de vague) sont positionnés directement à chaque frame.

@@ -2,7 +2,6 @@
 import '@fontsource/nunito/latin-600.css';
 import '@fontsource/nunito/latin-800.css';
 import '@fontsource/nunito/latin-900.css';
-import '@fontsource/lilita-one/latin-400.css';
 import '@fontsource/im-fell-english/latin-400.css';
 import '@fontsource/im-fell-english/latin-400-italic.css';
 import '@fontsource/im-fell-english-sc/latin-400.css';

@@ -56,7 +56,9 @@ function securityHeaders(req: IncomingMessage): Record<string, string> {
   return {
     'content-security-policy': [
       "default-src 'self'",
-      "script-src 'self'",
+      // wasm-unsafe-eval : seulement la compilation de WebAssembly (décodeur meshoptimizer des modèles
+      // compressés), pas eval() ni les scripts en ligne
+      "script-src 'self' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self'",
       "img-src 'self' data: blob:",
