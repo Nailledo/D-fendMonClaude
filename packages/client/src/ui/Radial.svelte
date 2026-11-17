@@ -167,7 +167,7 @@
   .pips i { width: 9px; height: 9px; border-radius: 50%; background: #d8bf8f; border: 1.5px solid var(--ink); }
   .pips i.on { background: var(--gold-fill); }
   /* prix : jeton doré sous l'option */
-  .cost { position: absolute; bottom: -16px; font-family: var(--font-display); font-size: 15px; line-height: 1.1; color: var(--ink); background: var(--gold-fill); border: 2.5px solid var(--ink); padding: 0 8px; border-radius: 99px; box-shadow: 0 2px 0 var(--ink); font-variant-numeric: tabular-nums; }
+  .cost { position: absolute; z-index: 1; bottom: -16px; font-family: var(--font-display); font-size: 15px; line-height: 1.1; color: var(--ink); background: var(--gold-fill); border: 2.5px solid var(--ink); padding: 0 8px; border-radius: 99px; box-shadow: 0 2px 0 var(--ink); font-variant-numeric: tabular-nums; }
   .opt.poor .cost { background: #d9c5a0; color: var(--bad); }
   .opt .kbd { position: absolute; top: -8px; right: -6px; font-size: 11px; }
   .tip { position: absolute; left: 108px; top: -50px; width: min(270px, calc(100vw - 24px)); padding: 10px 14px 12px; font-size: 0.88em; z-index: 5; display: flex; flex-direction: column; gap: 4px; animation: pop 0.12s ease; }
@@ -181,10 +181,11 @@
   /* tactile : options plus grandes, l'option armée gonfle et pulse en attendant la confirmation */
   .touch .opt, .touch .face { width: 68px; height: 68px; }
   .touch.short .opt, .touch.short .face { width: 58px; height: 58px; }
-  .touch.short .face :global(.icon) { width: 26px; height: 26px; }
+  .touch.short .face :global(svg.icon) { width: 26px; height: 26px; }
   .touch .opt .kbd { display: none; }
   .touch .opt:hover { transform: translate(-50%, -50%); }
   .opt.armed { transform: translate(-50%, -50%) scale(1.16); z-index: 2; }
+  .opt.armed .cost { bottom: -22px; }
   .touch .opt.armed:hover { transform: translate(-50%, -50%) scale(1.16); }
   .opt.armed .face, .opt.skill.armed { box-shadow: 0 0 0 4px var(--gold-fill), 0 0 0 7px var(--ink), 0 4px 0 7px var(--ink); }
   .opt.armed::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 4px solid #fff; animation: armed 1s ease-out infinite; pointer-events: none; }

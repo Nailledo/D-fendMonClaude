@@ -40,6 +40,7 @@ pnpm start        # http://localhost:3000
 | `pnpm smoke` | Test de fumée multijoueur dans un vrai navigateur (2 joueurs, construction, une vague) |
 | `pnpm models:prompts` | Régénère `docs/modeles-3d.md` (liste des modèles à produire dans Higgsfield, prompts et réglages) |
 | `pnpm models:bake` | Cuit les GLB de `assets/models-src/` vers `packages/client/public/models/` (décimation, textures, animation) |
+| `pnpm models:pose` | Retouches de pose sur les GLB cuits (ex. bras qui traverse le corps) ; à relancer après `models:bake` |
 | `pnpm hf:example` | Exemple d'appel de l'API Higgsfield (Seedance 2.5) via le SDK officiel ; lit `HF_CREDENTIALS` dans `.env.local` (facturable) |
 
 `bench` et `smoke` utilisent Playwright et un serveur lancé sur `http://localhost:3000` (ou `BENCH_URL` / `SMOKE_URL`).

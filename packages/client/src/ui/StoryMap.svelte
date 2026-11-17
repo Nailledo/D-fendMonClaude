@@ -4,7 +4,7 @@
   import { app } from '../app';
   import { audio } from '../audio/Audio';
   import { progress, setDifficulty, setHero, ui } from '../state.svelte';
-  import { enemyTraits } from './enemyTraits';
+  import { TRAIT_ICON, enemyTraits } from './enemyTraits';
   import HeroPicker from './HeroPicker.svelte';
   import { ICON } from './icons';
 
@@ -24,6 +24,12 @@
   const foes = $derived(level.roster.map((r) => ENEMIES[ENEMY_INDEX[r.type]]));
   const boss = $derived(level.boss ? ENEMIES[ENEMY_INDEX[level.boss.type]] : null);
   const best = $derived(progress.stars[sel] ?? []);
+  /** ennemis du niveau, le boss en dernier */
+  const roster = $derived(boss ? [...foes.filter((f) => f.id !== boss.id), boss] : foes);
+  /** traits affichés en pastille, expliqués une fois sous la liste */
+  const legend = $derived([...new Set(roster.map((f) => enemyTraits(f)[0]).filter((t): t is string => !!t && !!TRAIT_ICON[t]))]);
+  const ROUTE = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="1 4.5" aria-hidden="true"><path d="M4 20c4-1 4-7 8-8s4-7 8-8"/></svg>';
+  const LOCK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 
   function play() {
     audio.play('click');
@@ -101,50 +107,62 @@
   </div>
 
   <aside class="side panel">
-    <div>
+    <header>
       <p class="eyebrow">{BIOME[sel]} · chapitre {sel + 1}</p>
       <h2>{level.name}</h2>
-    </div>
-    <div class="meta">
-      <span class="chip">{level.waves} vagues</span>
-      <span class="chip">{paths} chemin{paths > 1 ? 's' : ''}</span>
-      {#if boss}<span class="chip bosschip">Boss : {boss.name.split(',')[0]}</span>{/if}
-    </div>
+      <p class="facts">
+        <span><Ico k="horn" fb={ICON.horn} />{level.waves} vagues</span>
+        <span>{@html ROUTE}{paths} chemin{paths > 1 ? 's' : ''}</span>
+        {#if best.some((b) => b > 0)}<span><Ico k="star" fb={ICON.star} />{Math.max(...best.map((b) => b ?? 0))} / 3</span>{/if}
+      </p>
+    </header>
 
     <section>
       <h3 class="lbl">Ennemis</h3>
       <ul class="foes">
-        {#each foes as f}
+        {#each roster as f}
           {@const tr = enemyTraits(f)}
-          <li><span>{f.name}</span>{#if tr[0]}<em>{tr[0]}</em>{/if}</li>
+          <li class:boss={f.boss} title="{f.name}{tr.length ? ' : ' + tr.join(', ') : ''}">
+            <span class="fp">
+              {#if ui.portraits['e_' + f.id]}<img src={ui.portraits['e_' + f.id]} alt="" />{/if}
+              {#if tr[0] && TRAIT_ICON[tr[0]]}<span class="tb" title={tr[0]}>{@html TRAIT_ICON[tr[0]]}</span>{/if}
+            </span>
+            <span class="fn">{f.boss ? f.name.split(',')[0] : f.name}</span>
+          </li>
         {/each}
       </ul>
+      {#if legend.length}
+        <p class="legend">{#each legend as t}<span><i>{@html TRAIT_ICON[t]}</i>{t}</span>{/each}</p>
+      {/if}
     </section>
 
     <section>
       <h3 class="lbl">Difficulté</h3>
-      <div class="seg">
+      <div class="seg diff">
         {#each DIFFICULTY_NAMES as d, i}
-          <button class:on={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => setDifficulty(i as Difficulty)}>
-            {#if i === 2 && !nightmareOk}<Ico k="lock" fb={ICON.lock} />{/if}{d}{#if (best[i] ?? 0) > 0}<small> · {best[i]} ★</small>{/if}
+          <button class:on={diff === i} disabled={i === 2 && !nightmareOk} onclick={() => setDifficulty(i as Difficulty)}
+            title={i === 2 && !nightmareOk ? 'Obtenez 3 étoiles en Vétéran sur ce niveau' : DIFF_HINT[i]}>
+            {#if i === 2 && !nightmareOk}{@html LOCK}{/if}<span>{d}</span>
           </button>
         {/each}
       </div>
-      <p class="hint">{DIFF_HINT[diff]}{#if !nightmareOk}<br /><span class="lock">Cauchemar : obtenez 3 étoiles en Vétéran sur ce niveau.</span>{/if}</p>
+      <p class="hint">{DIFF_HINT[diff]}</p>
     </section>
 
     <section>
       <h3 class="lbl">Héros</h3>
-      <HeroPicker value={ui.hero} onpick={setHero} compact />
-      <p class="hint"><b>{HEROES[ui.hero].name}</b>, {HEROES[ui.hero].title.toLowerCase()}. {HEROES[ui.hero].passive.desc}</p>
+      <div class="hp"><HeroPicker value={ui.hero} onpick={setHero} compact /></div>
+      <p class="hint"><b>{HEROES[ui.hero].name}</b> · {HEROES[ui.hero].title}</p>
     </section>
 
     <div class="cta">
       <button class="btn gold big" onclick={play}>Jouer</button>
-      <button class="btn" onclick={coop}>{@html ICON.users} Jouer en coop</button>
-      {#if sel === 0 && progress.seenPrologue}
-        <button class="btn ghost" onclick={() => { ui.replayPrologue = true; play(); }}>{@html ICON.play} Revoir le prologue</button>
-      {/if}
+      <div class="sub">
+        <button class="btn" onclick={coop}>{@html ICON.users} En coop</button>
+        {#if sel === 0 && progress.seenPrologue}
+          <button class="btn" onclick={() => { ui.replayPrologue = true; play(); }}>{@html ICON.play} Prologue</button>
+        {/if}
+      </div>
     </div>
   </aside>
 </div>
@@ -172,26 +190,44 @@
   .top { position: absolute; left: 22px; top: 22px; display: flex; gap: 10px; align-items: stretch; }
   .total { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-family: var(--font-story); font-size: 1.25em; font-variant-numeric: lining-nums tabular-nums; background: rgba(246, 236, 210, 0.9); border: 2px solid var(--ink); border-radius: 99px; }
   .total :global(.icon) { width: 22px; height: 22px; }
-  .side { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 24px 24px 18px; margin: 14px 14px 14px 14px; }
-  .eyebrow { margin: 0 0 4px; }
+  .side { display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 20px 20px 0; margin: 14px; }
+  header { display: flex; flex-direction: column; gap: 6px; }
+  .eyebrow { margin: 0; }
   h2 { margin: 0; font-size: 2.2em; line-height: 1.05; }
-  .meta { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip { background: rgba(255, 250, 236, 0.6); }
-  .bosschip { color: var(--bad); border-color: var(--bad) !important; }
-  section { display: flex; flex-direction: column; gap: 8px; }
+  .facts { margin: 2px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-weight: 900; font-size: 0.92em; color: var(--muted); }
+  .facts span { display: inline-flex; align-items: center; gap: 5px; }
+  .facts :global(.icon) { width: 22px; height: 22px; margin: 0; vertical-align: 0; }
+  section { display: flex; flex-direction: column; gap: 10px; }
   .lbl { margin: 0; font-family: var(--font-story-sc); font-weight: 400; font-size: 17px; letter-spacing: 0.06em; color: var(--muted); display: flex; align-items: center; gap: 10px; }
   .lbl::after { content: ''; flex: 1; height: 1px; background: rgba(45, 36, 22, 0.35); }
-  .foes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: 0.93em; font-weight: 800; }
-  .foes li { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
-  .foes em { font-family: var(--font-story); font-style: italic; font-weight: 400; font-size: 13px; color: var(--bad); white-space: nowrap; }
-  .seg { background: var(--ink); }
-  .seg :global(.icon) { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
-  .seg small { font-weight: 700; opacity: 0.8; }
-  .hint { margin: 0; font-size: 0.92em; color: var(--muted); font-weight: 700; }
+  /* ennemis : portraits ronds, nom dessous, pastille du trait principal */
+  .foes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 8px 6px; }
+  .foes li { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; cursor: help; }
+  .fp { position: relative; width: 48px; height: 48px; }
+  .fp img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--ink); background: radial-gradient(circle at 50% 60%, #fbf4e2, #e6d3a8); display: block; }
+  .boss .fp img { border-color: var(--bad); box-shadow: 0 0 0 2px var(--bad); }
+  .tb { position: absolute; right: -4px; bottom: -2px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #f6ecd2; border: 1.5px solid #f6ecd2; }
+  .boss .tb { background: var(--bad); }
+  .tb :global(.icon) { width: 13px; height: 13px; margin: 0; vertical-align: 0; }
+  .fn { font-size: 11.5px; font-weight: 800; line-height: 1.15; max-width: 100%; }
+  .boss .fn { color: var(--bad); }
+  .legend { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--font-story); font-style: italic; font-size: 14px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #f6ecd2; }
+  .legend :global(.icon) { width: 11px; height: 11px; margin: 0; vertical-align: 0; }
+  /* difficulté : trois touches de même hauteur, cadenas sur la ligne */
+  .diff { flex-wrap: nowrap; }
+  .diff { gap: 6px; }
+  .diff > button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; padding: 7px 4px; font-size: 0.86em; }
+  .diff :global(.icon) { width: 14px; height: 14px; margin: 0; vertical-align: 0; flex: none; }
+  .hp :global(.hero img) { max-width: 46px; }
+  .hint { margin: 0; font-size: 0.9em; color: var(--muted); font-weight: 700; }
   .hint b { color: var(--text); font-weight: 900; }
-  .lock { color: var(--bad); font-weight: 900; }
-  .cta { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+  /* les boutons restent visibles en bas de la page, même quand elle défile */
+  .cta { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding: 10px 0 16px; background: linear-gradient(180deg, rgba(243, 231, 201, 0), #f1e3c1 22%); }
   .cta .btn { width: 100%; }
+  .sub { display: flex; gap: 8px; }
+  .sub .btn { flex: 1; padding: 7px 10px; }
   @media (max-width: 860px) {
     .wrap { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 45vh) 1fr; }
     .map { margin: 10px 10px 0; }
@@ -202,7 +238,7 @@
   @media (max-height: 520px) and (orientation: landscape) {
     .wrap { grid-template-columns: 1fr minmax(280px, 40vw); grid-template-rows: 1fr; }
     .map { margin: 8px 0 8px calc(8px + var(--sal)); }
-    .side { margin: 8px calc(8px + var(--sar)) 8px 8px; padding: 16px; gap: 12px; }
+    .side { margin: 8px calc(8px + var(--sar)) 8px 8px; padding: 14px 14px 0; gap: 10px; }
     h2 { font-size: 1.7em; }
     .top { left: 14px; top: 14px; }
   }

@@ -75,4 +75,14 @@
   .bar i { display: block; height: 100%; }
   .pct { color: var(--faint); font-size: 0.85em; min-width: 3.2em; }
   .btns { justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  /* téléphone : le tableau tient dans la largeur (barre et pourcentage masqués) */
+  @media (max-width: 560px) {
+    .end { padding: 20px 14px 18px; }
+    h1 { font-size: 2.6em; }
+    table { font-size: 0.85em; }
+    th { font-size: 10px; letter-spacing: 0.02em; }
+    .paper th { font-size: 13px; }
+    th, td { padding: 6px 3px; }
+    .bar, .pct { display: none; }
+  }
 </style>

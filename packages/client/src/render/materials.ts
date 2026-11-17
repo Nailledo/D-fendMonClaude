@@ -125,8 +125,9 @@ vec3 transformed = vec3(position);
       armL.z = mix(armL.z, 0.3, spell);
       twist = mix(twist, -0.4, spell);
     } else if (style < 3.5) {
-      // marteau : porté sur l'épaule, frappe à deux mains au-dessus de la tête jusqu'au sol
-      r = grip(-1.25 - sw * 0.3, -1.35);
+      // marteau : tenu droit à côté du corps, tête en haut (lisible sous tous les angles de caméra),
+      // frappe à deux mains au-dessus de la tête jusqu'au sol
+      r = grip(-0.35 - sw * 0.3, 0.12);
       vec2 guard = grip(-1.0, 0.2), up = grip(-2.7, -1.9), down = grip(-1.0, 1.85);
       float slam = strikeCurve(clamp(castP, 0.0, 1.0)) * step(0.001, castP);
       float wind2 = max(wind, max(-slam, 0.0)), hit2 = max(hit, max(slam, 0.0));

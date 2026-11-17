@@ -18,7 +18,8 @@
     "models:bake": "tsx tools/models/bake.ts",
     "models:prompts": "tsx tools/models/prompts.ts",
     "models:kitbash": "tsx tools/models/kitbash.ts",
-    "models:fixparts": "tsx tools/models/fixparts.ts"
+    "models:fixparts": "tsx tools/models/fixparts.ts",
+    "models:pose": "tsx tools/models/pose.ts"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

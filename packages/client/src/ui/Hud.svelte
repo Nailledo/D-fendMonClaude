@@ -420,6 +420,10 @@
   @media (max-width: 1100px) {
     .call { display: none; }
   }
+  @media (max-width: 640px) {
+    .hud:not(.touch) .top { max-width: calc(100vw - 200px); gap: 6px; font-size: 0.8em; }
+    .hud:not(.touch) .sysbtn { min-width: 44px; height: 44px; }
+  }
   @media (max-width: 820px) {
     .hud:not(.touch) .spells { padding-left: 10px; }
     .hud:not(.touch) .chatwrap { bottom: 150px; }

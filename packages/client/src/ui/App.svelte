@@ -41,10 +41,11 @@
 </div>
 
 <style>
-  .toasts { position: fixed; top: 66px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 60; width: min(560px, calc(100vw - 32px)); }
+  .toasts { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 60; width: min(560px, calc(100vw - 32px)); }
   .toast { --tc: var(--panel-lo); padding: 7px 18px 7px 16px; background: var(--panel); border: var(--bw) solid var(--ink); border-radius: 99px; box-shadow: inset 8px 0 0 var(--tc), 0 3px 0 var(--ink); font-weight: 800; animation: pop 0.22s ease; text-align: center; }
   .toast.warn { --tc: var(--gold-fill); }
   .toast.danger { --tc: var(--life); color: var(--bad); }
   .toast.good { --tc: var(--good-fill); }
   .toast.enemy { --tc: #9b6bdf; color: var(--magic); }
+  @media (max-width: 640px) { .toasts { top: calc(116px + env(safe-area-inset-top, 0px)); } }
 </style>
