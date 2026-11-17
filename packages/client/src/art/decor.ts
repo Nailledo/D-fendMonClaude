@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { Biome } from '@dfend/shared';
-import { GB, Part } from './builder';
+import { GB, Part, shade } from './builder';
 
 export interface BiomeTheme {
   grass: number[];
@@ -194,40 +194,85 @@ export function gateGeometry(biome: Biome): THREE.BufferGeometry {
 export function spawnGeometry(biome: Biome): THREE.BufferGeometry {
   const g = new GB(55);
   g.ao = false;
-  const c = biome === 'cendre' ? 0x3a2f2c : biome === 'marais' ? 0x5a6052 : 0x8a8478;
-  const c2 = biome === 'cendre' ? 0x2b2222 : biome === 'marais' ? 0x4a4f44 : 0x6f6a60;
+  g.jitter = 0.05;
+  // trois teintes de roche (strates basses plus sombres), mousse du biome sur le dessus
+  const rk = biome === 'cendre' ? [0x2e2523, 0x3a2f2c, 0x4a3d38] : biome === 'marais' ? [0x4a4f44, 0x5a6052, 0x6a7062] : [0x6f6a60, 0x857f73, 0x9a9488];
+  const moss = THEMES[biome].hill;
   const wood = biome === 'cendre' ? 0x3e2a22 : 0x6d4c33;
   const dark = 0x0c0907, dim = 0x1b1510;
-  // l'intérieur : fond noir, parois et voûte sombres, sol de terre battue
-  g.box(3.6, 2.8, 0.3, dark, 0, 1.4, -2.9);
-  for (const s of [1, -1]) g.box(0.5, 2.8, 3.2, dim, s * 1.85, 1.4, -1.35);
-  g.box(4.2, 0.5, 3.2, dim, 0, 2.75, -1.35);
-  g.box(3.3, 0.05, 3.2, 0x2a2018, 0, 0.03, -1.35);
-  // étais de mine : deux cadres, le second dans la pénombre
-  for (const [z, k] of [[0.05, 1], [-1.5, 0.45]] as const) {
-    const col = k === 1 ? wood : 0x2e2118;
-    for (const s of [1, -1]) g.box(0.2, 2.3, 0.2, col, s * 1.45, 1.15, z, 0, 0, s * 0.04);
-    g.box(3.3, 0.22, 0.24, col, 0, 2.38, z);
+  // petit hasard déterministe : la même entrée sur toutes les cartes
+  let sd = 7;
+  const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+
+  // l'intérieur : fond noir, parois et voûte sombres (cachées sous la roche), sol de terre battue
+  g.box(3.2, 3.0, 0.3, dark, 0, 1.2, -2.7);
+  for (const s of [1, -1]) g.box(0.4, 3.0, 3.0, dim, s * 1.7, 1.2, -1.3);
+  g.box(3.6, 0.4, 3.0, dim, 0, 2.55, -1.3);
+  g.box(3.1, 0.05, 3.0, 0x2a2018, 0, 0.03, -1.2);
+  // étais de mine : un cadre à l'entrée, un second dans la pénombre
+  for (const [z, col] of [[-0.15, wood], [-1.7, 0x2e2118]] as const) {
+    for (const s of [1, -1]) g.box(0.2, 2.2, 0.2, col, s * 1.38, 1.1, z, 0, 0, s * 0.03);
+    g.box(3.0, 0.22, 0.24, col, 0, 2.25, z);
   }
-  // arche de rochers autour de l'ouverture
-  for (let k = 0; k <= 8; k++) {
-    const a = (k / 8) * Math.PI;
-    const r = 0.62 + ((k * 37) % 5) * 0.06;
-    g.rock(r, k % 2 ? c : c2, Math.cos(a) * 2.25, 0.25 + Math.sin(a) * 2.45, 0.05, 1.1, 0.95, 0.9, k);
-  }
-  // masse rocheuse : la colline affleure autour et au-dessus de l'entrée
+
+  // façade : strates de roche aplaties, de plus en plus étroites vers le haut, de part et d'autre de l'ouverture
+  const rows: [number, number, number, number][] = [
+    // hauteur, premier x, nombre de blocs, épaisseur
+    [0.42, 1.95, 3, 0.62],
+    [1.25, 1.9, 3, 0.55],
+    [2.05, 1.85, 2, 0.5],
+  ];
+  rows.forEach(([y, x0, n, th], r) => {
+    for (const s of [1, -1]) for (let k = 0; k < n; k++) {
+      const x = s * (x0 + k * 0.95 + rnd() * 0.12);
+      const w = 0.62 + rnd() * 0.12;
+      g.rock(w, rk[Math.min(2, r + (k % 2))], x, y + rnd() * 0.06, 0.05 - k * 0.35 - r * 0.12, 1.15, th / w, 0.95, rnd() * 3);
+    }
+  });
+  // linteau : une grande dalle posée sur les deux piliers, puis la roche qui recule dans la colline
+  g.rock(1, rk[1], 0, 2.78, 0.05, 2.75, 0.42, 1.05, 0.2);
+  g.rock(1, rk[2], 0.2, 3.2, -0.8, 2.6, 0.45, 1.2, -0.3);
+  g.rock(1, rk[1], -0.3, 3.25, -2.3, 2.5, 0.5, 1.5, 0.5);
+  g.rock(1, rk[2], 0.4, 3.1, -3.8, 2.3, 0.45, 1.3, 1.2);
   for (const s of [1, -1]) {
-    g.rock(1.35, c2, s * 3.1, 0.9, -0.9, 1, 1.1, 1.2, s);
-    g.rock(1.0, c, s * 3.6, 0.45, 0.3, 1.1, 0.7, 1, s * 2);
-    g.rock(1.2, c, s * 2.6, 2.5, -1.3, 1.1, 0.9, 1.1, s * 3);
+    g.rock(0.85, rk[2], s * 2.75, 2.75, -0.6, 1.3, 0.55, 1.2, s);
+    g.rock(0.9, rk[1], s * 2.55, 3.0, -2.3, 1.2, 0.6, 1.4, s * 2);
+    g.rock(0.8, rk[0], s * 2.4, 2.8, -3.9, 1.2, 0.55, 1.3, s * 3);
   }
-  g.rock(1.3, c2, 0, 3.0, -1.9, 1.5, 0.75, 1.2, 1.3);
-  g.rock(0.9, c, 1.0, 3.1, -1.2, 1, 0.65, 1, 0.4);
-  // torches de part et d'autre
+  // mousse et herbe en touffes sur le dessus, pour que la roche se fonde dans la colline
+  // (pas de mousse dans les cendres)
+  if (biome !== 'cendre') {
+    for (let k = 0; k < 10; k++) {
+      const x = -2.4 + (k % 5) * 1.2 + rnd() * 0.4, z = (k < 5 ? -1.8 : -3.5) + rnd() * 0.7;
+      g.ball(0.22 + rnd() * 0.16, shade(moss, 0.72 + rnd() * 0.2), x, 3.5 + rnd() * 0.1, z, 1.3, 0.35, 1.1);
+    }
+    // touffes qui pendent du linteau
+    for (const x of [-1.1, 0.35, 1.3]) g.cone(0.12, 0.35, 4, shade(moss, 0.8), x, 2.48, 0.5, Math.PI, 0, 0);
+  }
+
+  // éboulis au pied de la falaise : gros blocs contre la paroi, cailloux de plus en plus petits vers l'avant
   for (const s of [1, -1]) {
-    g.box(0.1, 0.9, 0.1, 0x4e342e, s * 2.0, 1.0, 0.75, 0, 0, s * 0.15);
-    g.ball(0.17, 0xff7043, s * 2.07, 1.5, 0.75);
-    g.ball(0.09, 0xffe082, s * 2.07, 1.62, 0.75);
+    g.rock(0.55, rk[0], s * 3.7, 0.25, 0.75, 1.2, 0.7, 1, s);
+    g.rock(0.42, rk[1], s * 2.75, 0.2, 0.95, 1.1, 0.65, 1, s * 3);
+    for (let k = 0; k < 14; k++) {
+      const t = rnd();
+      const z = 0.6 + t * 2.6;
+      const x = s * (1.85 + t * 0.5 + rnd() * (2.4 - t * 0.8));
+      const r = (0.26 - t * 0.14) * (0.7 + rnd() * 0.6);
+      g.rock(r, rk[(k + (s > 0 ? 1 : 0)) % 3], x, r * 0.4, z, 1, 0.6, 1, rnd() * 6);
+    }
+  }
+  // quelques galets plats sur les bords du chemin, devant l'ouverture
+  for (let k = 0; k < 6; k++) {
+    const s = k % 2 ? 1 : -1;
+    g.rock(0.1 + rnd() * 0.06, rk[2], s * (1.25 + rnd() * 0.3), 0.04, 0.6 + k * 0.45, 1.2, 0.4, 1, rnd() * 6);
+  }
+
+  // torches de part et d'autre, plantées dans l'éboulis
+  for (const s of [1, -1]) {
+    g.box(0.1, 0.9, 0.1, 0x4e342e, s * 2.15, 0.55, 0.85, 0, 0, s * 0.15);
+    g.ball(0.17, 0xff7043, s * 2.22, 1.05, 0.85);
+    g.ball(0.09, 0xffe082, s * 2.22, 1.17, 0.85);
   }
   return g.build();
 }

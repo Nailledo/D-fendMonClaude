@@ -89,10 +89,12 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
       const dx = x - e.x, dz = z - e.z;
       const a = dx * e.ox + dz * e.oz, c = Math.abs(dx * -e.oz + dz * e.ox);
       if (a < -3 || a > 22 || c > 12) continue;
-      const s0 = 2.1 + (-0.4 - 2.1) * smooth(2.0, 3.4, c);
+      // au-dessus de la galerie (|c| < 2.7), la colline ne commence qu'après le fond de la galerie
+      const side = smooth(2.7, 3.9, c);
+      const s0 = 3.4 + (-0.4 - 3.4) * side;
       const w = 4.2 + Math.max(0, a) * 0.35;
       const top = (e.z > 0 ? 2.6 : 3.4) + (noise(x * 0.4, z * 0.4) - 0.5) * 0.8;
-      h = Math.max(h, top * smooth(s0, s0 + 1.6, a) * (1 - smooth(w, w + 4, c)) * (1 - smooth(14, 22, a)));
+      h = Math.max(h, top * smooth(s0, s0 + 1.0 + side * 0.6, a) * (1 - smooth(w, w + 4, c)) * (1 - smooth(14, 22, a)));
     }
     return h;
   };
@@ -132,6 +134,11 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     if (z > def.hh && !opts.surround) h *= 0.45;
     const mh = mound(x, z);
     if (mh > 0.01) h = Math.max(h, mh);
+    // sol de la galerie : le terrain ne dépasse pas sous la voûte
+    for (const e of entries) {
+      const dx = x - e.x, dz = z - e.z, a = dx * e.ox + dz * e.oz;
+      if (a > -0.5 && a < 3.6 && Math.abs(dx * -e.oz + dz * e.ox) < 2.9) h = Math.min(h, -0.02);
+    }
     heights[i] = h;
     pos.setY(i, h);
   }
