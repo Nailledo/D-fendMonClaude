@@ -230,50 +230,6 @@ class Mesh {
   }
   /** Cape : coque épaisse incurvée derrière le corps, des épaules jusqu'au sol, évasée vers le bas. */
   /**
-   * Cape : coque épaisse qui part du haut du dos et tombe jusqu'au sol en s'évasant.
-   * Chaque colonne suit la surface du dos mesurée par un rayon tiré de derrière : le haut est collé au corps,
-   * et plus bas la cape ne s'en écarte que de ce qu'il faut pour ne jamais le traverser.
-   */
-  cape(cx: number, yTop: number, yBot: number, wTop: number, wBot: number, col: RGB, inner: RGB, white: [number, number]) {
-    const seg = 10, rows = 7, th = 0.025, gap = 0.012;
-    const backZ = (x: number, y: number) => { const d = this.ray(x, y, -2, 0, 0, 1); return d > 0 ? -2 + d : NaN; };
-    const grid: number[][][] = [];
-    for (let j = 0; j <= rows; j++) {
-      const r = j / rows, y = yTop + (yBot - yTop) * r;
-      const row: number[][] = [];
-      for (let i = 0; i <= seg; i++) {
-        const u = (i / seg) * 2 - 1;
-        const x = cx + u * (wTop + (wBot - wTop) * r);
-        // en haut : collée au dos ; vers le bas : elle ne fait que reculer (chute régulière, jamais dans le corps)
-        const top = backZ(cx + u * wTop, yTop);
-        let z = (Number.isNaN(top) ? -0.2 : top) - gap - r * r * 0.1 - Math.abs(u) * r * 0.04;
-        const here = backZ(x, y);
-        if (!Number.isNaN(here)) z = Math.min(z, here - gap * 2);
-        if (j > 0) z = Math.min(z, grid[j - 1][i][2]);
-        row.push([x, y, z]);
-      }
-      grid.push(row);
-    }
-    // lissage horizontal sous la première rangée (le tissu ne suit pas chaque facette du dos)
-    for (let j = 1; j <= rows; j++) {
-      const zs = grid[j].map((g) => g[2]);
-      for (let i = 0; i <= seg; i++) {
-        const a = zs[Math.max(0, i - 1)], b = zs[i], c = zs[Math.min(seg, i + 1)];
-        grid[j][i][2] = Math.min(b, (a + 2 * b + c) / 4);
-      }
-    }
-    for (let i = 0; i < seg; i++) for (let j = 0; j < rows; j++) {
-      const p = (jj: number, ii: number, off: number) => { const g = grid[jj][ii]; return [g[0], g[1], g[2] - off]; };
-      // extérieur (rouge, tourné vers l'arrière) et doublure (or, tournée vers le corps)
-      this.quad(p(j, i + 1, th), p(j + 1, i + 1, th), p(j + 1, i, th), p(j, i, th), col, white);
-      this.quad(p(j, i, 0), p(j + 1, i, 0), p(j + 1, i + 1, 0), p(j, i + 1, 0), inner, white);
-      // tranches latérales et bas
-      if (i === 0) this.quad(p(j, 0, th), p(j + 1, 0, th), p(j + 1, 0, 0), p(j, 0, 0), inner, white);
-      if (i === seg - 1) this.quad(p(j, seg, 0), p(j + 1, seg, 0), p(j + 1, seg, th), p(j, seg, th), inner, white);
-      if (j === rows - 1) this.quad(p(rows, i, 0), p(rows, i + 1, 0), p(rows, i + 1, th), p(rows, i, th), col, white);
-    }
-  }
-  /**
    * Barbe : coque posée sur le bas du visage (points mesurés par des rayons de face), plus épaisse au menton,
    * prolongée en pointe sous le menton ; moustache en deux mèches sous le nez.
    */
@@ -311,6 +267,60 @@ class Mesh {
       const z = d > 0 ? 2 - d : 0.25;
       this.box(Math.min(x, x + sgn * 0.075), y - 0.03, z - 0.03, Math.max(x, x + sgn * 0.075), y + 0.015, z + 0.03, col, white);
     }
+  }
+  /**
+   * Manteau royal : il fait le tour des épaules (bord haut en arc, rentré sous le col) et tombe en s'évasant
+   * jusqu'au sol, ouvert devant. Le rayon suit le corps bras compris (rayons mesurés) pour ne jamais le traverser.
+   * θ = 0 : devant (+z). Les pans avant s'écartent vers le bas pour laisser voir la tenue.
+   */
+  cloak(cx: number, cz: number, yTop: number, yBot: number, rTop: number, openTop: number, openBot: number, col: RGB, inner: RGB, trim: RGB, white: [number, number]) {
+    const seg = 24, rows = 12, th = 0.022;
+    const grid: number[][][] = [];
+    // rayon par rangée : hors du corps (bras compris), jamais plus étroit qu'au-dessus, puis lissé
+    const rs: number[] = [];
+    let rPrev = rTop;
+    for (let j = 0; j <= rows; j++) {
+      const t = j / rows, y = yTop + (yBot - yTop) * t;
+      const body = j === 0 ? 0 : this.radiusMax(cx, cz, y) + 0.05;
+      rPrev = Math.max(rPrev, body, rTop + t * t * 0.22);
+      rs.push(rPrev);
+    }
+    // enveloppe lisse : on remplace la suite par une courbe convexe qui passe au-dessus de chaque rangée
+    for (let pass = 0; pass < 3; pass++) for (let j = 1; j < rows; j++) rs[j] = Math.max(rs[j], (rs[j - 1] + rs[j + 1]) / 2);
+    for (let j = 0; j <= rows; j++) {
+      const t = j / rows, y = yTop + (yBot - yTop) * t;
+      const r = rs[j];
+      const open = openTop + (openBot - openTop) * t;
+      const row: number[][] = [];
+      for (let i = 0; i <= seg; i++) {
+        const th0 = open + (i / seg) * (Math.PI * 2 - 2 * open);
+        // légère ondulation du tissu vers le bas
+        const rr = r * (1 + Math.sin(th0 * 5) * 0.025 * t);
+        row.push([cx + Math.sin(th0) * rr, y, cz + Math.cos(th0) * rr]);
+      }
+      grid.push(row);
+    }
+    const off = (g: number[], k: number) => {
+      // décalage vers l'extérieur (normale horizontale)
+      const dx = g[0] - cx, dz = g[2] - cz, l = Math.hypot(dx, dz) || 1;
+      return [g[0] + (dx / l) * k, g[1], g[2] + (dz / l) * k];
+    };
+    for (let j = 0; j < rows; j++) for (let i = 0; i < seg; i++) {
+      const a = grid[j][i], b = grid[j + 1][i], c = grid[j + 1][i + 1], d = grid[j][i + 1];
+      // extérieur rouge bordé d'hermine (pans avant, ourlet), doublure dorée
+      const edge = i === 0 || i === seg - 1 || j === rows - 1;
+      this.quad(off(a, th), off(b, th), off(c, th), off(d, th), edge ? trim : col, white);
+      this.quad(d, c, b, a, inner, white);
+      if (i === 0) this.quad(a, b, off(b, th), off(a, th), inner, white);
+      if (i === seg - 1) this.quad(off(d, th), off(c, th), c, d, inner, white);
+      if (j === rows - 1) this.quad(off(b, th), b, c, off(c, th), trim, white);
+    }
+    // bord haut (caché sous le col, mais fermé)
+    for (let i = 0; i < seg; i++) {
+      const a = grid[0][i], d = grid[0][i + 1];
+      this.quad(off(d, th), d, a, off(a, th), col, white);
+    }
+    return { left: grid[0][0], right: grid[0][seg] };
   }
   write(p: Primitive, doc: import('@gltf-transform/core').Document) {
     const buf = doc.getRoot().listBuffers()[0];
@@ -376,7 +386,7 @@ await make('hero-lyra.glb', 'hero-ethan.glb', (m, img, white) => {
 
 // ------------------------------------------------------------------ Le roi Gontran (base : milicien)
 await make('soldier-0.glb', 'hero-roi.glb', (m, img, white) => {
-  const RED = hex(0xb3262e), RED_D = hex(0x7d1a22), GOLD = hex(0xf2b33d), WHITE = hex(0xf5f2ea), GREY = hex(0xdcd9d2), RUBY = hex(0xe0233a), PURPLE = hex(0x5b2a86);
+  const RED = hex(0xb3262e), RED_D = hex(0x7d1a22), VELVET = hex(0x6a1020), GOLD = hex(0xf2b33d), WHITE = hex(0xf5f2ea), GREY = hex(0xdcd9d2), RUBY = hex(0xe0233a), PURPLE = hex(0x5b2a86);
   const hip = m.hipY();
   // cheveux bruns → blancs, foulard bleu → or, chemise claire → rouge royal, bas → violet
   console.log('  hanches', hip.toFixed(2));
@@ -416,9 +426,29 @@ await make('soldier-0.glb', 'hero-roi.glb', (m, img, white) => {
   for (let k = 0; k < levels.length - 1; k++) m.frustum(ncx, ncz, levels[k], levels[k + 1], radii[k], radii[k + 1], 16, WHITE, white, false);
   // dessus du col : rebord qui rentre vers le cou
   m.frustum(ncx, ncz, levels[3], levels[3] + 0.02, radii[3], radii[3] * 0.75, 16, WHITE, white, false);
-  // cape rouge doublée d'or, col d'hermine
-  const cw = Math.max(chest.w, 0.3) / 2;
-  m.cape(chest.cx, 0.72, 0.04, cw * 1.0, cw * 1.55, RED_D, GOLD, white);
+  // manteau rouge doublé d'or : il part de sous le col (arc autour des épaules), ouvert devant
+  const rTop = (radii[0] + (m.radiusMax(ncx, ncz, 0.63))) / 2;
+  const ends = m.cloak(ncx, ncz, 0.64, 0.03, rTop, 0.55, 0.85, VELVET, GOLD, WHITE, white);
+  // les deux pans avant sont tenus au col par des broches dorées reliées par une cordelette
+  for (const e of [ends.left, ends.right]) {
+    const dx = e[0] - ncx, dz = e[2] - ncz, l = Math.hypot(dx, dz) || 1;
+    const bx = ncx + (dx / l) * (radii[0] + 0.02), bz = ncz + (dz / l) * (radii[0] + 0.02);
+    m.gem(bx, 0.6, bz, 0.04, GOLD, white);
+    m.gem(bx + (dx / l) * 0.02, 0.6, bz + (dz / l) * 0.02, 0.022, RUBY, white);
+  }
+  {
+    const L = ends.left, R = ends.right;
+    const p = (e: number[]) => { const dx = e[0] - ncx, dz = e[2] - ncz, l = Math.hypot(dx, dz) || 1; return [ncx + (dx / l) * (radii[0] + 0.015), ncz + (dz / l) * (radii[0] + 0.015)]; };
+    const [lx, lz] = p(L), [rx, rz] = p(R);
+    // cordelette légèrement tombante entre les broches
+    const n = 6;
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n;
+      const sag = (t: number) => 0.6 - Math.sin(t * Math.PI) * 0.05;
+      const x0 = lx + (rx - lx) * t0, z0 = lz + (rz - lz) * t0 + Math.sin(t0 * Math.PI) * 0.03, x1 = lx + (rx - lx) * t1, z1 = lz + (rz - lz) * t1 + Math.sin(t1 * Math.PI) * 0.03;
+      m.box(Math.min(x0, x1), sag((t0 + t1) / 2) - 0.012, Math.min(z0, z1) - 0.01, Math.max(x0, x1), sag((t0 + t1) / 2) + 0.012, Math.max(z0, z1) + 0.01, GOLD, white);
+    }
+  }
   // mouchetures noires de l'hermine, posées sur le col
   for (let k = 0; k < 9; k++) {
     const a = Math.PI * 0.15 + (k / 8) * Math.PI * 1.7, y = k % 2 ? 0.7 : 0.65;
