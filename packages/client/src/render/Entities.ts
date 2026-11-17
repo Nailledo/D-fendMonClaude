@@ -109,7 +109,7 @@ export class Entities {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false };
-    this.glowHalo = new THREE.MeshBasicMaterial({ map: tex, opacity: 1, ...additive });
+    this.glowHalo = new THREE.MeshBasicMaterial({ map: tex, opacity: 0.4, ...additive });
     this.glowRing = new THREE.MeshBasicMaterial({ opacity: 0.9, side: THREE.DoubleSide, ...additive });
     // géométries horizontales et subdivisées : elles épousent le relief (voir placeGlow)
     const halo = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2, 8, 8).rotateX(-Math.PI / 2), this.glowHalo);
@@ -191,7 +191,7 @@ export class Entities {
     this.glowHalo.color.copy(col);
     this.glowRing.color.copy(col);
     const pulse = 0.5 + 0.5 * Math.sin(time * 3.2);
-    this.glowRing.opacity = 0.55 + 0.4 * pulse;
+    this.glowRing.opacity = 0.25 + 0.2 * pulse;
     this.glow.children[1].scale.setScalar(1 + 0.08 * pulse);
     this.glow.position.set(x, 0, z);
     this.glow.visible = true;
