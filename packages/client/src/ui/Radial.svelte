@@ -123,7 +123,7 @@
         <span class="face hex neutral"><Ico k="sell" fb={ICON.sell} /></span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
       </button>
       {#if fam === 'barracks'}
-        <button class="opt" style={at(lvl >= 2 ? 155 : 180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview({ title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
+        <button class="opt" style={at(lvl >= 2 ? 160 : 180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview({ title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
           <span class="face hex neutral"><Ico k="flag" fb={ICON.flag} /></span><span class="kbd">{keyLabel(keys.rally)}</span>
         </button>
       {/if}
