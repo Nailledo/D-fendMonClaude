@@ -88,6 +88,8 @@ export const ui = $state({
     /** Kessin s'adapte : résistances acquises (%) et part des dégâts physiques de la vague en cours */
     adapt: { on: false, phys: 0, magic: 0, share: 0.5 },
     adaptFx: 0,
+    /** météo de la vague */
+    weather: { rain: false, night: false },
   },
   sel: null as Selection | null,
   dialog: null as null | { lines: Line[]; i: number },

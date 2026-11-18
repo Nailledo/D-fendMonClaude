@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, weatherFor, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 /** arbre : vocation, la voie gauche (0) ou droite (1) jusqu'au rang `upto`, l'ultime si demandé */
 /** rangs : la racine et les `n` premiers nœuds de la route `j` (au maximum) */
@@ -680,5 +680,38 @@ describe('renforts nommés', () => {
     expect(p.length).toBe(3);
     expect(p[0].maxHp).toBe(280);
     expect(p[0].regen).toBeGreaterThan(0);
+  });
+});
+
+describe('météo', () => {
+  it('surtout du soleil, selon le monde', () => {
+    let rain = 0, night = 0, ash = 0;
+    for (let w = 2; w < 400; w++) {
+      const v = weatherFor('vallee', 7, w), c = weatherFor('cendre', 7, w);
+      if (v.rain) rain++;
+      if (v.night) night++;
+      if (c.rain) ash++;
+    }
+    expect(rain).toBeGreaterThan(20);
+    expect(rain).toBeLessThan(110);
+    expect(night).toBeLessThan(110);
+    expect(ash).toBe(0);
+    expect(weatherFor('marais', 7, 1)).toEqual({ rain: false, night: false });
+  });
+  it('la nuit, les archers loin des torches voient moins loin ; la pluie éteint les feux', () => {
+    const sim = new Sim(cfg());
+    expect(sim.map.torches.length).toBeGreaterThan(2);
+    const t = sim.map.torches[0];
+    expect(sim.lit(t.x + 1, t.z)).toBe(true);
+    expect(sim.lit(t.x + 30, t.z + 30)).toBe(false);
+    const e = (sim as any).spawnEnemy(ENEMY_INDEX.gobelin, 0, 1, 0, 10) as Sim['enemies'][number];
+    e.hp = e.maxHp = 1e6;
+    e.burnDps = 20; e.burnT = 100;
+    (sim as any).stepEnemies();
+    const dry = 1e6 - e.hp;
+    sim.rain = true;
+    (sim as any).stepEnemies();
+    expect(1e6 - e.hp - dry).toBeCloseTo(dry * 0.5);
+    expect(e.burnT).toBe(97);
   });
 });

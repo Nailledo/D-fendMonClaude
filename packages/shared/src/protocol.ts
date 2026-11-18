@@ -170,7 +170,7 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
   w.u8(sim.mutations.length);
   for (const m of sim.mutations) w.u8(m);
   // Kessin s'adapte : actif, résistances acquises, part physique des dégâts de la vague en cours
-  w.u8(sim.adaptive ? 1 : 0);
+  w.u8((sim.adaptive ? 1 : 0) | (sim.rain ? 2 : 0) | (sim.night ? 4 : 0));
   w.frac(sim.adapt[0]);
   w.frac(sim.adapt[1]);
   const ad = sim.adaptDmg[0] + sim.adaptDmg[1];
@@ -297,6 +297,9 @@ export class Snapshot {
   adaptPhys = 0;
   adaptMagic = 0;
   adaptShare = 0.5;
+  /** météo de la vague : pluie, nuit */
+  rain = false;
+  night = false;
   // joueurs
   pCount = 0;
   pId = new Uint8Array(4);
@@ -382,7 +385,10 @@ export class Snapshot {
     const nm = r.u8();
     this.mutations.length = 0;
     for (let i = 0; i < nm; i++) this.mutations.push(r.u8());
-    this.adaptOn = r.u8() === 1;
+    const af = r.u8();
+    this.adaptOn = (af & 1) !== 0;
+    this.rain = (af & 2) !== 0;
+    this.night = (af & 4) !== 0;
     this.adaptPhys = r.frac();
     this.adaptMagic = r.frac();
     this.adaptShare = r.frac();

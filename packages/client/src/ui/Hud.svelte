@@ -91,6 +91,13 @@
     <span class="stat wave" title="Vague"><Ico k="horn" fb={ICON.horn} /><b>{h.wave}</b>{#if h.totalWaves}<small>/{h.totalWaves}</small>{/if}
       {#if h.totalWaves}<span class="segs" aria-hidden="true"><i style="width:{Math.min(100, (h.wave / h.totalWaves) * 100)}%"></i></span>{/if}
     </span>
+    {#if h.weather.rain || h.weather.night}
+      <span class="stat sky" class:night={h.weather.night}
+        title={(h.weather.night ? 'Nuit : les archers loin d’une torche ou d’un campement perdent 22 % de portée. ' : '') + (h.weather.rain ? 'Pluie : le feu fait moitié moins de dégâts et s’éteint plus vite ; le givre frappe et ralentit 30 % plus fort.' : '')}>
+        {#if h.weather.night}<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a8 8 0 1 0 6 13A9 9 0 0 1 15 3z" fill="#ffe08a" stroke="currentColor" stroke-width="2"/></svg>{/if}
+        {#if h.weather.rain}<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1A4 4 0 0 1 17 15z" fill="#cfd8dc" stroke="currentColor" stroke-width="2"/><path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3" stroke="#4fc3f7" stroke-width="2.4" stroke-linecap="round"/></svg>{/if}
+      </span>
+    {/if}
     {#if h.nextWave > 0}<span class="next">Prochaine vague : <b>{h.nextWave} s</b></span>{/if}
     {#if h.state === 0}<span class="next call">Préparation : construisez, puis lancez la vague avec le crâne{ui.touch ? '' : ` ou ${keyLabel(keys.wave)}`}</span>{/if}
   </div>
@@ -352,6 +359,8 @@
   .stat b { font-weight: 400; }
   .stat small { color: var(--muted); font-size: 0.66em; margin-left: -4px; }
   .stat.gold b { color: #a05f00; }
+  .stat.sky { padding: 0 10px; gap: 2px; cursor: help; }
+  .stat.sky.night { background: #2c3557; color: #fff; }
   .stat.life.low { background: var(--toon-red); color: #fff; animation: lowlife 0.9s ease-in-out infinite; }
   @keyframes lowlife { 50% { transform: scale(1.06); } }
   .segs { display: block; width: 110px; height: 14px; border: 2px solid var(--ink); border-radius: 99px; background: #d8bf8f; overflow: hidden; margin-left: 2px; }

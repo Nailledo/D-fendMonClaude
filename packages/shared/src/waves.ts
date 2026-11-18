@@ -176,6 +176,28 @@ const BIOME_BOSS: Record<Biome, string[]> = {
   cendre: ['grolbak', 'kessin1', 'vasiere'],
 };
 
+// ---------------- Météo
+
+/** Temps d'une vague : pluie (les feux faiblissent, le givre est renforcé) et nuit (les archers voient moins loin). */
+export interface Weather { rain: boolean; night: boolean }
+
+/** Chances de pluie et de nuit selon le monde : surtout du soleil ; le marais est pluvieux, la cendre ne connaît pas la pluie. */
+export const WEATHER_ODDS: Record<Biome, { rain: number; night: number }> = {
+  vallee: { rain: 0.16, night: 0.18 },
+  marais: { rain: 0.34, night: 0.22 },
+  cendre: { rain: 0, night: 0.26 },
+};
+
+/** Temps d'une vague (déterministe) ; la première vague est toujours ensoleillée, de jour. */
+export function weatherFor(biome: Biome, seed: number, wave: number): Weather {
+  if (wave <= 1) return { rain: false, night: false };
+  const rng = new Rng((seed ^ Math.imul(wave, 0x27d4eb2d)) + 0x3c6ef372);
+  const o = WEATHER_ODDS[biome];
+  const rain = rng.next() < o.rain;
+  const night = rng.next() < o.night;
+  return { rain, night };
+}
+
 /** Mutation active pour une vague donnée (changent toutes les 5 vagues). */
 export function mutationsFor(seed: number, wave: number): number[] {
   if (wave < 5) return [];

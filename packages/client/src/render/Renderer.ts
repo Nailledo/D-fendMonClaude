@@ -107,7 +107,36 @@ export class Renderer {
     return this.exit.x >= 0 ? Math.PI / 2 : -Math.PI / 2;
   }
 
+  /** météo : pluie et nuit visées (0..1) et état affiché, qui y glisse en douceur */
+  private wxTarget = { rain: 0, night: 0 };
+  readonly wx = { rain: 0, night: 0 };
+  private theme: BiomeTheme | null = null;
+  private wxCol = new THREE.Color();
+
+  setWeather(rain: boolean, night: boolean) {
+    this.wxTarget.rain = rain ? 1 : 0;
+    this.wxTarget.night = night ? 1 : 0;
+  }
+
+  /** Lumières, ciel et brouillard selon la météo (nuit bleutée, pluie grise). */
+  private applyWeather() {
+    const t = this.theme;
+    if (!t) return;
+    const { rain, night } = this.wx;
+    this.sun.intensity = t.sunIntensity * (1 - 0.45 * rain) * (1 - 0.66 * night);
+    this.sun.color.set(t.sun).lerp(this.wxCol.set(0x9db4ff), night * 0.8);
+    this.hemi.intensity = 1.4 * (1 - 0.22 * rain) * (1 - 0.42 * night);
+    this.hemi.color.set(t.hemiSky).lerp(this.wxCol.set(0xa3adb8), rain * 0.6).lerp(this.wxCol.set(0x4d64a8), night * 0.75);
+    this.hemi.groundColor.set(t.hemiGround).lerp(this.wxCol.set(0x1c2238), night * 0.7);
+    const sky = (this.scene.background as THREE.Color | null) ?? new THREE.Color();
+    sky.set(t.sky).lerp(this.wxCol.set(0x77818c), rain * 0.6).lerp(this.wxCol.set(0x141a33), night * 0.85);
+    this.scene.background = sky;
+    (this.scene.fog as THREE.Fog | null)?.color.set(t.fog).lerp(this.wxCol.set(0x7d8791), rain * 0.6).lerp(this.wxCol.set(0x151b33), night * 0.85);
+  }
+
   applyTheme(t: BiomeTheme) {
+    this.theme = t;
+    this.wx.rain = this.wx.night = this.wxTarget.rain = this.wxTarget.night = 0;
     this.scene.background = new THREE.Color(t.sky);
     this.scene.fog = new THREE.Fog(t.fog, t.fogNear, t.fogFar);
     this.fogBase = { near: t.fogNear, far: t.fogFar };
@@ -340,6 +369,14 @@ export class Renderer {
       fog.far = this.fogBase.far + extra;
     }
     uniforms.uTime.value = time;
+    // météo : transition d'environ deux secondes
+    const w = this.wx, wt = this.wxTarget;
+    if (w.rain !== wt.rain || w.night !== wt.night) {
+      const s = dt * 0.5;
+      w.rain += Math.max(-s, Math.min(s, wt.rain - w.rain));
+      w.night += Math.max(-s, Math.min(s, wt.night - w.night));
+      this.applyWeather();
+    }
   }
 
   render() {

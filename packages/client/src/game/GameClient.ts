@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  AVENTURIER, CLASSES, ENEMIES, bossPhase, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
+  AVENTURIER, CLASSES, ENEMIES, bossPhase, NIGHT_RANGE, TORCH_R, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, sanitizeSpells, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_FLEEING, ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
@@ -8,6 +8,7 @@ import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
 import { forgetPools } from '../render/InstPool';
 import { Decal, Fx } from '../render/Fx';
+import { WeatherView } from '../render/Weather';
 import type { Renderer } from '../render/Renderer';
 import { buildWorld, type WorldInfo } from '../render/World';
 import type { Host } from '../net/host';
@@ -96,6 +97,7 @@ export class GameClient {
   /** boss déjà présentés (entrée en scène) */
   private bossSeen = new Set<number>();
   private tmpP = { x: 0, z: 0 };
+  private weather: WeatherView;
   private ended = false;
   private dmgIdx = 0;
   private fpsAcc = 0;
@@ -128,6 +130,8 @@ export class GameClient {
     this.ents.castleGate = { x: cs.x, z: cs.z, dx: cs.dx, dz: cs.dz };
     this.fx = new Fx(r.scene);
     this.fx.setGround(this.world.ground);
+    this.weather = new WeatherView(this.map.torches, this.world.heightAt);
+    r.scene.add(this.weather.group);
     this.interp = new Interp(this.map, host.local);
     host.onSnapshot = (b) => {
       this.snapshotBytes += b.byteLength;
@@ -824,6 +828,8 @@ export class GameClient {
     this.ents.cullOn = r.cam.dist < r.cam.fit * 0.85;
     if (this.ents.cullOn) this.ents.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
+    r.setWeather(snap.rain, snap.night);
+    this.weather.update(dt, this.time, r.wx.rain, r.wx.night, r.cam.x, r.cam.z);
     // château : un monstre qui franchit la porte le fait trembler ; il brûle quand les vies s'épuisent
     const castle = this.world.castle;
     for (; this.ents.castleEntered > 0; this.ents.castleEntered--) castle.hit(this.fx);
@@ -980,6 +986,7 @@ export class GameClient {
       const rangeOf = (l: number) => TOWERS[fam][l].range * (fam === 'camp' ? 1 + opk.campRange : 1 + opk.range[snap.tFam[ti]] + aura);
       let range = rangeOf(snap.tLevel[ti]);
       if (fam === 'archer' && snap.tLevel[ti] === LEVEL_SPEC_A && snap.tSk[ti] >> 4) range += lvl.skills![1].values[(snap.tSk[ti] >> 4) - 1];
+      if (fam === 'archer' && snap.night && !this.lit(snap, this.map.slots[snap.tSlot[ti]])) range *= NIGHT_RANGE;
       if (fam === 'camp' && snap.tLevel[ti] === 3) range = campAura(3, [snap.tSk[ti] & 15, snap.tSk[ti] >> 4], opk.campAura, opk.campRange).r;
       if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = rangeOf(this.hoverLevel);
       const sl = this.map.slots[snap.tSlot[ti]];
@@ -1104,6 +1111,18 @@ export class GameClient {
     if (best >= 0) this.r.focus(f.eX[best], f.eZ[best]);
   }
 
+  /** Même règle que la simulation : près d'une torche ou d'un campement, la nuit n'enlève rien aux archers. */
+  private lit(snap: Snapshot, p: { x: number; z: number }) {
+    const r2 = TORCH_R * TORCH_R;
+    for (const t of this.map.torches) if ((t.x - p.x) ** 2 + (t.z - p.z) ** 2 <= r2) return true;
+    for (let i = 0; i < snap.tCount; i++) {
+      if (FAMILIES[snap.tFam[i]] !== 'camp') continue;
+      const s = this.map.slots[snap.tSlot[i]];
+      if (s && (s.x - p.x) ** 2 + (s.z - p.z) ** 2 <= r2 * 1.6) return true;
+    }
+    return false;
+  }
+
   /** Entrée en scène d'un boss : caméra sur lui, secousse, bannière et éclair rouge. */
   private bossEntrance(title: string, sub: string, x: number, z: number) {
     banner(title, sub, 3400);
@@ -1136,6 +1155,8 @@ export class GameClient {
         if (!alive) this.thieves.delete(id);
       }
     }
+    if (h.weather.rain !== s.rain) h.weather.rain = s.rain;
+    if (h.weather.night !== s.night) h.weather.night = s.night;
     const ad = h.adapt;
     if (ad.on !== s.adaptOn) ad.on = s.adaptOn;
     if (s.adaptOn) {
@@ -1791,7 +1812,12 @@ export class GameClient {
         const [, wave, boss, mut] = ev;
         this.lastWave = wave;
         const total = this.cfg.mode === 'story' ? ` / ${this.interp.latest?.totalWaves ?? ''}` : '';
-        banner(boss ? 'Le boss arrive !' : `Vague ${wave}${total}`, mut !== 255 && MUTATIONS[mut] ? `Mutation : ${MUTATIONS[mut].name} — ${MUTATIONS[mut].desc}` : '');
+        const ls = this.interp.latest;
+        const sky = ls?.rain && ls.night ? 'Nuit pluvieuse : feux éteints, givre renforcé, archers myopes loin des torches'
+          : ls?.rain ? 'Il pleut : les feux faiblissent, le givre est renforcé'
+          : ls?.night ? 'La nuit tombe : les archers voient moins loin, sauf près des torches' : '';
+        banner(boss ? 'Le boss arrive !' : `Vague ${wave}${total}`, mut !== 255 && MUTATIONS[mut] ? `Mutation : ${MUTATIONS[mut].name} — ${MUTATIONS[mut].desc}` : sky);
+        if (sky && mut !== 255 && MUTATIONS[mut]) toast(sky, 'info', 4000);
         audio.play(boss ? 'boss' : 'wave');
         if (this.cfg.mode === 'story' && ui.game) {
           const st = STORY[ui.game.level];
@@ -1960,7 +1986,7 @@ export class GameClient {
     for (const d of this.disposers) d();
     this.host.dispose();
     const scene = this.r.scene;
-    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
+    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.weather.group, this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
     scene.traverse(() => {});
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => {
       const m = c as THREE.Mesh;

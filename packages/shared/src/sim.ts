@@ -10,7 +10,7 @@ import { buildRuntimeMap, type RuntimeMap } from './mapgen';
 import { activePathsFor, scaledCount } from './preview';
 import { Rng } from './rng';
 import { DmgType, FAMILIES, GameState, Prio, SHOOTERS, type Command, type Family, type GameConfig } from './types';
-import { MUTATION_INDEX, genStoryWaves, genSurvivalWave, mutationsFor, type Wave } from './waves';
+import { MUTATION_INDEX, genStoryWaves, genSurvivalWave, mutationsFor, weatherFor, type Wave } from './waves';
 
 // ---------------------------------------------------------------- Événements
 
@@ -276,6 +276,12 @@ export interface PlayerState {
   itemCd: number;
 }
 
+/** Météo : dégâts du feu sous la pluie, bonus du givre sous la pluie, portée des archers la nuit, rayon d'une torche. */
+export const RAIN_FIRE = 0.5;
+export const RAIN_FROST = 1.3;
+export const NIGHT_RANGE = 0.78;
+export const TORCH_R = 3.4;
+
 /** Kessin s'adapte : premier niveau d'histoire concerné (terres de Cendre), première vague en survie, seuil, pas, plafond, oubli. */
 export const ADAPT_LEVEL = 5;
 export const ADAPT_FROM = 6;
@@ -318,6 +324,9 @@ export class Sim {
    * selon le type le plus utilisé à la vague précédente. `adaptDmg` : dégâts de la vague en cours par type.
    */
   adapt: [number, number] = [0, 0];
+  /** météo de la vague en cours (voir weatherFor) */
+  rain = false;
+  night = false;
   adaptDmg: [number, number] = [0, 0];
   players: PlayerState[];
   towers: Tower[] = [];
@@ -797,6 +806,9 @@ export class Sim {
       wave = genSurvivalWave(this.map.def.biome, this.cfg.seed, this.waveIdx, this.activePaths(this.waveIdx));
     }
     this.adaptWave();
+    const wx = weatherFor(this.map.def.biome, this.cfg.seed, this.waveIdx);
+    this.rain = wx.rain;
+    this.night = wx.night;
     const cm = this.scaling.countMul;
     for (const g of wave.groups) {
       const def = ENEMIES[g.type];
@@ -817,6 +829,14 @@ export class Sim {
     for (const h of this.heroes) this.addXp(h, 6 * this.waveIdx);
     this.ev(Ev.WaveStart, this.waveIdx, wave.boss ? 1 : 0, wave.mutation ?? 255);
     this.payMines();
+  }
+
+  /** Point éclairé la nuit : près d'une torche de la carte ou d'un campement. */
+  lit(x: number, z: number): boolean {
+    const r2 = TORCH_R * TORCH_R;
+    for (const t of this.map.torches) if ((t.x - x) ** 2 + (t.z - z) ** 2 <= r2) return true;
+    for (const t of this.towers) if (t.fam === 'camp' && (t.x - x) ** 2 + (t.z - z) ** 2 <= r2 * 1.6) return true;
+    return false;
   }
 
   /** Kessin s'adapte (terres de Cendre, survie) : active à partir de la vague `ADAPT_FROM`. */
@@ -1788,11 +1808,14 @@ export class Sim {
     }
     let dmg = p.dmg;
     let flags = 0;
+    // pluie : le givre mord davantage (dégâts et ralentissement des tirs de givre)
+    const wet = this.rain && p.slowF > 0;
+    if (wet) dmg *= RAIN_FROST;
     if (p.heroXp) { const k = this.heroCrit(p.heroXp); if (k > 1) { dmg *= k; flags = 1; } }
     const dealt = this.damage(e, dmg, p.dtype, p.owner, p.heroXp, flags, aoe && dmg < 10, aoe);
     if (p.heroXp && p.heroXp.pas.has('vampire')) p.heroXp.u.hp = Math.min(p.heroXp.u.maxHp, p.heroXp.u.hp + dealt * 0.2);
     if (e.dead) return;
-    if (p.slowF) { e.slowMul = Math.min(e.slowMul, 1 - p.slowF); e.slowT = Math.max(e.slowT, p.slowT); }
+    if (p.slowF) { e.slowMul = Math.min(e.slowMul, 1 - Math.min(0.85, p.slowF * (wet ? RAIN_FROST : 1))); e.slowT = Math.max(e.slowT, p.slowT); }
     if (p.poison && !lead) { e.poisonDps = p.poison; e.poisonT = sec(4); }
     if (p.shred) { e.shred = p.shred; e.shredT = sec(4); }
   }
@@ -1968,7 +1991,11 @@ export class Sim {
       if (e.shredT > 0 && --e.shredT === 0) e.shred = 0;
       if (e.curseT > 0 && --e.curseT === 0) e.curse = 0;
       if (e.poisonT > 0) { e.poisonT--; this.damage(e, e.poisonDps * DT, DmgType.True, e.hitBy, null, 0, true); }
-      if (e.burnT > 0) { e.burnT--; this.damage(e, e.burnDps * DT, DmgType.True, e.hitBy, null, 0, true); }
+      if (e.burnT > 0) {
+        // la pluie éteint les feux : brûlure deux fois moins forte et deux fois plus courte
+        e.burnT = Math.max(0, e.burnT - (this.rain ? 2 : 1));
+        this.damage(e, e.burnDps * DT * (this.rain ? RAIN_FIRE : 1), DmgType.True, e.hitBy, null, 0, true);
+      }
       if (e.dead) continue;
       if (ab.regen) e.hp = Math.min(e.maxHp, e.hp + ab.regen * e.hpScale * DT);
       if (e.traits & Trait.Regrow) {
@@ -2309,6 +2336,8 @@ export class Sim {
       const pk = this.perk(t.owner);
       let range = lvl.range * (1 + pk.range[t.fi] + t.auraRange);
       if (t.fam === 'archer' && t.level === 3 && s1) range += lvl.skills![1].values[s1 - 1];
+      // la nuit, les archers loin d'une torche ou d'un campement voient moins loin
+      if (t.fam === 'archer' && this.night && !this.lit(t.x, t.z)) range *= NIGHT_RANGE;
       if (t.fam === 'barracks') {
         // Rôdeurs : bond
         if (t.level === 4 && s0 && --t.s1T <= 0) {
@@ -2431,10 +2460,16 @@ export class Sim {
     const near: Enemy[] = [];
     for (let i = this.zones.length - 1; i >= 0; i--) {
       const z = this.zones[i];
+      // pluie : les zones de feu faiblissent et s'éteignent plus vite, le blizzard redouble
+      const fire = this.rain && (z.kind === Impact.FireShell || z.kind === Impact.Lava);
+      const frost = this.rain && z.kind === Impact.Blizzard;
+      const dps = z.dps * (fire ? RAIN_FIRE : frost ? RAIN_FROST : 1);
+      const slow = frost ? Math.min(0.85, z.slow * RAIN_FROST) : z.slow;
       for (const e of this.enemiesIn(z.x, z.z, z.r, z.air, near)) {
-        this.damage(e, z.dps * DT, z.dtype, z.owner, null, 0, true);
-        if (z.slow) { e.slowMul = Math.min(e.slowMul, 1 - z.slow); e.slowT = Math.max(e.slowT, 2); }
+        this.damage(e, dps * DT, z.dtype, z.owner, null, 0, true);
+        if (slow) { e.slowMul = Math.min(e.slowMul, 1 - slow); e.slowT = Math.max(e.slowT, 2); }
       }
+      if (fire) z.t--;
       if (--z.t <= 0) { this.zones[i] = this.zones[this.zones.length - 1]; this.zones.pop(); }
     }
     for (let i = this.blessings.length - 1; i >= 0; i--) if (--this.blessings[i].t <= 0) this.blessings.splice(i, 1);

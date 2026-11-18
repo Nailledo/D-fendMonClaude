@@ -20,6 +20,8 @@ export interface RuntimeMap {
    * chaque joueur, quels que soient ses réglages graphiques. Les unités les contournent ; le client les dessine.
    */
   obstacles: Obstacle[];
+  /** torches : la nuit, les archers proches gardent toute leur portée */
+  torches: { x: number; z: number }[];
 }
 
 export interface Obstacle {
@@ -137,7 +139,24 @@ function generateSlots(def: MapDef, paths: SampledPath[]): { x: number; z: numbe
   return chosen;
 }
 
-const cache = new Map<string, { paths: SampledPath[]; slots: { x: number; z: number; score: number }[]; obstacles: Obstacle[] }>();
+const cache = new Map<string, { paths: SampledPath[]; slots: { x: number; z: number; score: number }[]; obstacles: Obstacle[]; torches: { x: number; z: number }[] }>();
+
+/** Une torche pour un emplacement sur trois, posée juste derrière lui (à l'opposé du chemin le plus proche). */
+function generateTorches(paths: SampledPath[], slots: { x: number; z: number }[]): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  const o = { x: 0, z: 0 };
+  slots.forEach((s, i) => {
+    if (i % 3 !== 1) return;
+    let best = Infinity, bx = s.x, bz = s.z;
+    for (const p of paths) {
+      const pr = p.project(s.x, s.z);
+      if (pr.dist2 < best) { best = pr.dist2; p.at(pr.d, 0, o); bx = o.x; bz = o.z; }
+    }
+    const dx = s.x - bx, dz = s.z - bz, l = Math.hypot(dx, dz) || 1;
+    out.push({ x: s.x + (dx / l) * 1.25, z: s.z + (dz / l) * 1.25 });
+  });
+  return out;
+}
 
 export function buildRuntimeMap(mapId: string, nPlayers: number): RuntimeMap {
   const def = MAPS[mapId];
@@ -146,7 +165,7 @@ export function buildRuntimeMap(mapId: string, nPlayers: number): RuntimeMap {
   if (!c) {
     const paths = def.paths.map((p) => new SampledPath(p));
     const slots = generateSlots(def, paths);
-    c = { paths, slots, obstacles: generateObstacles(def, paths, slots) };
+    c = { paths, slots, obstacles: generateObstacles(def, paths, slots), torches: generateTorches(paths, slots) };
     cache.set(mapId, c);
   }
   const unlocked = Math.round(c.slots.length * slotPart[Math.max(0, Math.min(3, nPlayers - 1))]);
@@ -159,5 +178,5 @@ export function buildRuntimeMap(mapId: string, nPlayers: number): RuntimeMap {
     p.at(p.length * 0.72, 0, o);
     heroSpawn = o;
   }
-  return { def, paths: c.paths, slots, heroSpawn, obstacles: c.obstacles };
+  return { def, paths: c.paths, slots, heroSpawn, obstacles: c.obstacles, torches: c.torches };
 }
