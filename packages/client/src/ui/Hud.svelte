@@ -342,7 +342,7 @@
   {/if}
 
   {#if ui.fpv}
-    <div class="fpvhint">Vue du héros&nbsp;<span>· {keyLabel(keys.fpv)}, {keyLabel(keys.menu)} ou clic pour revenir</span></div>
+    <div class="fpvhint">Vue du héros&nbsp;<span>· clic gauche maintenu : tourner la tête · clic droit : se déplacer, attaquer · {keyLabel(keys.fpv)} ou {keyLabel(keys.menu)} : revenir</span></div>
   {/if}
 
   <div class="dmg" bind:this={dmgLayer}>{#each Array(24) as _}<span class="dn"></span>{/each}</div>
@@ -573,7 +573,7 @@
   .dmg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   /* vue du héros : l'interface s'efface (la discussion reste en coopération) */
   .hud.fpv > :not(.fpvhint):not(.chatwrap):not(.dmg):not(.debug) { display: none !important; }
-  .fpvhint { position: absolute; left: 50%; bottom: calc(18px + var(--sab)); transform: translateX(-50%); background: rgba(43, 26, 18, 0.72); color: var(--on-dark); padding: 6px 16px; border-radius: 99px; font-size: 14px; white-space: nowrap; pointer-events: none; animation: fpvIn 0.4s ease-out, fpvDim 0.6s ease-in 4s forwards; }
+  .fpvhint { position: absolute; left: 50%; bottom: calc(18px + var(--sab)); transform: translateX(-50%); background: rgba(43, 26, 18, 0.72); color: var(--on-dark); padding: 6px 16px; border-radius: 99px; font-size: 14px; width: max-content; max-width: calc(100vw - 32px); text-align: center; pointer-events: none; animation: fpvIn 0.4s ease-out, fpvDim 0.6s ease-in 4s forwards; }
   .fpvhint span { opacity: 0.75; }
   @keyframes fpvIn { from { opacity: 0; transform: translate(-50%, 8px); } }
   @keyframes fpvDim { to { opacity: 0.35; } }

@@ -398,7 +398,7 @@ export class Renderer {
   }
 
   /** Vue du héros : 0 = vue d'ensemble, 1 = dans les yeux du héros (transition lissée entre les deux). */
-  readonly fp = { blend: 0, x: 0, y: 0, z: 0, yaw: 0 };
+  readonly fp = { blend: 0, x: 0, y: 0, z: 0, yaw: 0, pitch: FP.pitch, free: false };
   /** ciel, nuages et montagnes (vue du héros seulement : de haut, on ne voit jamais l'horizon) */
   private sky: FirstPersonSky | null = null;
   private skyTop = new THREE.Color();
@@ -419,8 +419,9 @@ export class Renderer {
     const f = this.fp, cam = this.camera;
     if (!eye && f.blend === 0) return;
     if (eye) {
-      if (f.blend === 0) f.yaw = eye.yaw;
-      else f.yaw = lerpAngle(f.yaw, eye.yaw, 1 - Math.exp(-dt * FP.turn));
+      // entrée : regard dans l'axe du héros ; ensuite il le suit, sauf pendant un regard libre
+      if (f.blend === 0) { f.yaw = eye.yaw; f.pitch = FP.pitch; f.free = false; }
+      else if (!f.free) f.yaw = lerpAngle(f.yaw, eye.yaw, 1 - Math.exp(-dt * FP.turn));
       f.x = eye.x; f.y = eye.y; f.z = eye.z;
     }
     f.blend = Math.max(0, Math.min(1, f.blend + (eye ? dt : -dt) / FP.blendTime));
@@ -430,8 +431,8 @@ export class Renderer {
     this.qa.copy(cam.quaternion);
     const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw);
     this.eyeV.set(f.x - fx * FP.back, f.y, f.z - fz * FP.back);
-    const cp = Math.cos(FP.pitch);
-    this.lookV.set(this.eyeV.x + fx * cp, f.y + Math.sin(FP.pitch), this.eyeV.z + fz * cp);
+    const cp = Math.cos(f.pitch);
+    this.lookV.set(this.eyeV.x + fx * cp, f.y + Math.sin(f.pitch), this.eyeV.z + fz * cp);
     this.m4.lookAt(this.eyeV, this.lookV, cam.up);
     this.qb.setFromRotationMatrix(this.m4);
     cam.position.lerpVectors(this.pa, this.eyeV, e);
@@ -450,6 +451,23 @@ export class Renderer {
     if (fog) this.skyLow.copy(fog.color);
     if (this.scene.background instanceof THREE.Color) this.skyTop.copy(this.scene.background);
     this.skyView().update(e, cam.position, this.skyTop, this.skyLow, this.hemi.groundColor, this.sun, this.wx.night, this.wx.rain);
+  }
+
+  /**
+   * Tourner la tête (glisser au clic gauche) de (dx, dy) pixels : le cap suit directement la souris (le jeu
+   * fait pivoter le héros avec lui) et l'inclinaison reste propre à la caméra. Le cap n'est plus lissé
+   * jusqu'à `fpFollow` (le héros se remet à marcher ou à se battre).
+   */
+  fpLook(dx: number, dy: number) {
+    const f = this.fp, k = 0.0045;
+    f.free = true;
+    f.yaw -= dx * k;
+    f.pitch = Math.max(-1.15, Math.min(0.55, f.pitch - dy * k));
+  }
+
+  /** Le regard suit de nouveau le cap du héros (l'inclinaison choisie est gardée). */
+  fpFollow() {
+    this.fp.free = false;
   }
 
   /** Fin de partie pendant la vue du héros : caméra rendue telle quelle à la vue d'ensemble. */

@@ -130,6 +130,8 @@ export class Entities {
   hideHeroes = false;
   /** vue du héros : son propre corps n'est pas dessiné (la caméra est dans sa tête) */
   hideUnit = -1;
+  /** vue du héros : cap imposé au héros quand on tourne la tête (NaN : aucun, il suit sa marche et ses cibles) */
+  heroLook = { id: -1, yaw: NaN };
   /** hauteur du terrain (pour poser les marques au sol sur le relief) */
   heightAt: ((x: number, z: number) => number) | null = null;
   /** bouches des galeries d'entrée : un ennemi encore dans la galerie (sous la colline) n'est pas dessiné */
@@ -580,6 +582,12 @@ export class Entities {
         if (ax * ax + az * az > 0.01) yawT = Math.atan2(ax, az);
         turn = Math.min(1, dt * 16);
       } else if (walking) yawT = Math.atan2(f.uDx[i], f.uDz[i]);
+      // vue du héros : tourner la tête fait pivoter le héros sur place ; marcher ou se battre lui rend son cap
+      const hl = this.heroLook;
+      if (id === hl.id && !Number.isNaN(hl.yaw)) {
+        if (walking || ti >= 0) hl.yaw = NaN;
+        else if (time >= this.aimUntil[id]) { yawT = hl.yaw; turn = Math.min(1, dt * 18); }
+      }
       const prevYaw = this.uYaw[id];
       this.uYaw[id] = lerpAngle(this.uYaw[id], yawT, turn);
       let dyw = this.uYaw[id] - prevYaw;

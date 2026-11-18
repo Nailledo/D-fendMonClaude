@@ -9,6 +9,7 @@ import { Entities } from '../render/Entities';
 import { forgetPools } from '../render/InstPool';
 import { Decal, Fx, SHOT_BOULDER } from '../render/Fx';
 import { WeatherView } from '../render/Weather';
+import { Birds } from '../render/Sky';
 import { PropsView } from '../render/Props';
 import type { Renderer } from '../render/Renderer';
 import { buildWorld, type WorldInfo } from '../render/World';
@@ -105,6 +106,9 @@ export class GameClient {
   private bossSeen = new Set<number>();
   private tmpP = { x: 0, z: 0 };
   private weather: WeatherView;
+  /** volées d'oiseaux au-dessus de la carte (les deux vues) et la brume où leurs silhouettes se fondent */
+  private birds: Birds;
+  private birdHaze = new THREE.Color();
   /** carte interactive : tonneaux, camp, secrets */
   private props: PropsView;
   private hoverProp = -1;
@@ -148,6 +152,8 @@ export class GameClient {
     this.fx.setGround(this.world.ground);
     this.weather = new WeatherView(this.map.torches, this.world.heightAt);
     r.scene.add(this.weather.group);
+    this.birds = new Birds(this.birdHaze, settings.shadows);
+    r.scene.add(this.birds.mesh);
     this.props = new PropsView(this.map.props, this.map.def.biome, this.world.heightAt);
     r.scene.add(this.props.group);
     this.interp = new Interp(this.map, host.local);
@@ -386,6 +392,8 @@ export class GameClient {
   private fpv = false;
   /** unité du héros vu de l'intérieur (masquée tant que la caméra est près de sa tête) */
   private fpvUnit = -1;
+  /** clic gauche maintenu : on tourne la tête (et le héros avec) */
+  private fpLooking = false;
 
   /** Bascule la vue du héros (raccourci, bouton du HUD). */
   toggleFirstPerson() {
@@ -401,6 +409,7 @@ export class GameClient {
   exitFirstPerson() {
     if (!this.fpv) return;
     this.fpv = ui.fpv = false;
+    this.ents.heroLook.yaw = NaN;
     const hp = this.heroPos();
     if (hp) this.r.focus(hp.x, hp.z);
   }
@@ -507,12 +516,24 @@ export class GameClient {
       drag = null;
       pinch = null;
     };
+    /** vue du héros : regard libre en cours (clic gauche maintenu) */
+    let look: { id: number; x: number; y: number } | null = null;
     const canPan = (type: string) => type === 'touch' || this.mouse.button === 1 || this.mouse.button === 2 || (this.mouse.button === 0 && !this.targeting);
 
     on(c, 'pointerdown', (e) => {
       audio.unlock();
-      // vue du héros : un clic sur la vue ramène à la vue d'ensemble, sans rien faire d'autre
-      if (this.fpv || r.fp.blend > 0) { this.exitFirstPerson(); return; }
+      // vue du héros : clic gauche maintenu pour tourner la tête, clic droit comme en vue d'ensemble
+      // (se déplacer, attaquer l'ennemi visé) ; pendant la transition de sortie, les clics attendent
+      if (this.fpv || r.fp.blend > 0) {
+        if (!this.fpv) return;
+        if (e.button === 0) {
+          look = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          this.fpLooking = true;
+          try { c.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
+          c.style.cursor = 'grabbing';
+        } else if (e.button === 2) this.fpOrder(e.clientX, e.clientY);
+        return;
+      }
       try { c.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
       this.mouse.x = e.clientX;
@@ -549,6 +570,19 @@ export class GameClient {
     on(window, 'pointermove', (e) => {
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
+      if (look && look.id === e.pointerId) {
+        if (this.fpv) {
+          // le héros pivote avec le regard (le corps et la vue restent dans le même axe)
+          r.fpLook(e.clientX - look.x, e.clientY - look.y);
+          this.ents.heroLook.id = this.fpvUnit;
+          this.ents.heroLook.yaw = r.fp.yaw;
+          // clic droit pendant qu'on tourne la tête (boutons combinés : pas de nouveau pointerdown)
+          if (e.button === 2 && e.buttons & 2) this.fpOrder(e.clientX, e.clientY);
+        }
+        look.x = e.clientX;
+        look.y = e.clientY;
+        return;
+      }
       const pt = pts.get(e.pointerId);
       if (!pt) return;
       pt.x = e.clientX;
@@ -575,6 +609,13 @@ export class GameClient {
       }
     });
     const up = (e: PointerEvent) => {
+      if (look && look.id === e.pointerId) {
+        look = null;
+        this.fpLooking = false;
+        c.style.cursor = '';
+        try { c.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
+        return;
+      }
       const had = pts.delete(e.pointerId);
       if (!had) return;
       try { c.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
@@ -834,6 +875,27 @@ export class GameClient {
     return best;
   }
 
+  /**
+   * Vue du héros : ennemi attaquable le plus proche du clic à l'écran (centre du corps projeté), ou -1.
+   * La tolérance suit la taille apparente : un gobelin tout près se vise large, un lointain plus finement.
+   */
+  private enemyOnScreen(sx: number, sy: number): number {
+    const f = this.interp.frame, r = this.r, cam = r.camera.position;
+    const k = r.height / (2 * Math.tan((r.camera.fov * Math.PI) / 360));
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < f.eN; i++) {
+      if (f.eTraits[i] & Trait.Camo && !(f.eTraits[i] & ET_REVEALED)) continue;
+      const size = ENEMIES[f.eType[i]]?.size ?? 1;
+      const y = f.eY[i] + 0.55 * size;
+      if (!r.project(f.eX[i], y, f.eZ[i], this.proj).visible) continue;
+      const depth = Math.hypot(f.eX[i] - cam.x, y - cam.y, f.eZ[i] - cam.z);
+      const radius = Math.max(14, (0.75 * size * k) / Math.max(0.5, depth));
+      const d = Math.hypot(this.proj.x - sx, this.proj.y - sy);
+      if (d < radius && d / radius < bd) { bd = d / radius; best = i; }
+    }
+    return best;
+  }
+
   /** Ordre au héros d'attaquer cet ennemi (la mêlée y court, le tir se place à portée). */
   private attackEnemy(i: number) {
     const f = this.interp.frame;
@@ -851,17 +913,31 @@ export class GameClient {
    * Clic droit (appui long au tactile) : sur un ennemi, votre héros l'attaque ; ailleurs, il s'y rend.
    * Pendant une visée de sort, il l'annule.
    */
-  private rightClick(sx: number, sy: number) {
+  private rightClick(sx: number, sy: number): boolean {
+    // vue du héros : l'ennemi se vise à l'écran (le rayon du clic file loin derrière un corps vu de face)
+    const fpEnemy = this.fpv ? this.enemyOnScreen(sx, sy) : -1;
+    if (fpEnemy >= 0) { this.attackEnemy(fpEnemy); return true; }
     const p = this.r.pick(sx, sy);
-    if (!p) return;
-    if (this.targeting && this.targeting.kind !== 'hmove') { this.cancel(); return; }
+    if (!p) return false;
+    if (this.targeting && this.targeting.kind !== 'hmove') { this.cancel(); return false; }
     const hp = this.heroPos();
-    const ei = hp ? this.enemyAt(sx, sy, p, true) : -1;
-    if (ei >= 0) { this.attackEnemy(ei); return; }
+    const ei = hp && !this.fpv ? this.enemyAt(sx, sy, p, true) : -1;
+    if (ei >= 0) { this.attackEnemy(ei); return true; }
     this.targeting = null;
     ui.hud.targeting = '';
     this.send({ k: 'hmove', x: p.x, z: p.z });
     this.fx.ring(p.x, p.z, 0.8, 0x93c5fd, 0.5);
+    return true;
+  }
+
+  /**
+   * Vue du héros : ordre au clic droit. S'il part (déplacement, attaque), le regard libre se relâche :
+   * le héros se tourne vers ce qu'on regardait et la vue le suit de nouveau.
+   */
+  private fpOrder(sx: number, sy: number) {
+    if (!this.rightClick(sx, sy)) return;
+    this.ents.heroLook.yaw = NaN;
+    this.r.fpFollow();
   }
 
   // ------------------------------------------------------------ boucle
@@ -935,6 +1011,8 @@ export class GameClient {
     if (eye) this.fpvUnit = eye.id;
     r.firstPerson(dt, eye);
     this.ents.hideUnit = r.fp.blend > 0.75 ? this.fpvUnit : -1;
+    // le héros s'est remis à marcher ou à se battre : la vue reprend son cap
+    if (r.fp.free && !this.fpLooking && Number.isNaN(this.ents.heroLook.yaw)) r.fpFollow();
 
     // héros : type par unité
     for (let i = 0; i < snap.hCount; i++) {
@@ -966,6 +1044,10 @@ export class GameClient {
     // la pluie tombe autour de ce que l'on regarde : le centre de la vue, ou le héros vu de l'intérieur
     const inFp = r.fp.blend > 0.5;
     this.weather.update(dt, this.time, r.wx.rain, r.wx.night, inFp ? r.fp.x : r.cam.x, inFp ? r.fp.z : r.cam.z);
+    // oiseaux : se posent la nuit et sous la pluie
+    const fog = r.scene.fog as THREE.Fog | null;
+    if (fog) this.birdHaze.copy(fog.color);
+    this.birds.update(this.time, 1 - Math.max(r.wx.night, r.wx.rain));
     this.props.update(dt, this.time, snap, this.hoverProp);
     this.ambientTowers(dt);
     // un secret pas encore trouvé scintille de temps en temps : de quoi intriguer l'œil attentif
@@ -2294,6 +2376,8 @@ export class GameClient {
     this.host.dispose();
     const scene = this.r.scene;
     for (const obj of [this.world.group, this.ents.group, this.fx.group, this.weather.group, this.props.group, this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
+    scene.remove(this.birds.mesh);
+    this.birds.dispose();
     scene.traverse(() => {});
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => {
       const m = c as THREE.Mesh;

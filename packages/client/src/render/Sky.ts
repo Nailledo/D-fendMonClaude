@@ -116,11 +116,8 @@ export class FirstPersonSky {
         }`,
     });
     this.group.add(range(100, 92, 16, 34, 11, mtMat(0.55)), range(84, 72, 10, 22, 37, mtMat(0.32)));
-    this.birds = new Birds(this.low);
-    this.group.add(this.birds.mesh);
     this.group.visible = false;
   }
-  private birds: Birds;
 
   /**
    * `amount` : part de la vue du héros dans la transition (0 : rien d'affiché).
@@ -141,8 +138,6 @@ export class FirstPersonSky {
     this.sunCol.copy(sun.color).multiplyScalar(Math.min(1.2, sun.intensity / 2.4) * (1 - 0.4 * night) + 0.25 * night);
     this.night.value = night;
     this.rain.value = rain;
-    // les oiseaux se posent la nuit et sous la pluie
-    this.birds.update(uniforms.uTime.value, 1 - Math.max(night, rain));
   }
 }
 
@@ -152,8 +147,9 @@ const V = [[0, 0], [-1, -1], [1, -1], [-2, -2], [2, -2], [-3, -3], [3, -3]];
 /**
  * Volées d'oiseaux qui tournent au-dessus de la carte, en V : battements d'ailes dans le vertex shader
  * (avec des moments de vol plané), positions posées sur le processeur (quelques dizaines d'instances).
+ * Visibles dans les deux vues : de haut, leur ombre file sur le terrain.
  */
-class Birds {
+export class Birds {
   readonly mesh: THREE.InstancedMesh;
   private flocks: { r: number; rz: number; y: number; w: number; a0: number; n: number; size: number }[] = [];
   private m = new THREE.Matrix4();
@@ -163,7 +159,8 @@ class Birds {
   private e = new THREE.Euler();
   private alpha = { value: 1 };
 
-  constructor(low: THREE.Color) {
+  /** `low` : couleur de la brume (les silhouettes s'y fondent un peu), tenue à jour par l'appelant. */
+  constructor(low: THREE.Color, shadows: boolean) {
     let seed = 91;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     for (let k = 0; k < 5; k++) {
@@ -172,14 +169,17 @@ class Birds {
         r: 20 + rnd() * 36, rz: 0.7 + rnd() * 0.3, y: 7.5 + rnd() * 6,
         // sens et vitesse de rotation variés : certaines volées se croisent
         w: (0.035 + rnd() * 0.04) * (rnd() < 0.5 ? -1 : 1), a0: rnd() * Math.PI * 2,
-        n: 3 + Math.floor(rnd() * 5), size: 1 + rnd() * 0.5,
+        n: 3 + Math.floor(rnd() * 5), size: 0.7 + rnd() * 0.3,
       });
     }
     const total = this.flocks.reduce((t, f) => t + f.n, 0);
-    // corps fin et deux ailes, l'avant vers +z ; aX = distance au corps (amplitude du battement)
-    const pos = [0, 0, 0.35, -0.06, 0, -0.25, 0.06, 0, -0.25,
-      0, 0, 0.12, 0, 0, -0.12, -0.75, 0.05, -0.12,
-      0, 0, 0.12, 0, 0, -0.12, 0.75, 0.05, -0.12];
+    // corps fin et deux ailes larges en flèche (lisibles aussi vues de haut), l'avant vers +z ;
+    // le battement croît avec la distance au corps (|x|)
+    const pos = [0, 0, 0.4, -0.08, 0, -0.3, 0.08, 0, -0.3];
+    for (const sd of [-1, 1]) {
+      const root = [[0, 0, 0.18], [0, 0, -0.2]], tip = [[0.85 * sd, 0.05, -0.22], [0.8 * sd, 0.05, -0.36]];
+      pos.push(...root[0], ...root[1], ...tip[0], ...root[1], ...tip[1], ...tip[0]);
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     const phase = new Float32Array(total);
@@ -203,13 +203,22 @@ class Birds {
         uniform float uAlpha;
         void main() {
           // silhouette sombre, un peu voilée par la brume
-          gl_FragColor = vec4(mix(vec3(0.1, 0.1, 0.12), uLow, 0.3), uAlpha);
+          gl_FragColor = vec4(mix(vec3(0.07, 0.07, 0.09), uLow, 0.2), uAlpha);
           #include <colorspace_fragment>
         }`,
     });
     this.mesh = new THREE.InstancedMesh(g, mat, total);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = -500;
+    // ombre portée (silhouette ailes ouvertes) : visible surtout depuis la vue d'ensemble
+    this.mesh.castShadow = shadows;
+    this.mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide, depthPacking: THREE.RGBADepthPacking });
+  }
+
+  dispose() {
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.mesh.customDepthMaterial?.dispose();
   }
 
   /** `t` : temps ; `amount` : 0 = aucun oiseau (nuit, pluie), 1 = toutes les volées. */
