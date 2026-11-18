@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, ADAPT_SHARE, ADAPT_WEAK, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -124,6 +124,26 @@
         <Ico k="coin" fb={ICON.coin} />
         <span><b class="t1">Votre or a été volé !</b> Rattrapez le chapardeur avant qu’il s’enfuie : <b class="loot">{h.thief.gold} or</b></span>
       </button>
+    {/if}
+    {#if h.adapt.on}
+      {@const np = Math.round(-h.adapt.phys + ADAPT_WEAK * h.adapt.magic)}
+      {@const nm = Math.round(-h.adapt.magic + ADAPT_WEAK * h.adapt.phys)}
+      {@const lean = h.adapt.share > ADAPT_SHARE ? 0 : h.adapt.share < 1 - ADAPT_SHARE ? 1 : -1}
+      {#key h.adaptFx}
+      <div class="adapt ui" class:pop={h.adaptFx > 0}
+        title="Kessin s’adapte : à chaque vague, les ennemis résistent un peu plus au type de dégâts que vous avez le plus utilisé à la vague précédente (au-delà de {Math.round(ADAPT_SHARE * 100)} %), et oublient peu à peu l’autre. En contrepartie, ils deviennent plus fragiles face à l’autre type de dégâts.">
+        <div class="ah">{@html ICON.eye}<span>Kessin s’adapte</span></div>
+        <div class="ares">
+          <span class:on={np !== 0}>{@html ICON.bow} Armes <b class:res={np < 0} class:weak={np > 0}>{np > 0 ? '+' : np < 0 ? '−' : ''}{Math.abs(np)} %</b></span>
+          <span class:on={nm !== 0}>{@html ICON.orb} Magie <b class:res={nm < 0} class:weak={nm > 0}>{nm > 0 ? '+' : nm < 0 ? '−' : ''}{Math.abs(nm)} %</b></span>
+        </div>
+        <div class="ameter" aria-hidden="true">
+          <i class="ap" style="width:{h.adapt.share * 100}%"></i>
+          <i class="tick" style="left:{(1 - ADAPT_SHARE) * 100}%"></i><i class="tick" style="left:{ADAPT_SHARE * 100}%"></i>
+        </div>
+        <div class="anext" class:warn={lean >= 0}>{lean === 0 ? 'Il étudie vos armes…' : lean === 1 ? 'Il étudie votre magie…' : 'Dégâts variés : il n’apprend rien'}</div>
+      </div>
+      {/key}
     {/if}
   </div>
 
@@ -364,6 +384,21 @@
     background: var(--toon-red); color: #fff; font-weight: 800; font-size: 1em; line-height: 1.15; text-align: left; box-shadow: var(--rim), var(--shadow-sm); animation: thiefIn 0.35s ease-out, thiefPulse 1.1s ease-in-out 0.35s infinite; }
   .thief :global(.icon) { flex: none; width: 34px; height: 34px; }
   .thief .loot { color: var(--gold-hi); white-space: nowrap; }
+  .adapt { pointer-events: auto; cursor: help; width: 100%; padding: 6px 12px 8px; border: var(--bw) solid var(--ink); border-radius: 16px; background: #2d1b2e; color: #f3e5f5; box-shadow: var(--rim), var(--shadow-sm); font-size: 0.9em; }
+  .adapt.pop { animation: adaptPop 0.8s ease-out; }
+  @keyframes adaptPop { 20% { transform: scale(1.08); box-shadow: 0 0 0 4px #ff5a3c, var(--shadow-sm); } }
+  .ah { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 1.15em; color: #ffab91; }
+  .ah :global(.icon), .ares :global(.icon) { width: 16px; height: 16px; flex: none; }
+  .ares { display: flex; gap: 10px; margin: 3px 0 5px; }
+  .ares span { display: inline-flex; align-items: center; gap: 4px; opacity: 0.6; white-space: nowrap; }
+  .ares span.on { opacity: 1; }
+  .ares b.res { color: #ff8a80; }
+  .ares b.weak { color: #b9f6ca; }
+  .ameter { position: relative; height: 10px; border-radius: 99px; background: #8e44ad; border: 2px solid var(--ink); overflow: hidden; }
+  .ameter .ap { position: absolute; left: 0; top: 0; bottom: 0; background: #ff9800; transition: width 0.4s; }
+  .ameter .tick { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.8); }
+  .anext { margin-top: 3px; font-size: 0.9em; opacity: 0.8; }
+  .anext.warn { color: #ffab91; opacity: 1; font-weight: 800; }
   .thief .t1 { display: block; font-family: var(--font-display); font-weight: 400; font-size: 1.25em; }
   @keyframes thiefIn { from { transform: translateY(-14px) scale(0.8); opacity: 0; } }
   @keyframes thiefPulse { 50% { transform: scale(1.04) rotate(-1deg); } }
@@ -579,6 +614,7 @@
   .touch .btrack { height: 16px; }
   .touch .alerts.below { top: calc(96px + var(--sat)); }
   .touch .thief { font-size: 0.85em; }
+  .touch .adapt { font-size: 0.78em; padding: 4px 10px 6px; }
 
   /* tiroir d'informations : au-dessus de la barre du bas */
   .touch .info, .touch :global(.tp) {

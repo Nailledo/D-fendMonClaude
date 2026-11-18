@@ -43,6 +43,7 @@ export const enum Ev {
   Steal = 26, // enemyId, victime, or (un chapardeur vole de l'or et s'enfuit)
   Recover = 27, // victime, or rendu (bonus compris), x, z (chapardeur rattrapé)
   Escape = 28, // enemyId, victime, or (chapardeur enfui avec son butin)
+  Adapt = 29, // type de dégâts appris (0 physique, 1 magie), résistance (%)
 }
 
 export const enum Impact {
@@ -273,6 +274,16 @@ export interface PlayerState {
   itemCd: number;
 }
 
+/** Kessin s'adapte : premier niveau d'histoire concerné (terres de Cendre), première vague en survie, seuil, pas, plafond, oubli. */
+export const ADAPT_LEVEL = 5;
+export const ADAPT_FROM = 6;
+export const ADAPT_SHARE = 0.58;
+export const ADAPT_STEP = 0.05;
+export const ADAPT_MAX = 0.2;
+export const ADAPT_DECAY = 0.05;
+/** part de la résistance apprise qui devient une faiblesse face à l'autre type de dégâts */
+export const ADAPT_WEAK = 0.5;
+
 const SOLDIER_SPEED = 2.6;
 const FORMATION: [number, number][] = [[0, -0.75], [0.7, 0.45], [-0.7, 0.45], [0, 1.1], [1.2, -0.4], [-1.2, -0.4]];
 
@@ -301,6 +312,12 @@ export class Sim {
   totalWaves: number;
   nextWaveT = -1;
   mutations: number[] = [];
+  /**
+   * Kessin s'adapte : résistance acquise par les ennemis aux dégâts physiques [0] et magiques [1],
+   * selon le type le plus utilisé à la vague précédente. `adaptDmg` : dégâts de la vague en cours par type.
+   */
+  adapt: [number, number] = [0, 0];
+  adaptDmg: [number, number] = [0, 0];
   players: PlayerState[];
   towers: Tower[] = [];
   towerBySlot: (Tower | null)[];
@@ -601,6 +618,8 @@ export class Sim {
     if (type === DmgType.Phys) mult *= 1 - Math.max(0, Math.min(0.9, e.armor - e.shred));
     else if (type === DmgType.Magic) mult *= 1 - Math.min(0.9, e.mres);
     if (e.shielded) mult *= 0.7;
+    // Kessin s'adapte : résistance au type appris, mais une brèche face à l'autre (varier paie)
+    if (type !== DmgType.True) mult *= 1 - this.adapt[type] + ADAPT_WEAK * this.adapt[1 - type];
     const d = amount * mult;
     e.hp -= d;
     if (e.traits & Trait.Regrow) e.quietT = sec(REGROW_DELAY_S);
@@ -608,6 +627,7 @@ export class Sim {
       e.hitBy = owner;
       const p = this.player(owner);
       if (p) p.damage += d;
+      if (type !== DmgType.True) this.adaptDmg[type] += amount;
     }
     if (!silent) this.ev(Ev.Dmg, e.id, Math.min(65535, Math.round(d)), flags);
     if (e.hp <= 0) this.kill(e, owner, hero);
@@ -773,6 +793,7 @@ export class Sim {
       this.mutations = mutationsFor(this.cfg.seed, this.waveIdx);
       wave = genSurvivalWave(this.map.def.biome, this.cfg.seed, this.waveIdx, this.activePaths(this.waveIdx));
     }
+    this.adaptWave();
     const cm = this.scaling.countMul;
     for (const g of wave.groups) {
       const def = ENEMIES[g.type];
@@ -793,6 +814,27 @@ export class Sim {
     for (const h of this.heroes) this.addXp(h, 6 * this.waveIdx);
     this.ev(Ev.WaveStart, this.waveIdx, wave.boss ? 1 : 0, wave.mutation ?? 255);
     this.payMines();
+  }
+
+  /** Kessin s'adapte (terres de Cendre, survie) : active à partir de la vague `ADAPT_FROM`. */
+  get adaptive(): boolean {
+    return this.level ? this.level.index >= ADAPT_LEVEL : this.waveIdx >= ADAPT_FROM;
+  }
+
+  /**
+   * Début de vague : les ennemis gagnent une résistance au type de dégâts dominant de la vague précédente
+   * (plus de 58 % des dégâts), et en perdent un peu à l'autre. Ça pousse à varier sans rien interdire.
+   */
+  private adaptWave() {
+    const [ph, mg] = this.adaptDmg;
+    this.adaptDmg = [0, 0];
+    if (!this.adaptive || ph + mg <= 0) return;
+    const share = ph / (ph + mg);
+    const dom: number = share > ADAPT_SHARE ? 0 : share < 1 - ADAPT_SHARE ? 1 : -1;
+    for (let k = 0; k < 2; k++) {
+      this.adapt[k] = k === dom ? Math.min(ADAPT_MAX, this.adapt[k] + ADAPT_STEP) : Math.max(0, this.adapt[k] - ADAPT_DECAY);
+    }
+    if (dom >= 0) this.ev(Ev.Adapt, dom, Math.round(this.adapt[dom] * 100));
   }
 
   /** Revenus des mines au début d'une vague : or, intérêts, marché (alliés) et grenier (vies). */

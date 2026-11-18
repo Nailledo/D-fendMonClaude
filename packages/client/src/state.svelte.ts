@@ -83,6 +83,9 @@ export const ui = $state({
     boss: { on: false, type: 0, hp: 1, phase: 0, phases: 1 },
     /** incrémenté à chaque entrée en scène / transformation d'un boss (éclair d'écran) */
     bossFx: 0,
+    /** Kessin s'adapte : résistances acquises (%) et part des dégâts physiques de la vague en cours */
+    adapt: { on: false, phys: 0, magic: 0, share: 0.5 },
+    adaptFx: 0,
   },
   sel: null as Selection | null,
   dialog: null as null | { lines: Line[]; i: number },

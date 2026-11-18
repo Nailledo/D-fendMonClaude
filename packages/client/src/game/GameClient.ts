@@ -1132,6 +1132,14 @@ export class GameClient {
         if (!alive) this.thieves.delete(id);
       }
     }
+    const ad = h.adapt;
+    if (ad.on !== s.adaptOn) ad.on = s.adaptOn;
+    if (s.adaptOn) {
+      const ph = Math.round(s.adaptPhys * 100), mg = Math.round(s.adaptMagic * 100);
+      if (ad.phys !== ph) ad.phys = ph;
+      if (ad.magic !== mg) ad.magic = mg;
+      if (Math.abs(ad.share - s.adaptShare) > 0.01) ad.share = s.adaptShare;
+    }
     let bi = -1;
     for (let i = 0; i < s.eCount; i++) if (ENEMIES[s.eType[i]]?.boss) { bi = i; break; }
     const hb = h.boss;
@@ -1577,6 +1585,12 @@ export class GameClient {
         this.thieves.delete(id);
         if (victim === this.you && gold > 0) { toast(`Le chapardeur s’est enfui avec ${gold} or… La prochaine fois, il faudra courir plus vite !`, 'danger', 3600); audio.play('deny'); }
         this.syncHud();
+        break;
+      }
+      case Ev.Adapt: {
+        const [, dom, v] = ev;
+        toast(`Kessin s’adapte : les ennemis résistent désormais ${dom ? 'à la magie' : 'aux armes'} (−${v} %), mais craignent ${dom ? 'les armes' : 'la magie'}. Variez vos dégâts !`, 'enemy', 5000);
+        ui.hud.adaptFx++;
         break;
       }
       case Ev.Death: {

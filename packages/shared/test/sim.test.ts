@@ -642,3 +642,22 @@ describe('boss', () => {
     expect(sim.enemies.length - n0).toBe(6);
   });
 });
+
+describe('Kessin s’adapte', () => {
+  it('les ennemis résistent au type de dégâts dominant de la vague précédente', () => {
+    const sim = new Sim(cfg({ mapId: 'plaines' }));
+    expect(sim.adaptive).toBe(true);
+    const e = (sim as any).spawnEnemy(ENEMY_INDEX.diablotin, 0, 1, 0, 10) as Sim['enemies'][number];
+    e.armor = 0; e.mres = 0; e.hp = e.maxHp = 1e6;
+    expect(sim.damage(e, 100, DmgType.Phys, 0, null)).toBeCloseTo(100);
+    (sim as any).adaptWave();
+    expect(sim.adapt[0]).toBeCloseTo(0.05);
+    expect(sim.damage(e, 100, DmgType.Phys, 0, null)).toBeCloseTo(95);
+    expect(sim.damage(e, 100, DmgType.Magic, 0, null)).toBeCloseTo(102.5);
+    // vague équilibrée : rien de nouveau, la résistance s'estompe
+    sim.damage(e, 100, DmgType.Magic, 0, null);
+    (sim as any).adaptWave();
+    expect(sim.adapt[0]).toBeCloseTo(0);
+    expect(new Sim(cfg()).adaptive).toBe(false);
+  });
+});

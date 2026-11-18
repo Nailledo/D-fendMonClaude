@@ -136,6 +136,7 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.Steal]: 'wbw',
   [Ev.Recover]: 'bwpp',
   [Ev.Escape]: 'wbw',
+  [Ev.Adapt]: 'bb',
 };
 
 // Drapeaux
@@ -166,6 +167,12 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
   w.u16(sim.nextWaveT < 0 ? 0xffff : sim.nextWaveT);
   w.u8(sim.mutations.length);
   for (const m of sim.mutations) w.u8(m);
+  // Kessin s'adapte : actif, résistances acquises, part physique des dégâts de la vague en cours
+  w.u8(sim.adaptive ? 1 : 0);
+  w.frac(sim.adapt[0]);
+  w.frac(sim.adapt[1]);
+  const ad = sim.adaptDmg[0] + sim.adaptDmg[1];
+  w.frac(ad > 0 ? sim.adaptDmg[0] / ad : 0.5);
   // joueurs
   w.u8(sim.players.length);
   for (const p of sim.players) {
@@ -283,6 +290,11 @@ export class Snapshot {
   maxLives = 0;
   nextWaveT = -1;
   mutations: number[] = [];
+  /** Kessin s'adapte : actif, résistances (physique, magie), part physique des dégâts de la vague */
+  adaptOn = false;
+  adaptPhys = 0;
+  adaptMagic = 0;
+  adaptShare = 0.5;
   // joueurs
   pCount = 0;
   pId = new Uint8Array(4);
@@ -368,6 +380,10 @@ export class Snapshot {
     const nm = r.u8();
     this.mutations.length = 0;
     for (let i = 0; i < nm; i++) this.mutations.push(r.u8());
+    this.adaptOn = r.u8() === 1;
+    this.adaptPhys = r.frac();
+    this.adaptMagic = r.frac();
+    this.adaptShare = r.frac();
     this.pCount = r.u8();
     for (let i = 0; i < this.pCount; i++) {
       this.pId[i] = r.u8(); this.pGold[i] = r.u32(); this.pCd0[i] = r.u16(); this.pCd1[i] = r.u16(); this.pFlags[i] = r.u8();
