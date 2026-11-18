@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Aperçu des animations</title>
+<!-- Outil de contrôle : ennemis importés animés avec le shader du jeu (marche, combat), sur un sol pour voir ce qui le touche.
+     ?k=enemy:diablotin,enemy:gargouille  &cams=90,20  (angles de vue des colonnes)  &fight=1 (ajoute une colonne au combat)  &t=secondes (image figée) -->
+<style>html,body{margin:0;background:#6f8f5a;font:12px system-ui;color:#fff}.lab{position:fixed;text-shadow:0 1px 2px #000}</style></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { ensureModels, model } from './src/art/models';
+import { InstPool } from './src/render/InstPool';
+import { uniforms } from './src/render/materials';
+const q = new URLSearchParams(location.search);
+const keys = (q.get('k') ?? 'enemy:diablotin,enemy:gargouille').split(',');
+const cams = (q.get('cams') ?? '90,25').split(',').map(Number);
+const fight = q.get('fight') === '1';
+const frozen = q.has('t') ? Number(q.get('t')) : null;
+await ensureModels(keys);
+const cols = cams.length + (fight ? 1 : 0), rows = keys.length;
+const W = innerWidth, H = innerHeight, cw = W / cols, ch = H / rows;
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); r.setScissorTest(true); document.body.appendChild(r.domElement);
+const cells = [];
+keys.forEach((key, row) => {
+  const m = model(key);
+  for (let col = 0; col < cols; col++) {
+    const fighting = col >= cams.length;
+    const sc = new THREE.Scene(); sc.background = new THREE.Color((row + col) % 2 ? 0x7a9a63 : 0x6f8f5a);
+    sc.add(new THREE.AmbientLight(0xffffff, 1.2)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(3, 6, 4); sc.add(d);
+    const hgt = m.meta.height;
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(hgt * 0.9, 32), new THREE.MeshLambertMaterial({ color: 0x8a7a5a }));
+    ground.rotation.x = -Math.PI / 2; sc.add(ground);
+    const g = new THREE.Group(); sc.add(g);
+    const pool = new InstPool(m.geo, 1, g, false, m.map);
+    const cam = new THREE.PerspectiveCamera(35, cw / ch, 0.01, 100);
+    const ca = ((fighting ? 25 : cams[col]) * Math.PI) / 180;
+    cam.position.set(Math.sin(ca) * hgt * 2.6, hgt * 0.75, Math.cos(ca) * hgt * 2.6); cam.lookAt(0, hgt * 0.45, 0);
+    const x = col * cw, y = H - (row + 1) * ch;
+    const lab = document.createElement('div'); lab.className = 'lab'; lab.style.left = x + 4 + 'px'; lab.style.top = row * ch + 4 + 'px';
+    lab.textContent = `${key} ${fighting ? 'combat' : 'marche ' + cams[col] + '°'}`; document.body.appendChild(lab);
+    cells.push({ sc, cam, pool, x, y, fighting });
+  }
+});
+function frame(now) {
+  const t = frozen ?? now / 1000;
+  uniforms.uTime.value = t;
+  for (const c of cells) {
+    c.pool.begin();
+    // phase de marche cumulée (comme stride.ts) : ~9 rad/s ; au combat, piétinement
+    const j = c.pool.push(0, 0, 0, 0, 1, 1.37, Math.max(0.001, t * 9), 0, c.fighting ? 1 : 0);
+    c.pool.setPose(j, 0, 0, 0, 1);
+    c.pool.end();
+    r.setViewport(c.x, c.y, cw, ch); r.setScissor(c.x, c.y, cw, ch); r.render(c.sc, c.cam);
+  }
+  document.title = 'ok';
+  if (frozen === null) requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script></body></html>
