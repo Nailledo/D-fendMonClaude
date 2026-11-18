@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -12,7 +12,7 @@
   import Radial from './Radial.svelte';
   import TowerPanel from './TowerPanel.svelte';
   import { enemyTraits } from './enemyTraits';
-  import { FAMILY_NAME, ICON, LINE, SKILL_ICON } from './icons';
+  import { FAMILY_NAME, ICON, ITEM_ICON, LINE, SKILL_ICON } from './icons';
   import { SKILL_ICON as HERO_SKILL_ICON } from './skillIcons';
   import { fit } from './fit';
 
@@ -201,6 +201,19 @@
         <span class="kbd">{keyLabel(i === 0 ? keys.spell1 : keys.spell2)}</span>
       </button>
     {/each}
+    <!-- objets de la boutique emportés dans la partie (au tactile : rangée au-dessus des sorts) -->
+    {#if h.items.some((n) => n > 0)}
+      <div class="itemrow">
+        {#each ITEMS as it, i}
+          {#if (h.items[i] ?? 0) > 0}
+            <button class="spell item" aria-label="{it.name} ({h.items[i]})" onclick={() => g()?.useItem(i)} title="{it.name} — {it.desc}">
+              {@html ITEM_ICON[i]}
+              <span class="cnt">{h.items[i]}</span>
+            </button>
+          {/if}
+        {/each}
+      </div>
+    {/if}
   </div>
   </div>
 
@@ -387,6 +400,15 @@
   .spell.ready::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--gold-fill); opacity: 0; animation: ready 2.4s ease-out infinite; pointer-events: none; }
   @keyframes ready { 0% { opacity: 0.9; transform: scale(0.96); } 60%, 100% { opacity: 0; transform: scale(1.18); } }
   .spell :global(.icon) { width: 32px; height: 32px; }
+  .itemrow { display: flex; gap: 10px; align-items: center; padding-left: 12px; border-left: 2.5px dashed var(--ink-soft); align-self: stretch; }
+  .spell.item { width: 50px; height: 50px; background: var(--panel-hi); }
+  .touch .spells { position: relative; }
+  .touch .itemrow { position: absolute; right: 0; bottom: calc(100% + 8px); padding: 5px; gap: 8px; border: var(--bw) solid var(--ink); border-radius: 99px; background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); }
+  .touch .spell.item { width: 42px; height: 42px; }
+  .touch .spell.item :global(.icon) { width: 22px; height: 22px; }
+  .spell.item :global(.icon) { width: 26px; height: 26px; }
+  .cnt { position: absolute; bottom: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 4px; display: grid; place-items: center; border-radius: 99px; border: 2px solid var(--ink);
+    background: var(--gold-fill); font-weight: 900; font-size: 12px; line-height: 1; color: var(--ink); }
   .spell :global(.ico3d) { width: 100%; height: 100%; margin: 0; vertical-align: 0; }
   .spell .cd { inset: 0; }
   .spell:hover { transform: translateY(-2px); }

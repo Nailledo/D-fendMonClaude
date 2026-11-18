@@ -14,6 +14,7 @@ import { Renderer } from './render/Renderer';
 import { TitleScene } from './render/TitleScene';
 import { autoDetect, settings, tuning } from './settings';
 import { toast, ui } from './state.svelte';
+import { loadout } from './meta';
 
 class App {
   renderer!: Renderer;
@@ -142,7 +143,8 @@ class App {
       } else toast('Serveur injoignable : partie hors classement.', 'warn', 2500);
     }
     this.leaveGame(false);
-    const cfg: GameConfig = { mode, mapId, difficulty, seed, players: [{ id: 0, name: ui.name || 'Samuel', hero }] };
+    // arbre de compétences et objets de la boutique emportés dans la partie
+    const cfg: GameConfig = { mode, mapId, difficulty, seed, players: [{ id: 0, name: ui.name || 'Samuel', hero, ...loadout() }] };
     ui.game = { mode, mapId, difficulty, you: 0, multi: false, level };
     this.launch(cfg, 0, new LocalHost(cfg));
   }

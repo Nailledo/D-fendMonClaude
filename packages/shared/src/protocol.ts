@@ -36,6 +36,8 @@ export type ClientMsg =
   | { t: 'join'; code: string }
   | { t: 'leave' }
   | { t: 'hero'; hero: HeroId }
+  /** arbre de compétences et objets emportés (bornés par le serveur) */
+  | { t: 'meta'; tree: number[]; items: number[] }
   | { t: 'ready'; ready: boolean }
   | { t: 'settings'; settings: RoomSettings }
   | { t: 'start' }
@@ -126,6 +128,7 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.HeroDeath]: 'b',
   [Ev.GameEnd]: 'b',
   [Ev.Skill]: 'wb',
+  [Ev.Item]: 'bbpp',
 };
 
 // Drapeaux

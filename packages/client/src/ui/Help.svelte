@@ -26,6 +26,12 @@
       <li><span class="kbd">{keyLabel(keys.spell1)}</span> Pluie de météores et <span class="kbd">{keyLabel(keys.spell2)}</span> Renforts : choisissez ensuite un point sur la carte.</li>
       <li>Le bouton rouge au début du chemin appelle la vague suivante ; survolez-le (ou touchez-le une fois) pour voir les ennemis qui arrivent. L’appeler en avance rapporte de l’or à chaque joueur et recharge les sorts.</li>
     </ul>
+    <h3>Atelier : compétences et boutique</h3>
+    <ul>
+      <li>Les <b>étoiles</b> gagnées en partie se dépensent dans l’<b>Atelier</b> (menu principal, carte de campagne, fin de partie). Elles viennent des niveaux de l’histoire (jusqu’à 3 par niveau et par difficulté), de la survie (1 toutes les 5 vagues) et des victoires sur un niveau déjà parfait (+1).</li>
+      <li><b>Arbre de compétences</b> : six branches (Archers, Casernes, Mages, Artillerie, Héros, Royaume) de cinq rangs, à apprendre dans l’ordre. Les bonus sont permanents ; l’arbre peut être réinitialisé à tout moment, toutes ses étoiles sont rendues.</li>
+      <li><b>Boutique</b> : bourse d’or, potion de vie, fiole de givre et bombe, à usage unique. Ils apparaissent en partie à côté des sorts ; la fiole et la bombe se lancent sur la carte.</li>
+    </ul>
     <h3>En coopération</h3>
     <ul>
       <li>Chaque joueur a son or et ses tours (bannières à sa couleur). Les vies sont communes.</li>

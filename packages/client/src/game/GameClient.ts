@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ENEMIES, Ev, FAMILIES, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
+  ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   buildRuntimeMap, type Command, type GameConfig, type RuntimeMap,
 } from '@dfend/shared';
@@ -13,6 +13,7 @@ import { buildWorld, type WorldInfo } from '../render/World';
 import type { Host } from '../net/host';
 import { ACTION_LABELS, keys, settings, type Action } from '../settings';
 import { banner, progress, saveProgress, toast, ui } from '../state.svelte';
+import { addBonusStars, consumeItem } from '../meta';
 import { PROLOGUE, STORY } from '../story/dialogs';
 import { Prologue } from './Prologue';
 import { drape } from '../render/drape';
@@ -23,7 +24,7 @@ export const dom: { radial: HTMLElement | null; waves: (HTMLElement | null)[]; d
   radial: null, waves: [], dmg: null, pings: null,
 };
 
-type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'hskill'; i: 0 | 1 | 2 } | { kind: 'rally'; tower: number } | { kind: 'hmove' };
+type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'item'; i: number } | { kind: 'hskill'; i: 0 | 1 | 2 } | { kind: 'rally'; tower: number } | { kind: 'hmove' };
 
 const FAM_ACTIONS: Action[] = ['buildArcher', 'buildBarracks', 'buildMage', 'buildArtillery'];
 const DEATH_COLORS: Record<string, number> = { vallee: 0x7cb342, marais: 0x6f9a8a, cendre: 0xd84315 };
@@ -91,6 +92,8 @@ export class GameClient {
     r.scene.add(this.world.group);
     r.applyTheme(this.world.theme);
     r.setBounds(this.map.def.hw, this.map.def.hh, this.world.exit);
+    // objets de boutique emportés dans cette partie
+    ui.hud.items = ITEMS.map((_, i) => cfg.players.find((p) => p.id === you)?.items?.[i] ?? 0);
     this.ents = new Entities(r.scene, this.map);
     this.ents.tunnels = this.world.entries;
     this.ents.heightAt = this.world.heightAt;
@@ -240,6 +243,19 @@ export class GameClient {
     ui.hud.targeting = SPELLS[s].name + (ui.touch ? ' : touchez la carte' : ' : cliquez sur la carte');
   }
 
+  /** Objet de boutique : immédiat (or, vies) ou à lancer sur la carte (givre, bombe). */
+  useItem(i: number) {
+    const it = ITEMS[i];
+    if (!it || (ui.hud.items[i] ?? 0) <= 0) { audio.play('deny'); return; }
+    if (!it.targeted) {
+      this.send({ k: 'item', i, x: 0, z: 0 });
+      return;
+    }
+    this.targeting = { kind: 'item', i };
+    ui.sel = null;
+    ui.hud.targeting = it.name + (ui.touch ? ' : touchez la carte' : ' : cliquez sur la carte');
+  }
+
   heroSkill(i: 0 | 1 | 2) {
     const h = ui.hud.hero;
     const def = HEROES[HERO_IDS[h.type]];
@@ -294,6 +310,14 @@ export class GameClient {
     const ui_ = this.interp.frame.unitIdx(s.hUnit[hi]);
     if (ui_ < 0) return null;
     return { x: this.interp.frame.uX[ui_], z: this.interp.frame.uZ[ui_] };
+  }
+
+  private perkCache = new Map<number, ReturnType<typeof perksOf>>();
+  /** Bonus de l'arbre de compétences d'un joueur de la partie. */
+  private perksFor(pid: number) {
+    let p = this.perkCache.get(pid);
+    if (!p) { p = perksOf(this.cfg.players.find((q) => q.id === pid)?.tree); this.perkCache.set(pid, p); }
+    return p;
   }
 
   /** Portée maximale d'une compétence ciblée du héros (charge de Samuel), sinon 0. */
@@ -588,6 +612,7 @@ export class GameClient {
       this.targeting = null;
       ui.hud.targeting = '';
       if (t.kind === 'spell') { this.send({ k: 'spell', s: t.s, x: p.x, z: p.z }); this.fx.ring(p.x, p.z, 1.2, 0xffffff, 0.35); return true; }
+      if (t.kind === 'item') { this.send({ k: 'item', i: t.i, x: p.x, z: p.z }); return true; }
       if (t.kind === 'hskill') { const q = this.clampSkill(t.i, p); this.send({ k: 'hskill', i: t.i, x: q.x, z: q.z }); return true; }
       if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; this.fx.ring(p.x, p.z, 1, 0xfff59d, 0.5); return true; }
       if (t.kind === 'hmove') {
@@ -783,9 +808,10 @@ export class GameClient {
     this.hoverSlot = p ? this.slotAt(p.x, p.z) : -1;
     const t = this.targeting;
     this.aimRing.visible = false;
-    if (p && t && (t.kind === 'spell' || t.kind === 'hskill')) {
+    if (p && t && (t.kind === 'spell' || t.kind === 'hskill' || t.kind === 'item')) {
       let r = 2;
-      if (t.kind === 'spell') r = t.s === 0 ? 2.6 : 1;
+      if (t.kind === 'item') r = ITEMS[t.i].radius;
+      else if (t.kind === 'spell') r = t.s === 0 ? 2.6 : 1;
       else {
         const id = HERO_IDS[ui.hud.hero.type];
         r = id === 'lyra' && t.i === 1 ? 2.3 : id === 'brom' && t.i === 2 ? 3 : 1.2;
@@ -821,9 +847,10 @@ export class GameClient {
       if (snap.tLevel[ti] !== s.level || (snap.tSk[ti] & 15) !== s.sk?.[0] || snap.tSk[ti] >> 4 !== s.sk?.[1] || snap.tOwner[ti] !== s.owner) this.selectTowerIndex(ti);
       const fam = FAMILIES[snap.tFam[ti]];
       const lvl = TOWERS[fam][snap.tLevel[ti]];
-      let range = lvl.range;
+      // bonus de portée de l'arbre de compétences du propriétaire de la tour
+      let range = lvl.range * (1 + this.perksFor(snap.tOwner[ti]).range[snap.tFam[ti]]);
       if (fam === 'archer' && snap.tLevel[ti] === LEVEL_SPEC_A && snap.tSk[ti] >> 4) range += lvl.skills![1].values[(snap.tSk[ti] >> 4) - 1];
-      if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = TOWERS[fam][this.hoverLevel].range;
+      if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = TOWERS[fam][this.hoverLevel].range * (1 + this.perksFor(snap.tOwner[ti]).range[snap.tFam[ti]]);
       const sl = this.map.slots[snap.tSlot[ti]];
       this.rangeRing.visible = true;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
@@ -844,7 +871,7 @@ export class GameClient {
       const sl = this.map.slots[s.slot];
       this.rangeRing.visible = true;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
-      this.rangeRing.scale.setScalar(TOWERS[FAMILIES[this.hoverFam]][0].range);
+      this.rangeRing.scale.setScalar(TOWERS[FAMILIES[this.hoverFam]][0].range * (1 + this.perksFor(this.you).range[this.hoverFam]));
     }
     // cible imposée à votre héros : anneau rouge sous l'ennemi (il pulse à l'ordre)
     this.focusRing.visible = false;
@@ -1452,8 +1479,40 @@ export class GameClient {
         fx.burst(ev[2], 0.3, ev[3], 6, 0x8d6e63, 2, 0.12, 0.5);
         break;
       case Ev.HeroDeath:
-        if (ev[1] === this.you) toast(`Votre héros est tombé ! Retour dans 15 secondes.`, 'danger', 3000);
+        if (ev[1] === this.you) {
+          const tree = this.cfg.players.find((p) => p.id === this.you)?.tree;
+          toast(`Votre héros est tombé ! Retour dans ${Math.round(HERO_RESPAWN_S * (1 - perksOf(tree).heroRespawn))} secondes.`, 'danger', 3000);
+        }
         break;
+      case Ev.Item: {
+        const [, owner, i, x, z] = ev;
+        const it = ITEMS[i];
+        if (!it) break;
+        if (owner === this.you) {
+          ui.hud.items[i] = Math.max(0, (ui.hud.items[i] ?? 0) - 1);
+          consumeItem(i);
+        } else {
+          const who = ui.hud.players.find((p) => p.id === owner);
+          toast(`${who?.name ?? '?'} utilise : ${it.name}`, 'info', 2200);
+        }
+        if (i === Item.Bourse) {
+          const hp = owner === this.you ? this.heroPos() : null;
+          if (hp) fx.burst(hp.x, 1.5, hp.z, 24, 0xffd54f, 4, 0.12, 0.8, true, -4);
+          audio.play('sell');
+        } else if (i === Item.Potion) {
+          const c = this.world.castle;
+          fx.burst(c.x, 2.5, c.z, 30, 0xff6b81, 3, 0.14, 1, true, 1.5);
+          fx.ring(c.x, c.z, 3, 0xff8a9a, 0.8);
+          audio.play('heal');
+        } else if (i === Item.Givre) {
+          fx.ring(x, z, it.radius, 0xb3e5fc, 1, 2);
+          fx.burst(x, 1, z, 40, 0xe1f5fe, 4, 0.12, 1, true, -1);
+        } else if (i === Item.Bombe) {
+          fx.flashes.flash(x, 2, z, 0xffcc80, 12, 0.5, it.radius * 5);
+          this.r.shake(0.35);
+        }
+        break;
+      }
       case Ev.GameEnd:
         audio.play(ev[1] ? 'victory' : 'defeat');
         break;
@@ -1480,10 +1539,22 @@ export class GameClient {
     this.ended = true;
     ui.end = info;
     audio.intensity = 0;
+    // étoiles gagnées pour l'atelier : amélioration du record, ou bonus (survie, niveau déjà parfait)
+    ui.starsGained = 0;
+    if (info.mode === 'survival') {
+      ui.starsGained = survivalStars(info.wave);
+      addBonusStars(ui.starsGained);
+    }
     if (info.mode === 'story' && ui.game && info.won) {
       const lv = ui.game.level;
       progress.stars[lv] ??= [0, 0, 0];
-      progress.stars[lv][info.difficulty] = Math.max(progress.stars[lv][info.difficulty] ?? 0, info.stars);
+      const before = progress.stars[lv][info.difficulty] ?? 0;
+      progress.stars[lv][info.difficulty] = Math.max(before, info.stars);
+      ui.starsGained = Math.max(0, info.stars - before);
+      if (before >= 3 && info.stars >= 3) {
+        ui.starsGained = 1;
+        addBonusStars(1);
+      }
       if (lv + 1 > progress.unlocked && lv + 1 < STORY.length) progress.unlocked = lv + 1;
       if (lv === STORY.length - 1) progress.finished = true;
       saveProgress();
@@ -1504,7 +1575,7 @@ export class GameClient {
     for (const d of this.disposers) d();
     this.host.dispose();
     const scene = this.r.scene;
-    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.rangeRing, this.hoverRing, this.aimRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
+    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
     scene.traverse(() => {});
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => {
       const m = c as THREE.Mesh;

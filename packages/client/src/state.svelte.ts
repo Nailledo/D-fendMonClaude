@@ -3,7 +3,7 @@ import type { Line } from './story/dialogs';
 import { load, loadRaw, save } from './storage';
 
 export type Screen = 'title' | 'story' | 'survival' | 'multi' | 'lobby' | 'game';
-export type Overlay = null | 'settings' | 'encyclo' | 'leaderboard' | 'heroes' | 'help';
+export type Overlay = null | 'settings' | 'encyclo' | 'leaderboard' | 'heroes' | 'help' | 'atelier';
 
 export interface Selection {
   kind: 'build' | 'tower' | 'enemy' | 'hero' | 'ally';
@@ -35,9 +35,19 @@ export interface Progress {
   seenPrologue: boolean;
   seen: string[]; // ennemis rencontrés
   finished: boolean;
+  /** arbre de compétences : rangs achetés par branche */
+  tree: number[];
+  /** objets de boutique en réserve (stock par objet) */
+  items: number[];
+  /** étoiles dépensées en boutique (non remboursables) */
+  shopSpent: number;
+  /** étoiles gagnées en plus des records (survie, victoires sur un niveau déjà parfait) */
+  bonusStars: number;
 }
 
-export const progress: Progress = $state(load<Progress>('progress', { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false }));
+export const progress: Progress = $state(load<Progress>('progress', {
+  unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], items: [], shopSpent: 0, bonusStars: 0,
+}));
 export function saveProgress() {
   save('progress', $state.snapshot(progress));
 }
@@ -69,11 +79,15 @@ export const ui = $state({
     players: [] as HudPlayer[],
     hero: { type: 0, level: 1, xp: 0, hp: 1, cds: [0, 0, 0], respawn: 0, dead: false },
     spells: [0, 0],
+    /** objets de boutique restants dans la partie */
+    items: [] as number[],
     targeting: '' as string,
   },
   sel: null as Selection | null,
   dialog: null as null | { lines: Line[]; i: number },
   end: null as null | EndInfo,
+  /** étoiles gagnées pour l'atelier à la fin de la partie */
+  starsGained: 0,
   chat: [] as { from: string; text: string; color: number; t: number }[],
   chatOpen: false,
   toasts: [] as { id: number; text: string; kind: string }[],

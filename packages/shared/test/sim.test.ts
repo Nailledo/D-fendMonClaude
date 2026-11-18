@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GameState, MAPS, Sim, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 const cfg = (over: Partial<GameConfig> = {}): GameConfig => ({
   mode: 'story', mapId: 'pont', difficulty: 1, seed: 42,
@@ -258,5 +258,55 @@ describe('coopération et héros', () => {
     }
     expect(sent).toBeGreaterThanOrEqual(0);
     expect(hurt).toBe(true);
+  });
+});
+
+describe('arbre de compétences et boutique', () => {
+  const full = TREE.map(() => 5);
+
+  it('les bonus de l’arbre s’appliquent au joueur qui les a achetés', () => {
+    const base = new Sim(cfg());
+    const boosted = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', tree: full }] }));
+    expect(boosted.players[0].gold).toBe(base.players[0].gold + 100);
+    expect(boosted.maxLives).toBe(base.maxLives + 2);
+    expect(boosted.heroes[0].u.maxHp).toBeGreaterThan(base.heroes[0].u.maxHp);
+    // soldats de caserne : plus de points de vie
+    const slot = base.map.slots.findIndex((s) => !s.locked);
+    base.apply(0, { k: 'build', slot, fam: 1 });
+    boosted.apply(0, { k: 'build', slot, fam: 1 });
+    expect(boosted.units.find((u) => u.tower)!.maxHp).toBeGreaterThan(base.units.find((u) => u.tower)!.maxHp);
+    // un arbre plein coûte 9 étoiles par branche
+    expect(treeCost(full)).toBe(9 * TREE.length);
+  });
+
+  it('les objets se consomment et agissent', () => {
+    const items = ITEMS.map(() => 1);
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', items }] }));
+    const g0 = sim.players[0].gold;
+    sim.apply(0, { k: 'item', i: Item.Bourse, x: 0, z: 0 });
+    expect(sim.players[0].gold).toBe(g0 + 150);
+    expect(sim.players[0].items[Item.Bourse]).toBe(0);
+    // délai entre deux objets, puis stock épuisé
+    sim.apply(0, { k: 'item', i: Item.Potion, x: 0, z: 0 });
+    expect(sim.players[0].items[Item.Potion]).toBe(1);
+    for (let i = 0; i < 25; i++) sim.step();
+    sim.apply(0, { k: 'item', i: Item.Bourse, x: 0, z: 0 });
+    expect(sim.players[0].gold).toBe(g0 + 150);
+    // givre : les ennemis de la zone sont figés
+    sim.apply(0, { k: 'wave' });
+    let e: (typeof sim.enemies)[number] | undefined;
+    for (let i = 0; i < 20 * 30 && !e; i++) { sim.step(); e = sim.enemies.find((q) => !q.dead && q.dist > 2 && !q.def.boss); }
+    sim.apply(0, { k: 'item', i: Item.Givre, x: e!.x, z: e!.z });
+    expect(e!.stunT).toBeGreaterThan(20);
+    const d = e!.dist;
+    for (let i = 0; i < 40; i++) sim.step();
+    expect(e!.dist).toBe(d);
+  });
+
+  it('un client ne peut pas gonfler son arbre ni son stock', () => {
+    const m = sanitizeMeta([99, -3, 'x', 2.7, 5, 5, 5, 5], [1e9, -1, null]);
+    expect(m.tree).toEqual([5, 0, 0, 2, 5, 5]);
+    expect(m.items).toEqual([9, 0, 0, 0]);
+    expect(sanitizeMeta('bad', {}).tree.every((v) => v === 0)).toBe(true);
   });
 });

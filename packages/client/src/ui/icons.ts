@@ -41,7 +41,18 @@ export const ICON = {
   back: line('<path d="M15 5l-7 7 7 7"/>'),
   edit: line('<path d="M15 5l4 4L9 19H5v-4z"/>'),
   help: line('<circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 16.5v.5"/>'),
+  crown: line('<path d="M4 18.5h16M4.5 16L3.5 7l5 4 3.5-6 3.5 6 5-4-1 9z"/>'),
+  tree: line('<circle cx="12" cy="4.5" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="19.5" r="2"/><circle cx="18" cy="19.5" r="2"/><path d="M11 6.2L7 10.4M13 6.2l4 4.2M6 14v3.5M18 14v3.5"/>'),
+  bag: line('<path d="M6 8.5h12l1.2 11.5H4.8z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>'),
+  potion: line('<path d="M10 3.5h4M10.5 3.5v4.2L6.5 14a5.5 5.5 0 1 0 11 0l-4-6.3V3.5"/><path d="M7 14.5h10"/>', LIFE),
+  snow: line('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>', '#3d8fd1'),
+  bomb: line('<circle cx="11" cy="14.5" r="6.5"/><path d="M9.5 8.2V6.5h3v1.7"/><path d="M11 6.5c0-2.5 2-3.5 4-2.5"/><path d="M17 2.5v1.5M19.5 4h-1.5M18.6 2.4l-1 1"/><path d="M8 13a3 3 0 0 1 2.5-2"/>'),
 };
+
+/** Icône de chaque objet de boutique (même ordre que ITEMS). */
+export const ITEM_ICON = [ICON.coin, ICON.potion, ICON.snow, ICON.bomb];
+/** Icône de chaque branche de l'arbre de compétences (même ordre que TREE). */
+export const BRANCH_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon, ICON.helmet, ICON.crown];
 
 /** Ancien nom conservé : même jeu d'icônes. */
 export const LINE = ICON;

@@ -4,6 +4,7 @@
   import { app } from '../app';
   import { audio } from '../audio/Audio';
   import { progress, setDifficulty, setHero, ui } from '../state.svelte';
+  import { availableStars } from '../meta';
   import { TRAIT_ICON, enemyTraits } from './enemyTraits';
   import HeroPicker from './HeroPicker.svelte';
   import { ICON } from './icons';
@@ -102,6 +103,7 @@
 
     <div class="top">
       <button class="btn" onclick={() => (ui.screen = 'title')}>{@html ICON.back} Menu</button>
+      <button class="btn" onclick={() => (ui.overlay = 'atelier')}>{@html ICON.tree} Atelier{#if availableStars() > 0}<span class="avail">{availableStars()}</span>{/if}</button>
       <span class="total"><Ico k="star" fb={ICON.star} /> {totalStars} / {LEVELS.length * 3}</span>
     </div>
   </div>
@@ -170,6 +172,7 @@
 </div>
 
 <style>
+  .avail { margin-left: 6px; min-width: 22px; padding: 0 6px; border-radius: 99px; border: 2px solid var(--ink); background: var(--gold-fill); font-weight: 900; font-size: 0.85em; }
   .wrap { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 370px; gap: 0; background: #3a2a1c; }
   .map { position: relative; overflow: hidden; min-height: 0; margin: 14px 0 14px 14px; border: 2px solid var(--ink); box-shadow: inset 0 0 0 6px #f3e7c9, inset 0 0 0 7px rgba(45, 36, 22, 0.5), 0 12px 30px rgba(0, 0, 0, 0.4); }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; }

@@ -1,6 +1,7 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, type EnemyDef } from './data/enemies';
+import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
 import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, type SoldierDef, type TowerLevel } from './data/towers';
@@ -36,6 +37,7 @@ export const enum Ev {
   HeroDeath = 21, // owner
   GameEnd = 22, // won
   Skill = 23, // towerId, skillIndex (déclenchement de compétence de tour)
+  Item = 24, // owner, objet, x, z (objet de boutique utilisé)
 }
 
 export const enum Impact {
@@ -221,6 +223,10 @@ export interface PlayerState {
   kills: number;
   damage: number;
   goldEarned: number;
+  /** objets de boutique restants (stock par objet) */
+  items: number[];
+  /** délai avant le prochain objet (ticks) */
+  itemCd: number;
 }
 
 const SOLDIER_SPEED = 2.6;
@@ -264,6 +270,9 @@ export class Sim {
   private storyWaves: Wave[] = [];
   private nextId = 1;
   private waveSpawning = false;
+  /** bonus de l'arbre de compétences, par joueur */
+  private perkMap = new Map<number, Perks>();
+  private static NO_PERKS = perksOf(undefined);
 
   constructor(cfg: GameConfig) {
     this.cfg = cfg;
@@ -276,12 +285,19 @@ export class Sim {
       this.storyWaves = genStoryWaves(this.level, this.map.paths.length);
       this.totalWaves = this.storyWaves.length;
     } else this.totalWaves = 0;
+    for (const p of cfg.players) this.perkMap.set(p.id, perksOf(p.tree));
     this.lives = this.maxLives = this.scaling.lives;
+    // remparts : vies en plus (le meilleur bonus de l'équipe), sauf en mode à vie unique
+    if (this.maxLives > 1) {
+      const extra = Math.max(0, ...cfg.players.map((p) => this.perk(p.id).lives));
+      this.lives = this.maxLives = this.maxLives + extra;
+    }
     this.towerBySlot = this.map.slots.map(() => null);
     const startGold = Math.round((this.level ? this.level.startGold : SURVIVAL_START_GOLD) * this.scaling.startGoldMul);
     this.players = cfg.players.map((p) => ({
-      id: p.id, name: p.name, gold: startGold, active: true, connected: true, speedVote: 1 as 1 | 2,
+      id: p.id, name: p.name, gold: startGold + this.perk(p.id).gold, active: true, connected: true, speedVote: 1 as 1 | 2,
       spellCd: [0, 0] as [number, number], kills: 0, damage: 0, goldEarned: 0,
+      items: ITEMS.map((_, i) => Math.max(0, Math.min(ITEM_MAX, Math.floor(Number(p.items?.[i] ?? 0))) || 0)), itemCd: 0,
     }));
     const sp = this.map.heroSpawn;
     cfg.players.forEach((p, i) => {
@@ -293,6 +309,8 @@ export class Sim {
       u.rangedType = def.dmgType;
       const h: Hero = { owner: p.id, def, u, level: 1, xp: 0, cds: [0, 0, 0] };
       u.hero = h;
+      this.heroStats(h);
+      u.hp = u.maxHp;
       this.heroes.push(h);
     });
   }
@@ -562,15 +580,25 @@ export class Sim {
     }
   }
 
+  /** Bonus de l'arbre de compétences d'un joueur. */
+  perk(pid: number): Perks {
+    return this.perkMap.get(pid) ?? Sim.NO_PERKS;
+  }
+
+  /** Points de vie et dégâts du héros selon son niveau et les bonus de son joueur. */
+  private heroStats(h: Hero) {
+    const d = h.def, pk = this.perk(h.owner);
+    h.u.maxHp = Math.round((d.hp + d.hpPerLevel * (h.level - 1)) * (1 + pk.heroHp));
+    h.u.dmgMin = (d.dmg[0] + d.dmgPerLevel * (h.level - 1)) * (1 + pk.heroDmg);
+    h.u.dmgMax = (d.dmg[1] + d.dmgPerLevel * (h.level - 1)) * (1 + pk.heroDmg);
+  }
+
   private addXp(h: Hero, xp: number) {
-    h.xp += xp;
+    h.xp += xp * (1 + this.perk(h.owner).heroXp);
     while (h.level < HERO_MAX_LEVEL && h.xp >= HERO_XP[h.level]) {
       h.level++;
-      const d = h.def;
-      h.u.maxHp = d.hp + d.hpPerLevel * (h.level - 1);
+      this.heroStats(h);
       h.u.hp = h.u.maxHp;
-      h.u.dmgMin = d.dmg[0] + d.dmgPerLevel * (h.level - 1);
-      h.u.dmgMax = d.dmg[1] + d.dmgPerLevel * (h.level - 1);
       this.ev(Ev.LevelUp, h.owner, h.level);
     }
   }
@@ -790,14 +818,25 @@ export class Sim {
         if (!h || h.u.dead || x === null || z === null || (c.i !== 0 && c.i !== 1 && c.i !== 2)) return;
         const sk = h.def.skills[c.i];
         if (h.level < sk.unlock || h.cds[c.i] > 0) return;
-        h.cds[c.i] = sec(sk.cd);
+        h.cds[c.i] = sec(sk.cd * (1 - this.perk(pid).heroCd));
         this.heroSkill(h, c.i, x, z);
+        break;
+      }
+      case 'item': {
+        const i = c.i;
+        if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= ITEMS.length) return;
+        if (!(p.items[i] > 0) || p.itemCd > 0) return;
+        const x = clampNum(c.x, -this.map.def.hw - 2, this.map.def.hw + 2), z = clampNum(c.z, -this.map.def.hh - 2, this.map.def.hh + 2);
+        if (ITEMS[i].targeted && (x === null || z === null)) return;
+        p.items[i]--;
+        p.itemCd = sec(ITEM_COOLDOWN_S);
+        this.useItem(p, i, x ?? 0, z ?? 0);
         break;
       }
       case 'spell': {
         const x = clampNum(c.x, -this.map.def.hw - 2, this.map.def.hw + 2), z = clampNum(c.z, -this.map.def.hh - 2, this.map.def.hh + 2);
         if ((c.s !== 0 && c.s !== 1) || x === null || z === null || p.spellCd[c.s] > 0) return;
-        p.spellCd[c.s] = sec(SPELLS[c.s].cd);
+        p.spellCd[c.s] = sec(SPELLS[c.s].cd * (1 - this.perk(pid).spellCd));
         this.castSpell(pid, c.s, x, z);
         break;
       }
@@ -874,19 +913,21 @@ export class Sim {
     const sd = lvl.soldiers;
     if (!sd) return;
     const shieldBonus = t.level === 3 ? lvl.skills![0].values[t.sk[0] - 1] ?? 0 : 0;
+    const pk = this.perk(t.owner);
+    const hp = Math.round(sd.hp * (1 + pk.soldierHp));
     for (let i = 0; i < sd.count; i++) {
       let u = t.units[i];
       if (!u) {
-        u = this.newUnit(sd.kind, t.owner, t.x, t.z, sd.hp, sd.dmg[0], sd.dmg[1], sd.armor, sd.cooldown, sd.regen, t, -1);
+        u = this.newUnit(sd.kind, t.owner, t.x, t.z, hp, sd.dmg[0], sd.dmg[1], sd.armor, sd.cooldown, sd.regen, t, -1);
         u.idx = i;
         t.units.push(u);
       }
       u.kind = sd.kind;
-      u.maxHp = sd.hp;
-      if (!u.dead) u.hp = sd.hp;
-      u.dmgMin = sd.dmg[0];
-      u.dmgMax = sd.dmg[1];
-      u.armor = sd.armor + shieldBonus;
+      u.maxHp = hp;
+      if (!u.dead) u.hp = hp;
+      u.dmgMin = sd.dmg[0] * (1 + pk.soldierDmg);
+      u.dmgMax = sd.dmg[1] * (1 + pk.soldierDmg);
+      u.armor = sd.armor + shieldBonus + pk.soldierArmor;
       u.regen = sd.regen * (1 + shieldBonus * 3);
       u.cdTicks = sec(sd.cooldown);
       u.hx = t.rallyX + FORMATION[i][0];
@@ -903,15 +944,31 @@ export class Sim {
       offs.forEach(([ox, oz], i) => {
         const tx = x + ox, tz = z + oz;
         const flight = sec(1.0 + i * 0.25);
-        this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75, DmgType.True, 1.9, false, null));
+        this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * (1 + this.perk(pid).meteorDmg), DmgType.True, 1.9, false, null));
         this.ev(Ev.Fire, FIRE_METEOR, Src.Sky, pid, 0xffff, tx, tz, flight);
       });
     } else {
       for (let i = 0; i < 2; i++) {
-        const u = this.newUnit(RENFORT.kind, pid, x + (i ? 0.6 : -0.6), z, RENFORT.hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
+        const hp = Math.round(RENFORT.hp * (1 + this.perk(pid).renfortHp));
+        const u = this.newUnit(RENFORT.kind, pid, x + (i ? 0.6 : -0.6), z, hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
         u.hx = u.x;
         u.hz = u.z;
       }
+    }
+  }
+
+  /** Objet de boutique : effet immédiat (or, vies) ou sur la zone visée (givre, bombe). */
+  private useItem(p: PlayerState, i: number, x: number, z: number) {
+    const def = ITEMS[i];
+    this.ev(Ev.Item, p.id, i, x, z);
+    if (i === Item.Bourse) p.gold += 150;
+    else if (i === Item.Potion) this.lives = Math.min(this.maxLives, this.lives + 3);
+    else if (i === Item.Givre) {
+      for (const e of this.enemiesIn(x, z, def.radius, true)) e.stunT = Math.max(e.stunT, sec(e.def.boss ? 2 : 4));
+      this.ev(Ev.Impact, Impact.Frost, x, z, Math.round(def.radius * 10));
+    } else if (i === Item.Bombe) {
+      for (const e of [...this.enemiesIn(x, z, def.radius, true)]) this.damage(e, 300, DmgType.True, p.id, null, 1);
+      this.ev(Ev.Impact, Impact.Shell, x, z, Math.round(def.radius * 10));
     }
   }
 
@@ -1043,7 +1100,9 @@ export class Sim {
   }
 
   private fireTower(t: Tower, lvl: TowerLevel, target: Enemy) {
-    const dmg = this.rollDmg(lvl.dmg[0], lvl.dmg[1]);
+    const pk = this.perk(t.owner);
+    const dmg = this.rollDmg(lvl.dmg[0], lvl.dmg[1]) * (1 + pk.dmg[t.fi]);
+    const splash = (lvl.splash ?? 0) * (1 + pk.splash);
     if (lvl.proj === 'tesla') {
       const chainN = (lvl.chain ?? 1) + (t.level === 4 ? lvl.skills![0].values[t.sk[0] - 1] ?? 0 : 0);
       const hit: Enemy[] = [];
@@ -1075,7 +1134,7 @@ export class Sim {
       tx = tmp.x; tz = tmp.z;
       flight = this.flightTicks(t.x, t.z, tx, tz, lvl.projSpeed);
     }
-    const p = this.mkProj(kind, t, t.owner, lvl.splash ? null : target, tx, tz, flight, dmg, lvl.dmgType, lvl.splash ?? 0, lvl.hitsAir, null);
+    const p = this.mkProj(kind, t, t.owner, lvl.splash ? null : target, tx, tz, flight, dmg, lvl.dmgType, splash, lvl.hitsAir, null);
     if (lvl.slow) { p.slowF = lvl.slow[0]; p.slowT = sec(lvl.slow[1]); }
     if (lvl.burn) { p.burn = lvl.burn[0]; p.burnT = sec(lvl.burn[1]); }
     if (t.level >= 3 && lvl.skills) {
@@ -1307,11 +1366,11 @@ export class Sim {
     u.shield = 0;
     this.ev(Ev.UnitDeath, u.x, u.z);
     if (u.hero) {
-      u.respawnT = sec(HERO_RESPAWN_S);
+      u.respawnT = sec(HERO_RESPAWN_S * (1 - this.perk(u.owner).heroRespawn));
       this.ev(Ev.HeroDeath, u.owner);
     } else if (u.tower) {
       const sd = TOWERS[u.tower.fam][u.tower.level].soldiers!;
-      u.respawnT = sec(sd.respawn);
+      u.respawnT = Math.max(1, sec(sd.respawn * (1 - this.perk(u.owner).soldierRespawn)));
     } else u.life = 0;
   }
 
@@ -1466,7 +1525,8 @@ export class Sim {
       const lvl = TOWERS[t.fam][t.level];
       const s0 = t.level >= 3 ? t.sk[0] : 0;
       const s1 = t.level >= 3 ? t.sk[1] : 0;
-      let range = lvl.range;
+      const pk = this.perk(t.owner);
+      let range = lvl.range * (1 + pk.range[t.fi]);
       if (t.fam === 'archer' && t.level === 3 && s1) range += lvl.skills![1].values[s1 - 1];
       if (t.fam === 'barracks') {
         // Rôdeurs : bond
@@ -1496,7 +1556,7 @@ export class Sim {
             for (let k = 0; k < n; k++) {
               const e = targets[k % targets.length];
               const flight = this.flightTicks(t.x, t.z, e.x, e.z, 22);
-              const p = this.mkProj(0, t, t.owner, e, e.x, e.z, flight, this.rollDmg(lvl.dmg[0], lvl.dmg[1]), DmgType.Phys, 0, true, null);
+              const p = this.mkProj(0, t, t.owner, e, e.x, e.z, flight, this.rollDmg(lvl.dmg[0], lvl.dmg[1]) * (1 + pk.dmg[t.fi]), DmgType.Phys, 0, true, null);
               if (s0) p.poison = sk0.values[s0 - 1];
               this.projs.push(p);
               this.ev(Ev.Fire, 0, Src.Tower, t.id, e.id, e.x, e.z, flight);
@@ -1569,7 +1629,7 @@ export class Sim {
       t.aim = tgt;
       if (!tgt) continue;
       this.fireTower(t, lvl, tgt);
-      t.cdT = sec(lvl.cooldown);
+      t.cdT = sec(lvl.cooldown / (1 + pk.rate[t.fi]));
       if (lvl.burst) { t.burstLeft = lvl.burst - 1; t.burstT = 2; }
     }
   }
@@ -1602,6 +1662,7 @@ export class Sim {
     for (const p of this.players) {
       if (p.spellCd[0] > 0) p.spellCd[0]--;
       if (p.spellCd[1] > 0) p.spellCd[1]--;
+      if (p.itemCd > 0) p.itemCd--;
     }
     for (const h of this.heroes) for (let i = 0; i < 3; i++) if (h.cds[i] > 0) h.cds[i]--;
   }

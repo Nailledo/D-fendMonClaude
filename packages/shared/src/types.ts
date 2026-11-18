@@ -20,6 +20,10 @@ export interface PlayerInfo {
   id: number; // 0..3
   name: string;
   hero: HeroId;
+  /** rangs achetés dans chaque branche de l'arbre de compétences (voir data/meta) */
+  tree?: number[];
+  /** objets de boutique emportés (stock par objet) */
+  items?: number[];
 }
 
 export interface GameConfig {
@@ -41,6 +45,8 @@ export type Command =
   /** le héros prend un ennemi pour cible : au contact pour la mêlée, à portée de tir pour les héros à distance */
   | { k: 'hattack'; e: number }
   | { k: 'hskill'; i: 0 | 1 | 2; x: number; z: number }
+  /** objet de boutique (x, z : point visé pour les objets ciblés) */
+  | { k: 'item'; i: number; x: number; z: number }
   | { k: 'spell'; s: 0 | 1; x: number; z: number }
   | { k: 'wave' }
   | { k: 'speed'; v: 1 | 2 }

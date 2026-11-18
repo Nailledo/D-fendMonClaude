@@ -10,6 +10,7 @@
   import Encyclopedia from './Encyclopedia.svelte';
   import Leaderboard from './Leaderboard.svelte';
   import Help from './Help.svelte';
+  import Atelier from './Atelier.svelte';
   import Loading from './Loading.svelte';
 </script>
 
@@ -31,6 +32,7 @@
 {#if ui.overlay === 'encyclo'}<Encyclopedia />{/if}
 {#if ui.overlay === 'leaderboard'}<Leaderboard />{/if}
 {#if ui.overlay === 'help'}<Help />{/if}
+{#if ui.overlay === 'atelier'}<Atelier />{/if}
 
 <Loading />
 

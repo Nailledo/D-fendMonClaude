@@ -30,6 +30,9 @@
       <h1>Fin de la survie</h1>
       <p class="big">Vous avez tenu <b>{e.wave}</b> vague{e.wave > 1 ? 's' : ''} ({DIFFICULTY_NAMES[e.difficulty]})</p>
     {/if}
+    {#if ui.starsGained > 0}
+      <p class="gain"><Ico k="star" fb={ICON.star} /> +{ui.starsGained} étoile{ui.starsGained > 1 ? 's' : ''} pour l’atelier</p>
+    {/if}
     <table>
       <thead><tr><th>Joueur</th><th>Éliminations</th><th>Dégâts</th><th>Or gagné</th></tr></thead>
       <tbody>
@@ -44,6 +47,7 @@
       {/if}
       {#if !multi}<button class="btn" onclick={() => app.restart()}>Rejouer</button>{/if}
       <button class="btn" onclick={() => app.leaveGame()}>{multi ? 'Retour au salon' : 'Menu'}</button>
+      <button class="btn" onclick={() => (ui.overlay = 'atelier')}>Atelier</button>
     </div>
   </div>
 </div>
@@ -63,6 +67,9 @@
   .stars span:nth-child(2) { transform: translateY(-10px); }
   @keyframes starIn { from { transform: scale(0) rotate(-40deg); opacity: 0; } }
   .stars :global(.icon) { width: 68px; height: 68px; }
+  .gain { align-self: center; display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px 4px 8px; border: 2.5px solid var(--ink); border-radius: 99px; background: var(--panel-hi);
+    font-family: var(--font-ui); font-style: normal !important; font-weight: 900 !important; font-size: 1em !important; color: var(--text); box-shadow: 0 3px 0 var(--ink); animation: pop 0.3s ease 0.9s both; }
+  .gain :global(.icon) { width: 24px; height: 24px; }
   .big { font-size: 1.2em; color: var(--text); }
   .big b { font-family: var(--font-display); font-weight: 400; font-size: 1.3em; }
   table { width: 100%; border-collapse: collapse; font-size: 0.93em; font-variant-numeric: tabular-nums; font-weight: 800; }

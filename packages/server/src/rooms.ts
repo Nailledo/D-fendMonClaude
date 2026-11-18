@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
-  GameState, HERO_IDS, LEVELS, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
+  GameState, HERO_IDS, LEVELS, sanitizeMeta, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
   type ClientMsg, type Command, type EndInfo, type GameConfig, type HeroId, type LobbyPlayer, type RoomSettings, type ServerMsg,
 } from '@dfend/shared';
 import type { Scores } from './db';
@@ -36,6 +36,9 @@ interface RoomPlayer {
   token: string;
   name: string;
   hero: HeroId;
+  /** arbre de compétences et objets emportés, déjà bornés */
+  tree: number[];
+  items: number[];
   ready: boolean;
   client: Client | null;
   leftAt: number;
@@ -85,7 +88,7 @@ export class Room {
     if (this.inGame) return false;
     let pid = 0;
     while (this.players.some((p) => p.pid === pid)) pid++;
-    this.players.push({ pid, token: c.token, name: c.name, hero: 'samuel', ready: false, client: c, leftAt: 0 });
+    this.players.push({ pid, token: c.token, name: c.name, hero: 'samuel', ...sanitizeMeta(null, null), ready: false, client: c, leftAt: 0 });
     if (this.players.length === 1) this.hostPid = pid;
     c.room = this;
     c.pid = pid;
@@ -163,6 +166,9 @@ export class Room {
       case 'hero':
         if (HERO_IDS.includes(m.hero) && !this.inGame) { p.hero = m.hero; this.broadcastRoom(); }
         break;
+      case 'meta':
+        if (!this.inGame) Object.assign(p, sanitizeMeta(m.tree, m.items));
+        break;
       case 'ready':
         if (!this.inGame) { p.ready = !!m.ready; this.broadcastRoom(); }
         break;
@@ -213,7 +219,7 @@ export class Room {
       mapId: this.settings.mapId,
       difficulty: this.settings.difficulty,
       seed: randomBytes(4).readUInt32LE(0),
-      players: this.players.filter((p) => p.client).map((p) => ({ id: p.pid, name: p.name, hero: p.hero })),
+      players: this.players.filter((p) => p.client).map((p) => ({ id: p.pid, name: p.name, hero: p.hero, tree: p.tree, items: p.items })),
     };
     // les absents sont retirés du salon
     this.players = this.players.filter((p) => p.client);

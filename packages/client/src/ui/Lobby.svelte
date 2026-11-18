@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { loadout } from '../meta';
   import { DIFFICULTY_NAMES, HEROES, LEVELS, MAPS, PLAYER_COLORS, SURVIVAL_MAPS, type Difficulty, type HeroId, type Mode } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { net } from '../net/Net';
@@ -29,6 +30,8 @@
     if (room && !sent) {
       sent = true;
       net.send({ t: 'hero', hero: ui.hero });
+      // arbre de compétences et objets emportés dans la partie
+      net.send({ t: 'meta', ...loadout() });
     }
   });
 </script>

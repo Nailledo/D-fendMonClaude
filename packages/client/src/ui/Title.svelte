@@ -5,12 +5,15 @@
   import { app } from '../app';
   import { progress, setName, ui } from '../state.svelte';
   import { ICON } from './icons';
+  import { availableStars } from '../meta';
 
   let editing = $state(false);
   let name = $state(ui.name);
   let input: HTMLInputElement | undefined = $state();
   const stars = $derived(progress.stars.reduce((s, l) => s + Math.max(0, ...(l ?? [0])), 0));
   const next = $derived(Math.min(progress.unlocked, LEVELS.length - 1));
+  // étoiles à dépenser dans l'atelier (pastille sur le bouton)
+  const wallet = $derived(availableStars());
   const storyLabel = $derived(progress.unlocked === 0 ? 'Commencer l’histoire' : progress.finished ? 'Histoire' : 'Continuer l’histoire');
   const storySub = $derived(
     progress.finished ? `Campagne terminée · ${stars} ★ sur ${LEVELS.length * 3}` : `Niveau ${next + 1} · ${LEVELS[next].name}`,
@@ -57,6 +60,7 @@
       <button class="row coop" onclick={() => go('multi')}><span class="pop"><Ico k="reinforce" fb={ICON.users} /></span><span class="lbl"><b>Multijoueur</b><span>De 1 à 4 joueurs</span></span></button>
     </div>
     <div class="small">
+      <button onclick={() => overlay('atelier')}><i>{@html ICON.tree}{#if wallet > 0}<em class="badge">{wallet}</em>{/if}</i><span>Atelier</span></button>
       <button onclick={() => overlay('encyclo')}><i>{@html ICON.book}</i><span>Encyclopédie</span></button>
       <button onclick={() => overlay('leaderboard')}><i><Ico k="trophy" fb={ICON.trophy} /></i><span>Classement</span></button>
       <button onclick={() => overlay('help')}><i>{@html ICON.help}</i><span>Aide</span></button>
@@ -121,6 +125,9 @@
   .small i { display: grid; place-items: center; width: 68px; height: 68px; border-radius: 50%; border: var(--bw) solid var(--ink); background: var(--toon-cream); box-shadow: var(--rim), var(--shadow-sm); color: var(--ink); transition: transform 0.08s; }
   .small button:hover i { filter: brightness(1.06); transform: translateY(-2px); }
   .small button:active i { transform: translateY(3px); box-shadow: var(--rim); }
+  .small i { position: relative; }
+  .badge { position: absolute; top: -6px; right: -8px; min-width: 24px; height: 24px; padding: 0 5px; display: grid; place-items: center; border-radius: 99px; border: 2.5px solid var(--ink);
+    background: var(--gold-fill); color: var(--ink); font-style: normal; font-weight: 900; font-size: 13px; line-height: 1; box-shadow: 0 2px 0 var(--ink); }
   .small span { font-family: var(--font-display); font-size: 15px; color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; white-space: nowrap; }
   .small :global(svg.icon) { width: 32px; height: 32px; stroke-width: 2.4; }
   .small :global(.ico3d) { width: 42px; height: 42px; margin: 0; vertical-align: 0; }
