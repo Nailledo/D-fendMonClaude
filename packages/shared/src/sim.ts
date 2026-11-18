@@ -400,6 +400,31 @@ export class Sim {
   }
 
   /**
+   * Point de pose d'une invocation (tourelle, squelette, piège, renforts) : hors des obstacles,
+   * des tours et des emplacements, avec une marge `r` (l'encombrement de l'objet posé).
+   * Un point tombé dans un bâtiment est ramené juste à côté.
+   */
+  placeOut(p: { x: number; z: number }, r = 0.55) {
+    for (let pass = 0; pass < 3; pass++) {
+      let moved = false;
+      const out = (cx: number, cz: number, rr: number) => {
+        const dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+        if (d2 >= rr * rr) return;
+        const d = Math.sqrt(d2);
+        if (d < 1e-4) { p.z = cz + rr; moved = true; return; }
+        p.x = cx + (dx / d) * (rr + 0.01);
+        p.z = cz + (dz / d) * (rr + 0.01);
+        moved = true;
+      };
+      const c = this.solids();
+      for (let i = 0; i < c.length; i += 3) out(c[i], c[i + 1], c[i + 2] + r);
+      for (const sl of this.map.slots) out(sl.x, sl.z, 1.05 + r);
+      if (!moved) break;
+    }
+    return p;
+  }
+
+  /**
    * Pas de déplacement d'une unité vers (gx, gz) en contournant les obstacles :
    * si un obstacle barre la route dans le pas suivant, on longe son bord du côté le plus proche de la direction voulue.
    */
@@ -1061,7 +1086,8 @@ export class Sim {
     } else {
       for (let i = 0; i < 2; i++) {
         const hp = Math.round(RENFORT.hp * (1 + this.perk(pid).renfortHp));
-        const u = this.newUnit(RENFORT.kind, pid, x + (i ? 0.6 : -0.6), z, hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
+        const q = this.placeOut({ x: x + (i ? 0.6 : -0.6), z }, 0.45);
+        const u = this.newUnit(RENFORT.kind, pid, q.x, q.z, hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
         u.hx = u.x;
         u.hz = u.z;
       }
@@ -1107,7 +1133,8 @@ export class Sim {
     const summon = (n: number, life: number) => {
       for (let k = 0; k < n; k++) {
         const a = FORMATION[k % FORMATION.length], ring = 1 + Math.floor(k / FORMATION.length) * 0.6;
-        const s = this.newUnit(SoldierKind.Squelette, h.owner, x + a[0] * ring, z + a[1] * ring, Math.round((90 + 12 * lvl) * (tough ? 1.4 : 1) * km), (5 + lvl) * km, (9 + lvl) * km, 0.1, 1, 0, null, sec(life + (tough ? 4 : 0)));
+        const q = this.placeOut({ x: x + a[0] * ring, z: z + a[1] * ring }, 0.4);
+        const s = this.newUnit(SoldierKind.Squelette, h.owner, q.x, q.z, Math.round((90 + 12 * lvl) * (tough ? 1.4 : 1) * km), (5 + lvl) * km, (9 + lvl) * km, 0.1, 1, 0, null, sec(life + (tough ? 4 : 0)));
         s.hx = s.x; s.hz = s.z;
       }
       this.ev(Ev.Impact, Impact.Summon, x, z, n > 2 ? 20 : 12);
@@ -1129,6 +1156,7 @@ export class Sim {
       if (h.pas.has('shrapnel')) this.zones.push({ kind: Impact.FireShell, x: bx, z: bz, r: r * 0.8, t: sec(3), dps: (14 + 3 * lvl) * sm, dtype: DmgType.True, owner: h.owner, air: false, slow: 0 });
     };
     const turret = (tx: number, tz: number) => {
+      ({ x: tx, z: tz } = this.placeOut({ x: tx, z: tz }, 0.6));
       const k = (h.pas.has('mecanique') ? 1.4 : 1) * km;
       const forge = h.pas.has('forge');
       const t = this.newUnit(SoldierKind.Tourelle, h.owner, tx, tz, Math.round((220 + 20 * lvl) * k), (10 + 2 * lvl) * k, (16 + 2 * lvl) * k, 0.4, 0.6, 0, null, sec(forge ? 24 : 16));
@@ -1290,6 +1318,7 @@ export class Sim {
       case 'os': summon(h.pas.has('legion') ? 3 : 2, 14); break;
       case 'armee': summon(h.pas.has('legion') ? 8 : 6, 18); break;
       case 'golem': {
+        ({ x, z } = this.placeOut({ x, z }, 0.7));
         const g = this.newUnit(SoldierKind.Squelette, h.owner, x, z, Math.round((420 + 45 * lvl) * (tough ? 1.4 : 1) * km), (16 + 3 * lvl) * km, (26 + 3 * lvl) * km, 0.35, 1.2, 0, null, sec(20 + (tough ? 4 : 0)));
         g.hx = x; g.hz = z;
         this.ev(Ev.Impact, Impact.Summon, x, z, 22);
@@ -1385,6 +1414,7 @@ export class Sim {
         break;
       }
       case 'piege':
+        ({ x, z } = this.placeOut({ x, z }, 0.5));
         zone(Impact.Trap, x, z, 1.4, 6, (24 + 5 * lvl) * sm, DmgType.Phys, false, 0.75);
         break;
       case 'filet':
@@ -1460,9 +1490,7 @@ export class Sim {
       case 'usine':
         for (let k = 0; k < 3; k++) {
           const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
-          const p = { x: x + Math.cos(a) * 1.3, z: z + Math.sin(a) * 1.3 };
-          this.pushOut(p);
-          turret(p.x, p.z);
+          turret(x + Math.cos(a) * 1.3, z + Math.sin(a) * 1.3);
         }
         break;
       case 'grenades': {

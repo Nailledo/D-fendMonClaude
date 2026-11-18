@@ -524,6 +524,22 @@ describe('classes du héros', () => {
     expect(b.u.dmgMax).toBeGreaterThan(a.u.dmgMax * 1.1);
   });
 
+  it('une tourelle posée sur un bâtiment apparaît à côté', () => {
+    const art = CLASSES.findIndex((c) => c.id === 'artificier');
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'brom', build: B(art, R(1)) }] }));
+    const h = sim.heroes[0];
+    h.level = 6;
+    const slot = sim.map.slots.findIndex((s) => !s.locked);
+    sim.apply(0, { k: 'build', slot, fam: 0 });
+    const t = sim.towers[0];
+    h.u.x = h.u.hx = t.x + 2; h.u.z = h.u.hz = t.z;
+    const before = new Set(sim.units);
+    sim.apply(0, { k: 'hskill', i: 1, x: t.x, z: t.z });
+    const tur = sim.units.filter((u) => !before.has(u));
+    expect(tur.length).toBe(1);
+    for (const s of sim.map.slots) expect(Math.hypot(tur[0].x - s.x, tur[0].z - s.z)).toBeGreaterThan(1.05);
+  });
+
   it('Malédiction : les ennemis maudits subissent plus de dégâts', () => {
     const necro = CLASSES.findIndex((c) => c.id === 'necro');
     const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'nox', build: B(necro, R(2)) }] }));
