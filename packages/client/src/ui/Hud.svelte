@@ -14,6 +14,7 @@
   import { enemyTraits } from './enemyTraits';
   import { FAMILY_NAME, ICON, ITEM_ICON, LINE, SKILL_ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { skillIcon } from './classIcons';
+  import { spellFb, spellKey } from './spellIcon';
   import { fit } from './fit';
 
   const h = $derived(ui.hud);
@@ -199,9 +200,10 @@
 
   <!-- sorts -->
   <div class="spells ui">
-    {#each SPELLS as sp, i}
+    {#each h.spellIds as id, i}
+      {@const sp = SPELLS[id]}
       <button class="spell" class:ready={h.spells[i] <= 0} aria-label={sp.name} onclick={() => g()?.castSpell(i as 0 | 1)} title="{sp.name} — {sp.desc} (recharge {sp.cd} s)">
-        <Ico k={i === 0 ? 'meteor' : 'reinforce'} fb={i === 0 ? ICON.meteor : ICON.helmet} />
+        <Ico k={spellKey(id)} fb={spellFb(id)} />
         {#if h.spells[i] > 0}<span class="cd" style="--p:{frac(h.spells[i], sp.cd)}">{h.spells[i]}</span>{/if}
         <span class="kbd">{keyLabel(i === 0 ? keys.spell1 : keys.spell2)}</span>
       </button>

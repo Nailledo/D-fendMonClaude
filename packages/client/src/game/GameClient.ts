@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
-  LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
+  LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, sanitizeSpells, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
@@ -113,6 +113,7 @@ export class GameClient {
     r.applyTheme(this.world.theme);
     r.setBounds(this.map.def.hw, this.map.def.hh, this.world.exit);
     // objets de boutique emportés dans cette partie
+    ui.hud.spellIds = sanitizeSpells(cfg.players.find((p) => p.id === you)?.spells);
     ui.hud.items = ITEMS.map((_, i) => cfg.players.find((p) => p.id === you)?.items?.[i] ?? 0);
     this.ents = new Entities(r.scene, this.map);
     this.ents.tunnels = this.world.entries;
@@ -269,9 +270,12 @@ export class GameClient {
 
   castSpell(s: 0 | 1) {
     if (ui.hud.spells[s] > 0) { audio.play('deny'); return; }
+    const def = SPELLS[ui.hud.spellIds[s]];
+    // sort immédiat (sans zone à viser) : lancé tout de suite
+    if (def.radius === 0) { this.send({ k: 'spell', s, x: 0, z: 0 }); return; }
     this.targeting = { kind: 'spell', s };
     ui.sel = null;
-    ui.hud.targeting = SPELLS[s].name + (ui.touch ? ' : touchez la carte' : ' : cliquez sur la carte');
+    ui.hud.targeting = def.name + (ui.touch ? ' : touchez la carte' : ' : cliquez sur la carte');
   }
 
   /** Objet de boutique : immédiat (or, vies) ou à lancer sur la carte (givre, bombe). */
@@ -891,7 +895,7 @@ export class GameClient {
     if (p && t && (t.kind === 'spell' || t.kind === 'hskill' || t.kind === 'item')) {
       let r = 2;
       if (t.kind === 'item') r = ITEMS[t.i].radius;
-      else if (t.kind === 'spell') r = t.s === 0 ? 2.6 : 1;
+      else if (t.kind === 'spell') r = SPELLS[ui.hud.spellIds[t.s]].radius;
       else {
         r = SKILL_RADIUS[hudSkills()[t.i]?.id ?? ''] ?? 1.2;
       }
@@ -1522,22 +1526,33 @@ export class GameClient {
         break;
       }
       case Ev.Spell: {
-        const [, kind, owner, x, z] = ev;
+        const [, , owner, x, z, spell] = ev;
+        const def = SPELLS[spell];
+        if (!def) break;
         const team = PLAYER_COLORS[owner] ?? 0xffffff;
-        if (kind === 1) {
-          // renforts : colonne de lumière, cercle aux couleurs du joueur, poussière à l'atterrissage
-          fx.burst(x, 0.3, z, 16, 0xfff8e1, 3, 0.18, 0.6);
-          fx.pillar(x, z, 1.3, 9, 0xfff1b0, 1.1);
-          fx.runes.add(x, z, 2.2, Decal.Rune, 1.6, team, 1.6);
-          fx.shockwave(x, z, 2.4, 0xfff3c0, 0x9e8a70, 0.5);
-          for (let k = 0; k < 24; k++) fx.glow.spawn(x + (Math.random() - 0.5) * 2.4, 5 + Math.random() * 3, z + (Math.random() - 0.5) * 2.4, (Math.random() - 0.5) * 0.6, -2.5, (Math.random() - 0.5) * 0.6, 1.4, 0.07, 0xfff59d, 0.6);
-          fx.flashes.flash(x, 3, z, 0xfff1b0, 10, 0.6, 10);
-          audio.play('spell');
-        } else {
-          // pluie de météores : zone d'impact marquée au sol
-          fx.runes.add(x, z, 3, Decal.Rune, 1.8, 0xff7a2a, -1.2);
-          fx.ring(x, z, 3, 0xff5722, 1.5, 3);
+        const vol = owner === this.you ? 1 : 0.6;
+        switch (def.id) {
+          case 'renfort':
+            // renforts : colonne de lumière, cercle aux couleurs du joueur, poussière à l'atterrissage
+            fx.burst(x, 0.3, z, 16, 0xfff8e1, 3, 0.18, 0.6);
+            fx.pillar(x, z, 1.3, 9, 0xfff1b0, 1.1);
+            fx.runes.add(x, z, 2.2, Decal.Rune, 1.6, team, 1.6);
+            fx.shockwave(x, z, 2.4, 0xfff3c0, 0x9e8a70, 0.5);
+            for (let k = 0; k < 24; k++) fx.glow.spawn(x + (Math.random() - 0.5) * 2.4, 5 + Math.random() * 3, z + (Math.random() - 0.5) * 2.4, (Math.random() - 0.5) * 0.6, -2.5, (Math.random() - 0.5) * 0.6, 1.4, 0.07, 0xfff59d, 0.6);
+            fx.flashes.flash(x, 3, z, 0xfff1b0, 10, 0.6, 10);
+            break;
+          case 'meteor':
+            // pluie de météores : zone d'impact marquée au sol
+            fx.runes.add(x, z, 3, Decal.Rune, 1.8, 0xff7a2a, -1.2);
+            fx.ring(x, z, 3, 0xff5722, 1.5, 3);
+            break;
+          case 'soin': break; // l'effet part du héros (impact de sanctuaire)
+          default:
+            // autres sorts de zone : cercle de lancement aux couleurs du joueur ; l'effet propre au sort vient des impacts
+            fx.runes.add(x, z, def.radius, Decal.Rune, 1.0, team, 1.2);
+            fx.ring(x, z, def.radius, team, 0.5);
         }
+        audio.play('sp_' + def.id, vol);
         break;
       }
       case Ev.HeroSkill: {

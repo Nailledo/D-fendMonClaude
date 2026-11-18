@@ -201,6 +201,53 @@ class AudioEngine {
       case 'meteor':
         this.noise(t, 0.9, 0.15 * vol, 'bandpass', 600, 2400, o, 1);
         break;
+      // ---- sons propres à chaque sort général (SPELLS), 100 % synthétisés
+      case 'sp_meteor':
+        this.tone('sawtooth', 900, 120, t, 0.9, 0.07 * vol, this.lowpass(2500), true);
+        this.noise(t, 1.0, 0.14 * vol, 'bandpass', 500, 2600, o, 1);
+        break;
+      case 'sp_renfort':
+        [262, 330, 392, 523].forEach((f, k) => this.tone('triangle', f, f, t + k * 0.07, 0.28, 0.07 * vol, o, true));
+        this.noise(t + 0.2, 0.25, 0.08 * vol, 'lowpass', 500, 120, o);
+        break;
+      case 'sp_sables':
+        this.noise(t, 1.2, 0.17 * vol, 'bandpass', 700, 250, o, 0.8);
+        this.tone('sine', 90, 50, t, 1.0, 0.12 * vol, this.lowpass(300));
+        break;
+      case 'sp_poison':
+        this.noise(t, 0.9, 0.12 * vol, 'highpass', 3500, 6000, o, 1);
+        [180, 215, 190].forEach((f, k) => this.tone('sine', f, f * 0.6, t + k * 0.12, 0.3, 0.08 * vol, this.lowpass(700)));
+        break;
+      case 'sp_soin':
+        [523, 659, 784, 1047, 1319].forEach((f, k) => this.tone('sine', f, f, t + k * 0.06, 0.55, 0.06 * vol, o, true));
+        break;
+      case 'sp_blizzard':
+        this.noise(t, 1.3, 0.16 * vol, 'highpass', 2500, 7000, o, 1.5);
+        [1568, 1976, 2349].forEach((f, k) => this.tone('sine', f, f * 0.9, t + k * 0.09, 0.4, 0.04 * vol, o, true));
+        break;
+      case 'sp_malediction':
+        this.tone('sawtooth', 220, 110, t, 1.1, 0.07 * vol, this.lowpass(500), true);
+        this.tone('sawtooth', 233, 117, t, 1.1, 0.06 * vol, this.lowpass(500), true);
+        this.noise(t, 0.9, 0.06 * vol, 'bandpass', 400, 150, o, 3);
+        break;
+      case 'sp_benediction':
+        [392, 523, 659, 784].forEach((f, k) => this.tone('sine', f, f * 1.01, t + k * 0.09, 0.9, 0.055 * vol, o, true));
+        this.tone('triangle', 1568, 1568, t + 0.35, 0.7, 0.03 * vol, o, true);
+        break;
+      case 'sp_foudre':
+        this.noise(t, 0.12, 0.28 * vol, 'highpass', 1500, 6000, o, 0.7);
+        this.tone('sawtooth', 2000, 90, t, 0.35, 0.09 * vol, this.lowpass(3500));
+        this.noise(t + 0.1, 0.7, 0.14 * vol, 'lowpass', 400, 60, o);
+        break;
+      case 'sp_flammes':
+        this.noise(t, 1.1, 0.2 * vol, 'bandpass', 900, 400, o, 0.6);
+        this.tone('sawtooth', 110, 70, t, 0.9, 0.06 * vol, this.lowpass(350));
+        break;
+      case 'sp_seisme':
+        this.tone('sine', 70, 28, t, 1.3, 0.22 * vol, this.lowpass(200));
+        this.noise(t, 1.1, 0.2 * vol, 'lowpass', 280, 50, o);
+        this.noise(t + 0.25, 0.5, 0.1 * vol, 'bandpass', 1500, 300, o, 1);
+        break;
       case 'spell':
         [392, 494, 587].forEach((f, k) => this.tone('sine', f, f * 2, t + k * 0.05, 0.4, 0.06 * vol, o, true));
         break;

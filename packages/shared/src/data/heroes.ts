@@ -72,7 +72,48 @@ export const HERO_RESPAWN_S = 15;
 /** ennemis qu'un héros retient en plus de sa cible (il prend aussi leurs coups) */
 export const HERO_EXTRA_HOLD = 2;
 
-export const SPELLS = [
-  { id: 'meteor', name: 'Pluie de météores', desc: 'Trois météores s’écrasent sur la zone.', cd: 70 },
-  { id: 'renfort', name: 'Renforts', desc: 'Deux miliciens viennent bloquer les ennemis pendant 20 s.', cd: 16 },
+export interface SpellDef {
+  id: string;
+  name: string;
+  desc: string;
+  /** recharge (secondes) */
+  cd: number;
+  /** rayon de la zone visée (anneau de visée) ; 0 = sort immédiat, sans cible */
+  radius: number;
+  /** niveau de l'histoire à terminer pour l'obtenir ; -1 = disponible dès le début */
+  unlock: number;
+}
+
+/**
+ * Catalogue des sorts généraux. L'index sert d'identifiant réseau : on n'insère jamais au milieu.
+ * Deux sorts au choix par partie (voir `sanitizeSpells`) ; les deux premiers sont ceux par défaut.
+ */
+export const SPELLS: SpellDef[] = [
+  { id: 'meteor', name: 'Pluie de météores', desc: 'Trois météores s’écrasent sur la zone.', cd: 70, radius: 2.6, unlock: -1 },
+  { id: 'renfort', name: 'Renforts', desc: 'Deux miliciens viennent bloquer les ennemis pendant 20 s.', cd: 16, radius: 1, unlock: -1 },
+  { id: 'sables', name: 'Sables mouvants', desc: 'Un sable avale la zone pendant 8 s : les ennemis au sol sont ralentis de 75 % et subissent des dégâts.', cd: 45, radius: 3, unlock: 0 },
+  { id: 'poison', name: 'Nuage de poison', desc: 'Un nuage toxique couvre la zone 8 s : de forts dégâts magiques sur la durée.', cd: 40, radius: 2.8, unlock: 1 },
+  { id: 'soin', name: 'Soin du château', desc: 'Rend 2 vies au château et soigne tous vos alliés.', cd: 110, radius: 0, unlock: 2 },
+  { id: 'blizzard', name: 'Blizzard', desc: 'Une tempête de glace ralentit de 60 % et blesse tous les ennemis de la zone pendant 6 s.', cd: 55, radius: 3, unlock: 3 },
+  { id: 'malediction', name: 'Malédiction', desc: 'Les ennemis de la zone ralentissent et subissent 35 % de dégâts en plus pendant 9 s.', cd: 50, radius: 3, unlock: 4 },
+  { id: 'benediction', name: 'Bénédiction', desc: 'Les tours de la zone tirent 40 % plus vite et font 20 % de dégâts en plus pendant 12 s.', cd: 75, radius: 4.5, unlock: 4 },
+  { id: 'foudre', name: 'Chaîne d’éclairs', desc: 'La foudre frappe l’ennemi visé puis rebondit sur cinq autres.', cd: 45, radius: 2.5, unlock: 5 },
+  { id: 'flammes', name: 'Mur de flammes', desc: 'Un mur de flammes brûle la zone 8 s et ralentit les ennemis qui le traversent.', cd: 50, radius: 2.6, unlock: 6 },
+  { id: 'seisme', name: 'Séisme', desc: 'Le sol tremble : dégâts et étourdissement des ennemis au sol dans la zone.', cd: 60, radius: 3.4, unlock: 7 },
 ];
+
+/** Sorts emportés par défaut (et quand le choix reçu est invalide). */
+export const DEFAULT_SPELLS: [number, number] = [0, 1];
+
+/** Sorts obtenus : ceux sans condition, plus ceux dont le niveau de l'histoire a été terminé. `stars[niveau]` = étoiles par difficulté. */
+export function spellsUnlocked(stars: readonly (readonly number[] | undefined)[]): boolean[] {
+  return SPELLS.map((s) => s.unlock < 0 || (stars[s.unlock] ?? []).some((n) => (n ?? 0) > 0));
+}
+
+/** Deux sorts distincts du catalogue ; sinon le choix par défaut. */
+export function sanitizeSpells(raw: unknown): [number, number] {
+  if (!Array.isArray(raw) || raw.length < 2) return [...DEFAULT_SPELLS];
+  const a = Number(raw[0]), b = Number(raw[1]);
+  const ok = (n: number) => Number.isInteger(n) && n >= 0 && n < SPELLS.length;
+  return ok(a) && ok(b) && a !== b ? [a, b] : [...DEFAULT_SPELLS];
+}

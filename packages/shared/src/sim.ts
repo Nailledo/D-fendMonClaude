@@ -2,7 +2,7 @@ import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from 
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
 import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, perksOf, type Perks } from './data/meta';
-import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
+import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, sanitizeSpells, type HeroDef } from './data/heroes';
 import { AVENTURIER, SKILL_UNLOCK, buildKit, classOf, heroPassives, heroSkills, heroStatBonus, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild, type StatKind } from './data/classes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
 import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, campAura, mineIncome, type SoldierDef, type TowerLevel } from './data/towers';
@@ -22,7 +22,7 @@ export const enum Ev {
   Build = 5, // towerId, slot
   Sell = 6, // slot, owner
   Upgrade = 7, // towerId, payeur, propriétaire
-  Spell = 8, // kind, owner, x, z
+  Spell = 8, // emplacement, joueur, x, z, sort (index de SPELLS)
   HeroSkill = 9, // owner, skill, x, z, x2, z2
   Dmg = 10, // enemyId, amount, flags (1 crit, 2 instakill)
   WaveStart = 11, // wave, boss, mutation (255 = aucune)
@@ -257,6 +257,8 @@ export interface PlayerState {
   connected: boolean;
   speedVote: 1 | 2;
   spellCd: [number, number];
+  /** sorts généraux emportés (index de SPELLS) : emplacement 0 et 1 */
+  spells: [number, number];
   kills: number;
   damage: number;
   goldEarned: number;
@@ -302,6 +304,8 @@ export class Sim {
   heroes: Hero[] = [];
   projs: Proj[] = [];
   zones: Zone[] = [];
+  /** bénédictions actives : bonus de cadence et de dégâts aux tours de la zone */
+  blessings: { x: number; z: number; r: number; t: number; rate: number; dmg: number }[] = [];
   private inCombustion = false;
   spawnQ: SpawnEntry[] = [];
   events: number[][] = [];
@@ -334,7 +338,7 @@ export class Sim {
     const startGold = Math.round((this.level ? this.level.startGold : SURVIVAL_START_GOLD) * this.scaling.startGoldMul);
     this.players = cfg.players.map((p) => ({
       id: p.id, name: p.name, gold: startGold + this.perk(p.id).gold, active: true, connected: true, speedVote: 1 as 1 | 2,
-      spellCd: [0, 0] as [number, number], kills: 0, damage: 0, goldEarned: 0,
+      spellCd: [0, 0] as [number, number], spells: sanitizeSpells(p.spells), kills: 0, damage: 0, goldEarned: 0,
       items: ITEMS.map((_, i) => Math.max(0, Math.min(ITEM_MAX, Math.floor(Number(p.items?.[i] ?? 0))) || 0)), itemCd: 0,
     }));
     const sp = this.map.heroSpawn;
@@ -946,9 +950,12 @@ export class Sim {
       }
       case 'spell': {
         const x = clampNum(c.x, -this.map.def.hw - 2, this.map.def.hw + 2), z = clampNum(c.z, -this.map.def.hh - 2, this.map.def.hh + 2);
-        if ((c.s !== 0 && c.s !== 1) || x === null || z === null || p.spellCd[c.s] > 0) return;
-        p.spellCd[c.s] = sec(SPELLS[c.s].cd * (1 - this.perk(pid).spellCd));
-        this.castSpell(pid, c.s, x, z);
+        if (c.s !== 0 && c.s !== 1) return;
+        // l'emplacement renvoie au sort emporté par ce joueur : un sort hors de son choix ne se lance pas
+        const def = SPELLS[p.spells[c.s]];
+        if (!def || p.spellCd[c.s] > 0 || (def.radius > 0 && (x === null || z === null))) return;
+        p.spellCd[c.s] = sec(def.cd * Math.max(0.4, 1 - this.perk(pid).spellCd));
+        this.castSpell(pid, c.s, p.spells[c.s], x ?? 0, z ?? 0);
         break;
       }
       case 'wave': {
@@ -1048,23 +1055,104 @@ export class Sim {
 
   // ------------------------------------------------------------ sorts & héros
 
-  private castSpell(pid: number, s: 0 | 1, x: number, z: number) {
-    this.ev(Ev.Spell, s, pid, x, z);
-    if (s === 0) {
-      const offs = [[0, 0], [1.3, 0.8], [-1.1, 0.9]];
-      offs.forEach(([ox, oz], i) => {
-        const tx = x + ox, tz = z + oz;
-        const flight = sec(1.0 + i * 0.25);
-        this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * (1 + this.perk(pid).meteorDmg), DmgType.True, 1.9, false, null));
-        this.ev(Ev.Fire, FIRE_METEOR, Src.Sky, pid, 0xffff, tx, tz, flight);
-      });
-    } else {
-      for (let i = 0; i < 2; i++) {
-        const hp = Math.round(RENFORT.hp * (1 + this.perk(pid).renfortHp));
-        const u = this.newUnit(RENFORT.kind, pid, x + (i ? 0.6 : -0.6), z, hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
-        u.hx = u.x;
-        u.hz = u.z;
+  /** Lance le sort `spell` (index de SPELLS) depuis l'emplacement `slot` du joueur `pid`. */
+  private castSpell(pid: number, slot: 0 | 1, spell: number, x: number, z: number) {
+    this.ev(Ev.Spell, slot, pid, x, z, spell);
+    const id = SPELLS[spell].id;
+    const near: Enemy[] = [];
+    /** zone durable + son effet visuel (rayon ×10 + durée ×1000 transmis au client) */
+    const zone = (kind: Impact, r: number, dur: number, dps: number, dtype: DmgType, air: boolean, slow: number) => {
+      this.zones.push({ kind, x, z, r, t: sec(dur), dps, dtype, owner: pid, air, slow });
+      this.ev(Ev.Impact, kind, x, z, Math.round(r * 10) + Math.round(dur) * 1000);
+    };
+    switch (id) {
+      case 'meteor': {
+        const offs = [[0, 0], [1.3, 0.8], [-1.1, 0.9]];
+        offs.forEach(([ox, oz], i) => {
+          const tx = x + ox, tz = z + oz;
+          const flight = sec(1.0 + i * 0.25);
+          this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * (1 + this.perk(pid).meteorDmg), DmgType.True, 1.9, false, null));
+          this.ev(Ev.Fire, FIRE_METEOR, Src.Sky, pid, 0xffff, tx, tz, flight);
+        });
+        break;
       }
+      case 'renfort':
+        for (let i = 0; i < 2; i++) {
+          const hp = Math.round(RENFORT.hp * (1 + this.perk(pid).renfortHp));
+          const u = this.newUnit(RENFORT.kind, pid, x + (i ? 0.6 : -0.6), z, hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
+          u.hx = u.x;
+          u.hz = u.z;
+        }
+        break;
+      case 'sables':
+        zone(Impact.Trap, 3, 8, 12, DmgType.Phys, false, 0.75);
+        break;
+      case 'poison':
+        zone(Impact.Plague, 2.8, 8, 35, DmgType.Magic, true, 0);
+        break;
+      case 'blizzard':
+        zone(Impact.Blizzard, 3, 6, 30, DmgType.Magic, true, 0.6);
+        break;
+      case 'flammes':
+        zone(Impact.Lava, 2.6, 8, 40, DmgType.True, false, 0.25);
+        break;
+      case 'soin': {
+        this.lives = Math.min(this.maxLives, this.lives + 2);
+        let hx = 0, hz = 0;
+        for (const o of this.units) {
+          if (o.dead || o.owner !== pid) continue;
+          o.hp = o.maxHp;
+          if (o.kind === HERO_UNIT) { hx = o.x; hz = o.z; }
+        }
+        this.ev(Ev.Impact, Impact.Sanctuary, hx, hz, 50);
+        break;
+      }
+      case 'malediction':
+        for (const e of this.enemiesIn(x, z, 3, true, near)) {
+          e.curse = Math.max(e.curseT > 0 ? e.curse : 0, 0.35);
+          e.curseT = Math.max(e.curseT, sec(9));
+          e.slowMul = Math.min(e.slowMul, 0.7);
+          e.slowT = Math.max(e.slowT, sec(9));
+        }
+        this.ev(Ev.Impact, Impact.Curse, x, z, 30 + 9000);
+        break;
+      case 'benediction':
+        this.blessings.push({ x, z, r: 4.5, t: sec(12), rate: 0.4, dmg: 0.2 });
+        this.ev(Ev.Impact, Impact.Dawn, x, z, 45);
+        break;
+      case 'foudre': {
+        // la cible près du point visé, puis cinq rebonds
+        let cur: Enemy | null = null, best = 2.5 * 2.5;
+        for (const e of this.enemies) {
+          if (!this.targetable(e, true) || !this.visible(e)) continue;
+          const d2 = (e.x - x) ** 2 + (e.z - z) ** 2;
+          if (d2 < best) { best = d2; cur = e; }
+        }
+        const hit = new Set<Enemy>();
+        let dmg = 220;
+        while (cur && hit.size < 6) {
+          hit.add(cur);
+          this.ev(Ev.Impact, Impact.Bolt, cur.x, cur.z, 0);
+          const px = cur.x, pz = cur.z;
+          this.damage(cur, dmg, DmgType.Magic, pid, null);
+          dmg *= 0.88;
+          let next: Enemy | null = null, nb = 3.5 * 3.5;
+          for (const e of this.enemies) {
+            if (hit.has(e) || !this.targetable(e, true) || !this.visible(e)) continue;
+            const d2 = (e.x - px) ** 2 + (e.z - pz) ** 2;
+            if (d2 < nb) { nb = d2; next = e; }
+          }
+          cur = next;
+        }
+        break;
+      }
+      case 'seisme':
+        for (const e of [...this.enemiesIn(x, z, 3.4, false, near)]) {
+          this.damage(e, 160, DmgType.Phys, pid, null);
+          if (!e.dead) e.stunT = Math.max(e.stunT, sec(e.def.boss ? 0.8 : 2));
+        }
+        this.ev(Ev.Impact, Impact.Quake, x, z, 34);
+        break;
     }
   }
 
@@ -1650,6 +1738,15 @@ export class Sim {
         t.auraDmg = Math.max(t.auraDmg, a.dmg);
       }
     }
+    for (const b of this.blessings) {
+      const r2 = b.r * b.r;
+      for (const t of this.towers) {
+        const dx = t.x - b.x, dz = t.z - b.z;
+        if (dx * dx + dz * dz > r2) continue;
+        t.auraRate = Math.max(t.auraRate, b.rate);
+        t.auraDmg = Math.max(t.auraDmg, b.dmg);
+      }
+    }
     for (const e of this.enemies) { e.marked = e.curseT > 0 ? e.curse : 0; e.revealed = false; if (e.traits & Trait.Camo) camo = true; }
     if (!watch && !camo) return;
     for (const t of this.towers) {
@@ -2194,6 +2291,7 @@ export class Sim {
       }
       if (--z.t <= 0) { this.zones[i] = this.zones[this.zones.length - 1]; this.zones.pop(); }
     }
+    for (let i = this.blessings.length - 1; i >= 0; i--) if (--this.blessings[i].t <= 0) this.blessings.splice(i, 1);
   }
 
   private stepCooldowns() {
