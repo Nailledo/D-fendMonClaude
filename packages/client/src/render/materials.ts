@@ -162,7 +162,7 @@ vec3 transformed = vec3(position);
     armL.x = l.x; wristL = l.y;
   }
   vec3 moved = transformed;
-  if (style > 0.5 && (part > 2.5 && part < 4.5 || part > 9.5)) {
+  if (style > 0.5 && (part > 2.5 && part < 4.5 || part > 9.5 && part < 11.5)) {
     // bras et armes des héros (parties 10 et 11 : arme en main droite / gauche, pivot = la main, épaule au-dessus)
     bool right = part > 3.5 && part < 4.5 || part > 9.5 && part < 10.5;
     vec3 a = right ? armR : armL;
@@ -246,12 +246,23 @@ vec3 transformed = vec3(position);
       transformed.y -= smoothstep(0.55, 1.0, p) * 1.1;
       transformed *= 1.0 - smoothstep(0.7, 1.0, p) * 0.4;
     }
-  } else if (iPose.x > 0.0) {
-    // objets statiques (tours) : recul au tir, écrasement puis rebond
-    float p = clamp(iPose.x, 0.0, 1.0);
-    float k = sin(p * 3.14159) * (1.0 - p);
-    transformed.y *= 1.0 - k * 0.16;
-    transformed.xz *= 1.0 + k * 0.1;
+  } else {
+    // machines (tours, tourelle ; voir art/machines.ts) : y = canon qui tire (0 tous, 1 droit, 2 gauche), z = angle du bras
+    if (part > 12.5 && part < 14.5 && iPose.x > 0.0 && (iPose.y < 0.5 || abs(iPose.y - (part < 13.5 ? 1.0 : 2.0)) < 0.5)) {
+      // recul sec du canon, puis il revient lentement en place
+      float p = clamp(iPose.x, 0.0, 1.0);
+      transformed.z -= (p < 0.08 ? p / 0.08 : 1.0 - smoothstep(0.08, 1.0, p)) * 0.16;
+    } else if (part > 14.5 && part < 15.5) {
+      // bras de catapulte : bascule autour de son moyeu (angle > 0 : le godet monte et passe vers l'avant)
+      transformed = rotX(transformed - pivot, iPose.z) + pivot;
+    }
+    if (iPose.x > 0.0 && part < 11.5) {
+      // objets statiques (tours) : recul au tir, écrasement puis rebond (pas les têtes des machines, qui suivent le socle)
+      float p = clamp(iPose.x, 0.0, 1.0);
+      float k = sin(p * 3.14159) * (1.0 - p);
+      transformed.y *= 1.0 - k * 0.16;
+      transformed.xz *= 1.0 + k * 0.1;
+    }
   }
 }
 `;

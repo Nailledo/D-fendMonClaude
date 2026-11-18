@@ -48,6 +48,8 @@ export const enum Impact {
   Arrow = 16, Frag = 17, Teleport = 18, Rally = 19,
   // zones durables des compétences de route : rayon ×10 + durée (s) ×1000
   Cyclone = 20, Blizzard = 21, Plague = 22, Trap = 23, Net = 24, Curse = 25, Quake = 26, Wave = 27, Sanctuary = 28, Blades = 29,
+  // rocher de catapulte (artillerie de base) : choc sans flammes
+  Rock = 30,
 }
 
 /** Types de tirs (Fire.kind) : indices de PROJ_KINDS puis extras. */
@@ -1564,7 +1566,8 @@ export class Sim {
     if (p.splash > 0) {
       const near = this.enemiesIn(p.tx, p.tz, p.splash, p.air);
       for (const e of near) this.applyHit(p, e, true);
-      const kind = p.kind === FIRE_METEOR ? Impact.Meteor : p.kind === PROJ_KINDS.indexOf('fireshell') ? Impact.FireShell : p.kind === FIRE_FRAG ? Impact.Frag : Impact.Shell;
+      const rock = p.tower?.fam === 'artillery' && p.tower.level < LEVEL_SPEC_A && p.kind === PROJ_KINDS.indexOf('shell');
+      const kind = p.kind === FIRE_METEOR ? Impact.Meteor : p.kind === PROJ_KINDS.indexOf('fireshell') ? Impact.FireShell : p.kind === FIRE_FRAG ? Impact.Frag : rock ? Impact.Rock : Impact.Shell;
       this.ev(Ev.Impact, kind, p.tx, p.tz, Math.round(p.splash * 10));
       if (p.burn > 0 || p.kind === FIRE_METEOR) {
         this.zones.push({ kind: Impact.FireShell, x: p.tx, z: p.tz, r: p.splash * 0.85, t: p.burnT || sec(3), dps: p.burn || 12, dtype: DmgType.True, owner: p.owner, air: false, slow: 0 });

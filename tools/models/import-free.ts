@@ -121,10 +121,12 @@ export const FREE_SOURCES: Record<string, string | Recipe> = {
   'tower-2-3.glb': { parts: KR('bottom-c', 'middle-c', 'top-c', 'crystals'), tint: [1, 0.95, 0.6] },
   'tower-2-4.glb': { parts: KR('bottom-c', 'middle-c', 'top-c', 'crystals'), tint: [0.6, 0.85, 1] },
   'tower-3-0.glb': { parts: [...KS('bottom-a'), `${KEN}/weapon-catapult.glb`] },
-  'tower-3-1.glb': { parts: [...KS('bottom-a', 'middle-a'), `${KEN}/weapon-cannon.glb`] },
-  'tower-3-2.glb': { parts: [...KS('bottom-b', 'middle-b', 'top-b'), `${KEN}/weapon-cannon.glb`] },
-  'tower-3-3.glb': { parts: [...KS('bottom-c', 'middle-c', 'top-c'), `${KEN}/weapon-turret.glb`], tint: [0.7, 0.8, 1] },
-  'tower-3-4.glb': { parts: [...KS('bottom-c', 'middle-c'), `${KEN}/weapon-ballista.glb`], tint: [1, 0.55, 0.4] },
+  // les trois niveaux de base sont des catapultes (tools/models/machines.ts découpe ensuite le bras)
+  'tower-3-1.glb': { parts: [...KS('bottom-a', 'middle-a'), `${KEN}/weapon-catapult.glb`] },
+  'tower-3-2.glb': { parts: [...KS('bottom-b', 'middle-b', 'top-b'), `${KEN}/weapon-catapult.glb`] },
+  // spécialisations : niveau 3 = Mortier à flammes (baliste rouge), niveau 4 = Canon tesla (double canon bleu)
+  'tower-3-3.glb': { parts: [...KS('bottom-c', 'middle-c'), `${KEN}/weapon-ballista.glb`], tint: [1, 0.55, 0.4] },
+  'tower-3-4.glb': { parts: [...KS('bottom-c', 'middle-c', 'top-c'), `${KEN}/weapon-turret.glb`], tint: [0.7, 0.8, 1] },
   // bâtiments
   'gate-vallee.glb': `${RTS}/WallTowers_DoorClosed_SecondAge.gltf`,
   'gate-marais.glb': one(`${RTS}/WallTowers_DoorClosed_FirstAge.gltf`, [0.7, 0.8, 0.65]),

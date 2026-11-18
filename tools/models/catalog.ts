@@ -104,10 +104,11 @@ export const CATALOG: CatalogEntry[] = [
   T(2, 3, 'Foudre (spé. A)', 4.4, 'storm mage tower with a lightning rod and electric blue coils'),
   T(2, 4, 'Givre (spé. B)', 4.4, 'frost mage tower made of ice crystals with a cold white glow'),
   T(3, 0, 'Artillerie I', 2.4, 'small dwarven catapult emplacement on a stone base'),
-  T(3, 1, 'Artillerie II', 2.8, 'dwarven bombard cannon on a reinforced stone base with sandbags'),
-  T(3, 2, 'Artillerie III', 3.2, 'big dwarven mortar with brass fittings and a steam engine'),
-  T(3, 3, 'Tesla (spé. A)', 3.8, 'steampunk tesla cannon with copper coils and glowing tubes'),
-  T(3, 4, 'Brasier (spé. B)', 3.8, 'dwarven flame mortar with a furnace, glowing lava core and chimney'),
+  T(3, 1, 'Artillerie II', 2.8, 'dwarven wooden catapult throwing boulders, on a reinforced stone base'),
+  T(3, 2, 'Artillerie III', 3.2, 'big dwarven siege catapult with iron fittings and a boulder in its bucket'),
+  // niveau 3 = Mortier à flammes, niveau 4 = Canon tesla (ordre de TOWERS.artillery)
+  T(3, 3, 'Brasier (spé. A)', 3.8, 'dwarven flame mortar with a furnace, glowing lava core and chimney'),
+  T(3, 4, 'Tesla (spé. B)', 3.8, 'steampunk tesla cannon with copper coils and glowing tubes'),
   // ------------------------------------------------------------ décor : Vallée d'Aubeclair
   D('vallee', 'chene', 0, 'Chêne', 3.2, 'sway', 'round leafy oak tree, bright green canopy, brown trunk', 700),
   D('vallee', 'chene', 1, 'Chêne (variante)', 3.0, 'sway', 'leafy oak tree with two canopy clumps, yellow green leaves', 700),
