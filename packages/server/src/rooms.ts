@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
-  CLASSES, GameState, HERO_IDS, classOf, sanitizeBuild, type HeroBuild, LEVELS, sanitizeMeta, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
+  GameState, HERO_IDS, classOf, sanitizeBuild, type HeroBuild, LEVELS, sanitizeMeta, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
   type ClientMsg, type Command, type EndInfo, type GameConfig, type HeroId, type LobbyPlayer, type RoomSettings, type ServerMsg,
 } from '@dfend/shared';
 import type { Scores } from './db';
@@ -72,7 +72,7 @@ export class Room {
   }
 
   lobbyState(): LobbyPlayer[] {
-    return this.players.map((p) => ({ id: p.pid, name: p.name, hero: p.hero, cls: classOf(p.build) === CLASSES[0] ? 0 : p.build.cls, ready: p.ready, host: p.pid === this.hostPid, connected: !!p.client }));
+    return this.players.map((p) => ({ id: p.pid, name: p.name, hero: p.hero, cls: classOf(p.build) ? p.build.cls : -1, ready: p.ready, host: p.pid === this.hostPid, connected: !!p.client }));
   }
 
   broadcastRoom() {

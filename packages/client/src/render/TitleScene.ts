@@ -4,7 +4,7 @@ import { enemyGeometry } from '../art/enemies';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry } from '../art/units';
-import { HERO_STYLE, heroWeapon } from '../art/weapons';
+import { WEAPON_STYLE, heroWeapon } from '../art/weapons';
 import { settings } from '../settings';
 import { Decal, Fx } from './Fx';
 import { InstPool, forgetPools } from './InstPool';
@@ -94,10 +94,10 @@ export class TitleScene {
     this.hero = pool(K.hero('samuel'), () => heroGeometry('samuel'), 1);
     // son épée et son animation de combat (modèle importé)
     const hm = model(K.hero('samuel'));
-    const wg = hm ? heroWeapon('samuel', hm.geo) : null;
+    const wg = hm ? heroWeapon('samuel', hm.geo, 1) : null;
     if (wg) {
       this.heroWeapon = new InstPool(wg, 1, this.group, settings.shadows);
-      this.heroStyle = HERO_STYLE.samuel;
+      this.heroStyle = WEAPON_STYLE[1];
     }
     // deux tours sur les emplacements les plus proches de Samuel
     const slots = [...map.slots].filter((s) => !s.locked && (s.x - this.heroPos.x) ** 2 + (s.z - this.heroPos.z) ** 2 > 16).sort((a, b) => (a.x - this.heroPos.x) ** 2 + (a.z - this.heroPos.z) ** 2 - ((b.x - this.heroPos.x) ** 2 + (b.z - this.heroPos.z) ** 2));

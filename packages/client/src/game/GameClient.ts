@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
-  ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, heroSkills, heroPoints, CLASSES, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
+  ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
@@ -45,10 +45,10 @@ function bowPos(hx: number, hz: number, tx: number, tz: number, out: { x: number
 /** Compétences du héros du joueur (d'après sa classe, reçue dans l'instantané). */
 function hudSkills() {
   const h = ui.hud.hero;
-  return heroSkills({ cls: h.cls, nodes: h.nodes, common: 0 });
+  return kitSkills(h.cls, h.kit);
 }
 /** Rayon de l'anneau de visée des compétences de zone. */
-const SKILL_RADIUS: Record<string, number> = { pluie: 2.3, forge: 3, boule: 1.9, meteore: 3, acide: 2, transmutation: 2.8, bombe: 2.2 };
+const SKILL_RADIUS: Record<string, number> = { pluie: 2.3, boule: 1.9, flammes: 2.4, meteore: 3, acide: 2, transmutation: 2.8, bombe: 2.2, visee: 2.2, golem: 1.2 };
 
 /** Conseil affiché la première fois qu'une propriété d'ennemi apparaît. */
 const TRAIT_ADVICE = [
@@ -749,7 +749,7 @@ export class GameClient {
     // héros : type par unité
     for (let i = 0; i < snap.hCount; i++) {
       this.ents.heroTypeByUnit.set(snap.hUnit[i], snap.hType[i]);
-      this.ents.heroStyleByUnit.set(snap.hUnit[i], (CLASSES[snap.hCls[i]] ?? CLASSES[0]).style);
+      this.ents.heroWeaponByUnit.set(snap.hUnit[i], classLook(snap.hCls[i]).weapon);
     }
     this.ents.you = this.you;
 
@@ -1053,7 +1053,7 @@ export class GameClient {
       const he = h.hero;
       he.type = s.hType[hi];
       he.cls = s.hCls[hi];
-      he.nodes = s.hNodes[hi];
+      he.kit = s.hKit[hi];
       he.level = s.hLevel[hi];
       he.xp = s.hXp[hi];
       he.cds[0] = Math.ceil(s.hCd[hi * 3] / TICK_RATE);
@@ -1417,16 +1417,16 @@ export class GameClient {
         let [, , , x, z] = ev;
         const s = this.interp.latest!;
         const hi = s.heroIndex(owner);
-        const sk = hi >= 0 ? heroSkills({ cls: s.hCls[hi], nodes: s.hNodes[hi], common: 0 })[skill] : null;
+        const sk = hi >= 0 ? kitSkills(s.hCls[hi], s.hKit[hi])[skill] : null;
         // flèche perçante : un vrai tir à l'arc (bras en joue), pas le geste de sort levé vers le ciel
-        const shot = sk?.id === 'perce';
+        const shot = sk?.id === 'perce' || sk?.id === 'visee';
         if (hi >= 0) {
           if (shot) this.ents.uFireTime[s.hUnit[hi]] = this.time;
           else this.ents.castTime[s.hUnit[hi]] = this.time;
           // sort ciblé : le héros se tourne vers le point visé
           if ((x - hx) ** 2 + (z - hz) ** 2 > 0.25) this.ents.aim(s.hUnit[hi], 0xffff, x, z, this.time, 0.9);
         }
-        if (shot) {
+        if (sk?.id === 'perce') {
           // flèche perçante : trait lumineux et sillage de vent, depuis l'arc
           const dx = x - hx, dz = z - hz, l = Math.sqrt(dx * dx + dz * dz) || 1;
           const b = bowPos(hx, hz, x, z, this.tpos);

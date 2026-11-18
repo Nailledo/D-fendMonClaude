@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, TRAITS, CLASSES, SKILL_UNLOCK, heroSkills } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -18,8 +18,8 @@
 
   const h = $derived(ui.hud);
   const hero = $derived(HEROES[HERO_IDS[h.hero.type]]);
-  const hcls = $derived(CLASSES[h.hero.cls] ?? CLASSES[0]);
-  const hskills = $derived(heroSkills({ cls: h.hero.cls, nodes: h.hero.nodes, common: 0 }));
+  const hcls = $derived(classLook(h.hero.cls));
+  const hskills = $derived(kitSkills(h.hero.cls, h.hero.kit));
   const g = () => app.game;
   const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
   const multi = $derived(!!ui.game?.multi);
@@ -181,7 +181,7 @@
           {@const locked = !s || h.hero.level < unlock}
           {@const cd = h.hero.cds[i]}
           <button class="skill" class:ult={i === 2} class:locked disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
-            title={s ? `${s.name} — ${s.desc} (recharge ${s.cd} s)${locked ? ` — niveau ${unlock} requis` : ''}` : 'Ultime : à apprendre dans l’arbre du héros (dernier nœud d’une classe)'}>
+            title={s ? `${s.name} — ${s.desc} (recharge ${s.cd} s)${locked ? ` — niveau ${unlock} requis` : ''}` : 'Ultime : à apprendre dans l’arbre du héros (au bout d’une branche de classe)'}>
             {#if !s}
               <Ico k="lock" fb={LINE.lock} /><span class="sn">Arbre</span>
             {:else if locked}

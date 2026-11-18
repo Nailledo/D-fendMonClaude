@@ -51,7 +51,7 @@
             {#if ui.portraits[p.hero]}<img src={ui.portraits[p.hero]} alt="" />{/if}
             <div class="grow">
               <b>{p.name}</b>
-              <div class="small">{HEROES[p.hero].name} · {CLASSES[p.cls ?? 0]?.name ?? ''}{#if !p.connected} · <i>déconnecté</i>{/if}</div>
+              <div class="small">{HEROES[p.hero].name} · {CLASSES[p.cls ?? -1]?.name ?? 'Aventurier'}{#if !p.connected} · <i>déconnecté</i>{/if}</div>
             </div>
             <span class="rdy" class:ok={p.ready || p.host}>{p.host ? 'Hôte' : p.ready ? 'Prêt' : 'Pas prêt'}</span>
           </div>

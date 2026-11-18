@@ -11,8 +11,16 @@ import { GB, Part } from './builder';
 export const WEAPON_R = 10;
 export const WEAPON_L = 11;
 
-/** style d'animation de chaque héros (voir le vertex shader) */
-export const HERO_STYLE: Record<string, number> = { samuel: 1, lyra: 2, brom: 3, nox: 4 };
+/**
+ * Armes tenues selon la classe du héros (ClassDef.weapon) :
+ * 1 épée longue (épéiste), 2 arc (archer), 3 marteau et bouclier (gardien), 4 bâton à orbe (mage),
+ * 5 bâton à crâne (nécromancien), 6 lance-fioles (artificier), 7 épée courte (aventurier).
+ */
+export const WEAPON_KINDS = 7;
+/** style d'animation de chaque arme (voir le vertex shader) : 1 épée, 2 arc, 3 marteau, 4 bâton */
+export const WEAPON_STYLE = [0, 1, 2, 3, 4, 4, 4, 1];
+/** arme par défaut (Aventurier) */
+export const DEFAULT_WEAPON = 7;
 
 interface Arm {
   /** épaule (pivot du bras) */
@@ -54,27 +62,31 @@ function limb(g: GB, pts: [number, number][], x: number, oy: number, oz: number,
   }
 }
 
-/** Arme du héros `id` ajustée à la main du modèle `geo` ; null si le héros n'a pas d'arme prévue. */
-export function heroWeapon(id: string, geo: THREE.BufferGeometry, style = HERO_STYLE[id]): THREE.BufferGeometry | null {
+/** Arme `kind` ajustée à la main du modèle `geo` (apparence `id`) ; null si le modèle n'a pas de bras. */
+export function heroWeapon(id: string, geo: THREE.BufferGeometry, kind = DEFAULT_WEAPON): THREE.BufferGeometry | null {
+  const style = WEAPON_STYLE[kind];
   if (!style) return null;
   const left = style === 2;
   const arm = armOf(geo, left ? Part.ArmL : Part.ArmR);
   if (!arm) return null;
   const [hx, hy, hz] = arm.hand;
-  const g = new GB(id.length * 17 + 5 + style * 101);
+  const g = new GB(id.length * 17 + 5 + kind * 101);
   g.ao = false;
   g.jitter = 0.04;
   // pivot du poignet sous l'épaule (même axe de rotation que le bras), arme placée à la vraie main
   g.setPart(left ? WEAPON_L : WEAPON_R, arm.sh[0], hy, arm.sh[2]);
-  if (style === 1) {
-    // épée : lame droite, garde dorée, pommeau
-    g.box(0.045, 0.16, 0.045, 0x5d4037, hx, hy - 0.01, hz);
-    g.ball(0.035, 0xc9a227, hx, hy - 0.1, hz);
-    g.box(0.06, 0.035, 0.2, 0xc9a227, hx, hy + 0.08, hz);
-    g.box(0.022, 0.5, 0.075, 0xdfe6ea, hx, hy + 0.35, hz);
-    g.box(0.026, 0.42, 0.018, 0xb0bec5, hx, hy + 0.33, hz);
-    g.cone(0.054, 0.1, 4, 0xdfe6ea, hx, hy + 0.65, hz, 0, Math.PI / 4, 0);
-  } else if (style === 2) {
+  if (kind === 1) {
+    // épée longue : lame large à gouttière, garde dorée recourbée, gemme bleue, pommeau
+    g.box(0.045, 0.22, 0.045, 0x3e2723, hx, hy - 0.02, hz);
+    g.ball(0.04, 0xc9a227, hx, hy - 0.15, hz);
+    g.box(0.07, 0.04, 0.28, 0xc9a227, hx, hy + 0.1, hz);
+    g.cone(0.03, 0.08, 4, 0xc9a227, hx, hy + 0.13, hz + 0.15, 0.6, 0, 0);
+    g.cone(0.03, 0.08, 4, 0xc9a227, hx, hy + 0.13, hz - 0.15, -0.6, 0, 0);
+    g.ball(0.03, 0x3b82f6, hx + 0.035, hy + 0.1, hz, 1, 1, 1, 1);
+    g.box(0.026, 0.72, 0.09, 0xe3eaee, hx, hy + 0.48, hz);
+    g.box(0.03, 0.62, 0.02, 0x9fb3bf, hx, hy + 0.45, hz);
+    g.cone(0.064, 0.13, 4, 0xe3eaee, hx, hy + 0.9, hz, 0, Math.PI / 4, 0);
+  } else if (kind === 2) {
     // arc : branches courbées vers l'avant, corde tendue entre les pointes, poignée en cuir
     const pts: [number, number][] = [];
     for (let k = 0; k <= 8; k++) {
@@ -86,17 +98,43 @@ export function heroWeapon(id: string, geo: THREE.BufferGeometry, style = HERO_S
     g.ball(0.025, 0xd7b46a, hx, hy + 0.46, hz - 0.07);
     g.ball(0.025, 0xd7b46a, hx, hy - 0.46, hz - 0.07);
     g.box(0.008, 0.92, 0.008, 0xf5f0dc, hx, hy, hz - 0.07);
-  } else if (style === 3) {
-    // marteau de forgeron : long manche, tête massive cerclée
-    g.cyl(0.03, 0.035, 0.66, 6, 0x6d4c41, hx, hy + 0.2, hz);
+  } else if (kind === 3) {
+    // gardien : marteau de guerre à deux têtes...
+    g.cyl(0.032, 0.036, 0.62, 6, 0x5d4037, hx, hy + 0.18, hz);
     g.box(0.07, 0.05, 0.07, 0x3e2723, hx, hy - 0.12, hz);
-    g.box(0.17, 0.17, 0.32, 0x607d8b, hx, hy + 0.56, hz);
-    g.box(0.19, 0.04, 0.34, 0x37474f, hx, hy + 0.56, hz);
-    g.box(0.15, 0.15, 0.04, 0x90a4ae, hx, hy + 0.56, hz + 0.17);
-    g.box(0.15, 0.15, 0.04, 0x90a4ae, hx, hy + 0.56, hz - 0.17);
-    g.box(0.05, 0.08, 0.05, 0xff8f00, hx, hy + 0.66, hz);
-  } else {
-    // bâton de nécromancien : bois sombre, griffes et orbe vert
+    g.box(0.19, 0.19, 0.36, 0x78909c, hx, hy + 0.54, hz);
+    g.box(0.21, 0.05, 0.38, 0x37474f, hx, hy + 0.54, hz);
+    g.box(0.16, 0.16, 0.05, 0xb0bec5, hx, hy + 0.54, hz + 0.19);
+    g.box(0.16, 0.16, 0.05, 0xb0bec5, hx, hy + 0.54, hz - 0.19);
+    g.cone(0.05, 0.12, 4, 0xb0bec5, hx, hy + 0.7, hz);
+    // ... et grand bouclier au bras gauche
+    const al = armOf(geo, Part.ArmL);
+    if (al) {
+      const [lx, ly, lz] = al.hand;
+      g.setPart(WEAPON_L, al.sh[0], ly, al.sh[2]);
+      const ox = lx + Math.sign(lx || -1) * 0.07;
+      g.box(0.05, 0.56, 0.4, 0x546e7a, ox, ly + 0.12, lz + 0.04);
+      g.box(0.06, 0.6, 0.06, 0xc9a227, ox, ly + 0.12, lz + 0.04);
+      g.box(0.06, 0.06, 0.44, 0xc9a227, ox, ly + 0.2, lz + 0.04);
+      g.box(0.055, 0.5, 0.03, 0x37474f, ox, ly + 0.12, lz + 0.24);
+      g.box(0.055, 0.5, 0.03, 0x37474f, ox, ly + 0.12, lz - 0.16);
+      g.ball(0.05, 0xdfe6ea, ox + Math.sign(lx || -1) * 0.03, ly + 0.2, lz + 0.04);
+    }
+  } else if (kind === 4) {
+    // mage : bâton noueux, croissant d'argent et orbe de cristal violet
+    g.cyl(0.022, 0.03, 1.0, 5, 0x6d4c41, hx, hy + 0.2, hz);
+    g.box(0.06, 0.05, 0.06, 0xc9a227, hx, hy + 0.66, hz);
+    const pts: [number, number][] = [];
+    for (let k = 0; k <= 6; k++) {
+      const a = Math.PI * (0.15 + (k / 6) * 1.7);
+      pts.push([0.8 + Math.sin(a) * -0.11, Math.cos(a) * 0.11]);
+    }
+    limb(g, pts, hx, hy, hz, 0.025, 0xcfd8dc);
+    g.ball(0.085, 0xb46cff, hx, hy + 0.8, hz, 1, 1, 1, 1);
+    g.ball(0.04, 0xf3e5ff, hx + 0.02, hy + 0.83, hz + 0.03);
+    g.cone(0.02, 0.07, 4, 0xb46cff, hx, hy + 0.96, hz);
+  } else if (kind === 5) {
+    // nécromancien : bâton sombre, griffes d'os, petit crâne et orbe vert
     g.cyl(0.022, 0.028, 0.95, 5, 0x3e2723, hx, hy + 0.18, hz);
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2;
@@ -104,7 +142,29 @@ export function heroWeapon(id: string, geo: THREE.BufferGeometry, style = HERO_S
     }
     g.ball(0.075, 0x9cff57, hx, hy + 0.73, hz, 1, 1, 1, 1);
     g.ball(0.04, 0xe8ffd0, hx, hy + 0.74, hz + 0.03);
-    g.box(0.06, 0.05, 0.06, 0x7c3aed, hx, hy + 0.6, hz);
+    g.ball(0.06, 0xece3d0, hx, hy + 0.56, hz + 0.02);
+    g.box(0.05, 0.03, 0.05, 0xece3d0, hx, hy + 0.5, hz + 0.03);
+    g.box(0.02, 0.02, 0.02, 0x1b1b1b, hx - 0.02, hy + 0.57, hz + 0.075);
+    g.box(0.02, 0.02, 0.02, 0x1b1b1b, hx + 0.02, hy + 0.57, hz + 0.075);
+    g.box(0.06, 0.04, 0.06, 0x7c3aed, hx, hy + 0.44, hz);
+  } else if (kind === 6) {
+    // artificier : lance-fioles en laiton, rouages et ballon de verre bouillonnant
+    g.cyl(0.03, 0.034, 0.62, 6, 0xb08d57, hx, hy + 0.14, hz);
+    g.box(0.06, 0.08, 0.06, 0x4e342e, hx, hy - 0.08, hz);
+    g.cyl(0.07, 0.07, 0.03, 8, 0x8d6e63, hx, hy + 0.32, hz, Math.PI / 2, 0, 0);
+    g.cyl(0.055, 0.055, 0.035, 8, 0xc9a227, hx, hy + 0.32, hz + 0.02, Math.PI / 2, 0, 0);
+    g.cyl(0.05, 0.06, 0.08, 6, 0xb08d57, hx, hy + 0.48, hz);
+    g.ball(0.1, 0x2dd4bf, hx, hy + 0.6, hz, 1, 1, 1, 1);
+    g.ball(0.035, 0xccfbf1, hx + 0.03, hy + 0.64, hz + 0.05);
+    g.cyl(0.025, 0.03, 0.08, 6, 0xe0f2f1, hx, hy + 0.72, hz);
+    g.box(0.05, 0.03, 0.05, 0x8d6e63, hx, hy + 0.77, hz);
+  } else {
+    // aventurier : épée courte toute simple, garde en bois
+    g.box(0.04, 0.14, 0.04, 0x6d4c41, hx, hy - 0.01, hz);
+    g.ball(0.03, 0x8d6e63, hx, hy - 0.09, hz);
+    g.box(0.05, 0.035, 0.16, 0x795548, hx, hy + 0.07, hz);
+    g.box(0.02, 0.38, 0.065, 0xcfd8dc, hx, hy + 0.28, hz);
+    g.cone(0.046, 0.08, 4, 0xcfd8dc, hx, hy + 0.51, hz, 0, Math.PI / 4, 0);
   }
   const out = g.build();
   // aWeight des parties armes = longueur du bras (main → épaule)

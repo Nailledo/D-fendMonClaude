@@ -1,13 +1,32 @@
 /** Bots d'équilibrage partagés par balance.ts et tune.ts. */
 import {
-  ENEMIES, FAMILIES, GameState, LEVELS, SKILL_UNLOCK, Sim, TOWERS, type Difficulty, type GameConfig, type HeroId,
+  CORE, CORE_COST, CORE_RANKS, ENEMIES, FAMILIES, GameState, LEVELS, SKILL_UNLOCK, Sim, TOWERS, ULT_NODE, classNodes, CLASSES, nodeOpen,
+  type Difficulty, type GameConfig, type HeroBuild, type HeroId,
 } from '../packages/shared/src/index';
 
 /** glouton : archers partout sans améliorer ; diversifie : rotation des familles ; mono0..3 : une seule famille, améliorée comme diversifie */
 export type Strategy = 'glouton' | 'diversifie' | 'mono0' | 'mono1' | 'mono2' | 'mono3';
 const HEROES: HeroId[] = ['samuel', 'lyra', 'brom', 'nox'];
-/** classes complètes des bots (épéiste, archer, ingénieur, nécromancien), comme les anciens héros */
-const BOT_BUILDS = [1, 3, 7, 5].map((cls) => ({ cls, nodes: 5, common: 0 }));
+/** classes et voies des bots : épéiste duelliste, archer pisteur, artificier ingénieur, nécromancien maître des os */
+const BOT_CLASSES: [number, 0 | 1][] = [[0, 0], [2, 1], [5, 1], [4, 1]];
+
+/**
+ * Arbre d'un bot qui a dépensé `points` comme un joueur appliqué : la vocation, une voie entière, l'ultime, puis le cœur.
+ * On suppose 2 points par niveau terminé avant celui qu'on joue (victoire + Vétéran), plus la victoire en Normal du niveau joué.
+ */
+export function botBuild(cls: number, path: 0 | 1, points: number): HeroBuild {
+  const b: HeroBuild = { cls, r: Array(12).fill(0), core: CORE.map(() => 0) };
+  const nodes = classNodes(CLASSES[cls]);
+  const order = [0, ...[1, 2, 3, 4, 5].map((k) => k + path * 5), ULT_NODE];
+  for (const i of order) {
+    while (nodeOpen(b, cls, i) && points >= nodes[i].cost) { b.r[i]++; points -= nodes[i].cost; }
+  }
+  for (let k = 0; points >= CORE_COST; k = (k + 1) % CORE.length) {
+    if (b.core.every((r) => r >= CORE_RANKS)) break;
+    if (b.core[k] < CORE_RANKS) { b.core[k]++; points -= CORE_COST; }
+  }
+  return b;
+}
 const monoFam = (s: Strategy) => (s.startsWith('mono') ? Number(s[4]) : -1);
 
 export function runBot(sim: Sim, strat: Strategy, n: number) {
@@ -67,7 +86,7 @@ export function runBot(sim: Sim, strat: Strategy, n: number) {
 export function play(level: number, n: number, diff: Difficulty, strat: Strategy, seed: number) {
   const cfg: GameConfig = {
     mode: 'story', mapId: LEVELS[level].mapId, difficulty: diff, seed,
-    players: Array.from({ length: n }, (_, i) => ({ id: i, name: 'Bot' + i, hero: HEROES[i], build: BOT_BUILDS[i] })),
+    players: Array.from({ length: n }, (_, i) => ({ id: i, name: 'Bot' + i, hero: HEROES[i], build: botBuild(BOT_CLASSES[i][0], BOT_CLASSES[i][1], 2 * level + 1) })),
   };
   const sim = new Sim(cfg);
   sim.apply(0, { k: 'wave' });

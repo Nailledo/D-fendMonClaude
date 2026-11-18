@@ -227,8 +227,8 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
   for (const h of sim.heroes) {
     w.u8(h.owner);
     w.u8(HERO_IDS.indexOf(h.def.id));
-    w.u8(CLASSES.indexOf(h.cls));
-    w.u8(h.build.cls > 0 && h.cls !== CLASSES[0] ? h.build.nodes : 0);
+    w.u8(h.cls ? CLASSES.indexOf(h.cls) + 1 : 0);
+    w.u8(h.kit);
     w.u8(h.level);
     const lo = HERO_XP[h.level - 1] ?? 0;
     const hi = HERO_XP[h.level] ?? lo + 1;
@@ -322,9 +322,9 @@ export class Snapshot {
   hCount = 0;
   hOwner = new Uint8Array(4);
   hType = new Uint8Array(4);
-  /** classe (CLASSES) et nœuds achetés dans sa chaîne */
-  hCls = new Uint8Array(4);
-  hNodes = new Uint8Array(4);
+  /** classe (indice dans CLASSES, -1 : Aventurier) et compétences apprises (buildKit) */
+  hCls = new Int8Array(4);
+  hKit = new Uint8Array(4);
   hLevel = new Uint8Array(4);
   hXp = new Float32Array(4);
   hCd = new Uint16Array(12);
@@ -388,7 +388,7 @@ export class Snapshot {
     }
     this.hCount = r.u8();
     for (let i = 0; i < this.hCount; i++) {
-      this.hOwner[i] = r.u8(); this.hType[i] = r.u8(); this.hCls[i] = r.u8(); this.hNodes[i] = r.u8(); this.hLevel[i] = r.u8(); this.hXp[i] = r.frac();
+      this.hOwner[i] = r.u8(); this.hType[i] = r.u8(); this.hCls[i] = r.u8() - 1; this.hKit[i] = r.u8(); this.hLevel[i] = r.u8(); this.hXp[i] = r.frac();
       this.hCd[i * 3] = r.u16(); this.hCd[i * 3 + 1] = r.u16(); this.hCd[i * 3 + 2] = r.u16();
       this.hRespawn[i] = r.u16(); this.hUnit[i] = r.u16(); this.hMaxHp[i] = r.u16();
     }

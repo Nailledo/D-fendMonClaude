@@ -97,5 +97,9 @@ export const SKILL_ICON: Record<string, string> = {
   elixir: line('<path d="M10 3h4M10.5 3v4.5a6 6 0 1 0 3 0V3"/><path d="M12 12v5M9.5 14.5h5"/>'),
   transmute: line('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5L19.5 16h-15z"/><circle cx="12" cy="12" r="2.5"/>'),
   bomb: line('<circle cx="10.5" cy="14" r="6.5"/><path d="M15 9.5l2.5-2.5M17 4.5l1 1.5 1.8.2-1.3 1.2.4 1.8"/>'),
+  crit: line('<path d="M12 2.5l1.8 6 6-1.8-4.2 4.6 4.6 4.2-6-.6.4 6.2L12 16.5 9.4 21.1l.4-6.2-6 .6 4.6-4.2L4.2 6.7l6 1.8z"/>'),
+  thorns: line('<path d="M12 3l8 3v6c0 5-3.5 8-8 9.5C7.5 20 4 17 4 12V6z"/><path d="M2 9l2 1M2 15l2.4-.6M22 9l-2 1M22 15l-2.4-.6M12 1v2"/>'),
+  clock: line('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2.5h6"/>'),
+  roar: line('<path d="M5 9l5-4v14l-5-4z"/><path d="M14 8l4-3M14 12h6M14 16l4 3"/>'),
   passive: line('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),
 };

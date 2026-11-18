@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { HEROES, classOf } from '@dfend/shared';
+  import { HEROES, buildCost, classLook, classOf } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
   import { heroBuild, heroPointsLeft } from '../meta';
   import { hex } from './classIcons';
 
   /** Héros du joueur : apparence + classe, et accès à l'arbre du héros. */
   const b = $derived((progress.hero, heroBuild()));
-  const c = $derived(classOf(b));
+  const c = $derived(classLook(classOf(b) ? b.cls : -1));
+  const spent = $derived(buildCost(b));
   const pts = $derived(heroPointsLeft());
 </script>
 
@@ -14,7 +15,7 @@
   {#if ui.portraits[ui.hero]}<img src={ui.portraits[ui.hero]} alt="" />{/if}
   <span class="tx">
     <b>{HEROES[ui.hero].name}</b>
-    <span class="cl">{c.name}{b.common ? ` · entraînement ${b.common}` : ''}</span>
+    <span class="cl">{c.name}{spent ? ` · ${spent} point${spent > 1 ? 's' : ''} investi${spent > 1 ? 's' : ''}` : ''}</span>
   </span>
   <span class="go">Arbre du héros{#if pts > 0}<em>{pts}</em>{/if}</span>
 </button>

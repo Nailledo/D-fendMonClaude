@@ -3,7 +3,7 @@ import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
 import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
-import { COMMON_DMG, COMMON_HP, SKILL_UNLOCK, classOf, heroPassives, heroSkills, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild } from './data/classes';
+import { AVENTURIER, SKILL_UNLOCK, buildKit, classOf, heroPassives, heroSkills, heroStatBonus, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild, type StatKind } from './data/classes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
 import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, campAura, mineIncome, type SoldierDef, type TowerLevel } from './data/towers';
 import { buildRuntimeMap, type RuntimeMap } from './mapgen';
@@ -176,13 +176,21 @@ export interface Tower {
   auraDmg: number;
 }
 
+export type HeroBase = Pick<ClassDef, 'hp' | 'hpPerLevel' | 'dmg' | 'dmgPerLevel' | 'dmgType' | 'cooldown' | 'armor' | 'speed' | 'regen' | 'range'>;
+
 export interface Hero {
   owner: number;
   /** apparence */
   def: HeroDef;
-  /** classe : statistiques et compétences */
-  cls: ClassDef;
+  /** classe (null : Aventurier, sans vocation) */
+  cls: ClassDef | null;
+  /** statistiques de base (classe ou Aventurier) */
+  base: HeroBase;
   build: HeroBuild;
+  /** compétences apprises (octet de l'instantané) */
+  kit: number;
+  /** bonus des nœuds de statistiques */
+  bonus: Record<StatKind, number>;
   skills: (ClassSkill | null)[];
   /** passifs acquis */
   pas: Set<string>;
@@ -328,15 +336,17 @@ export class Sim {
       const def = HEROES[p.hero] ?? HEROES.samuel;
       const build = sanitizeBuild(p.build);
       const cls = classOf(build);
+      const base: HeroBase = cls ?? AVENTURIER;
       const pas = new Set(heroPassives(build));
-      const armor = Math.min(0.75, cls.armor + (pas.has('enclume') || pas.has('blindage') ? 0.15 : 0));
-      const regen = cls.regen * (pas.has('enclume') ? 1.6 : 1) * (pas.has('vigueur') ? 2 : 1);
+      const bonus = heroStatBonus(build);
+      const armor = Math.min(0.75, base.armor + bonus.armor + (pas.has('enclume') ? 0.15 : 0));
+      const regen = base.regen * (1 + bonus.regen) * (pas.has('enclume') ? 1.6 : 1);
       const ox = (i % 2 === 0 ? -1 : 1) * 0.9 * (i < 2 ? 1 : 2);
-      const u = this.newUnit(HERO_UNIT, p.id, sp.x + ox, sp.z + (i >= 2 ? 1 : 0), cls.hp, cls.dmg[0], cls.dmg[1], armor, cls.cooldown, regen, null, -1);
-      u.speed = cls.speed;
-      u.range = cls.range > 0 ? cls.range + (pas.has('portee') ? 1.5 : 0) : 0;
-      u.rangedType = cls.dmgType;
-      const h: Hero = { owner: p.id, def, cls, build, skills: heroSkills(build), pas, u, level: 1, xp: 0, cds: [0, 0, 0] };
+      const u = this.newUnit(HERO_UNIT, p.id, sp.x + ox, sp.z + (i >= 2 ? 1 : 0), base.hp, base.dmg[0], base.dmg[1], armor, base.cooldown / (1 + bonus.rate), regen, null, -1);
+      u.speed = base.speed * (1 + bonus.speed);
+      u.range = base.range > 0 ? base.range + bonus.range + (pas.has('portee') ? 1.5 : 0) : 0;
+      u.rangedType = base.dmgType;
+      const h: Hero = { owner: p.id, def, cls, base, build, kit: buildKit(build), bonus, skills: heroSkills(build), pas, u, level: 1, xp: 0, cds: [0, 0, 0] };
       u.hero = h;
       this.heroStats(h);
       u.hp = u.maxHp;
@@ -593,6 +603,7 @@ export class Sim {
       const p = this.player(owner);
       if (p) p.kills++;
     }
+    if (hero && hero.pas.has('moisson') && !hero.u.dead) hero.u.hp = Math.min(hero.u.maxHp, hero.u.hp + hero.u.maxHp * 0.06);
     this.ev(Ev.Death, e.id, e.type, e.x, e.z);
     if (def.ab.split) {
       const st = ENEMY_INDEX[def.ab.split.type];
@@ -632,16 +643,16 @@ export class Sim {
 
   /** Points de vie et dégâts du héros selon son niveau et les bonus de son joueur. */
   private heroStats(h: Hero) {
-    const d = h.cls, pk = this.perk(h.owner), b = h.build;
-    const hpMul = 1 + pk.heroHp + b.common * COMMON_HP + (h.pas.has('vigueur') ? 0.1 : 0) + (h.pas.has('blindage') ? 0.15 : 0);
-    const dmgMul = 1 + pk.heroDmg + b.common * COMMON_DMG + (h.pas.has('affute') || h.pas.has('arcanes') ? 0.2 : 0);
+    const d = h.base, pk = this.perk(h.owner);
+    const hpMul = 1 + pk.heroHp + h.bonus.hp;
+    const dmgMul = 1 + pk.heroDmg + h.bonus.dmg;
     h.u.maxHp = Math.round((d.hp + d.hpPerLevel * (h.level - 1)) * hpMul);
     h.u.dmgMin = (d.dmg[0] + d.dmgPerLevel * (h.level - 1)) * dmgMul;
     h.u.dmgMax = (d.dmg[1] + d.dmgPerLevel * (h.level - 1)) * dmgMul;
   }
 
   private addXp(h: Hero, xp: number) {
-    h.xp += xp * (1 + this.perk(h.owner).heroXp);
+    h.xp += xp * (1 + this.perk(h.owner).heroXp + h.bonus.xp);
     while (h.level < HERO_MAX_LEVEL && h.xp >= HERO_XP[h.level]) {
       h.level++;
       this.heroStats(h);
@@ -903,7 +914,7 @@ export class Sim {
         if (!h || h.u.dead || x === null || z === null || (c.i !== 0 && c.i !== 1 && c.i !== 2)) return;
         const sk = h.skills[c.i];
         if (!sk || h.level < SKILL_UNLOCK[c.i] || h.cds[c.i] > 0) return;
-        h.cds[c.i] = sec(sk.cd * (1 - this.perk(pid).heroCd));
+        h.cds[c.i] = sec(sk.cd * Math.max(0.4, 1 - this.perk(pid).heroCd - h.bonus.cd - (h.pas.has('focalisation') ? 0.2 : 0)));
         this.heroSkill(h, c.i, sk, x, z);
         break;
       }
@@ -1061,6 +1072,9 @@ export class Sim {
     const u = h.u;
     const lvl = h.level;
     const near: Enemy[] = [];
+    // bonus des nœuds « dégâts des compétences » et « invocations »
+    const sm = 1 + h.bonus.skill;
+    const km = 1 + h.bonus.summon;
     // portée maximale : le point visé est ramené vers le héros
     if (sk.range) {
       const dx = x - u.x, dz = z - u.z, d = Math.sqrt(dx * dx + dz * dz);
@@ -1074,24 +1088,30 @@ export class Sim {
         if (dx * dx + dz * dz < r * r) fn(o);
       }
     };
+    const tough = h.pas.has('ossements');
     const summon = (n: number, life: number) => {
-      const tough = h.pas.has('ossements');
       for (let k = 0; k < n; k++) {
-        const a = FORMATION[k];
-        const s = this.newUnit(SoldierKind.Squelette, h.owner, x + a[0], z + a[1], Math.round((90 + 12 * lvl) * (tough ? 1.4 : 1)), 5 + lvl, 9 + lvl, 0.1, 1, 0, null, sec(life + (tough ? 4 : 0)));
+        const a = FORMATION[k % FORMATION.length], ring = 1 + Math.floor(k / FORMATION.length) * 0.6;
+        const s = this.newUnit(SoldierKind.Squelette, h.owner, x + a[0] * ring, z + a[1] * ring, Math.round((90 + 12 * lvl) * (tough ? 1.4 : 1) * km), (5 + lvl) * km, (9 + lvl) * km, 0.1, 1, 0, null, sec(life + (tough ? 4 : 0)));
         s.hx = s.x; s.hz = s.z;
       }
       this.ev(Ev.Impact, Impact.Summon, x, z, n > 2 ? 20 : 12);
     };
+    const catalyse = h.pas.has('catalyse') ? 1.3 : 1;
     switch (sk.id) {
       // ---- aventurier
       case 'coup':
-        for (const e of this.enemiesIn(u.x, u.z, 2.2, false, near)) this.damage(e, 30 + 6 * lvl, DmgType.Phys, h.owner, h);
+        for (const e of this.enemiesIn(u.x, u.z, 2.2, false, near)) this.damage(e, (30 + 6 * lvl) * sm, DmgType.Phys, h.owner, h);
         this.ev(Ev.Impact, Impact.Hammer, u.x, u.z, 22);
         break;
       case 'souffle':
         u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.35);
         this.ev(Ev.Heal, u.x, u.z);
+        break;
+      case 'elan':
+        for (const e of this.enemiesIn(u.x, u.z, 3.8, false, near)) this.damage(e, (150 + 26 * lvl) * sm, DmgType.Phys, h.owner, h, 1);
+        unitsNear(4.5, (o) => { o.shield = Math.max(o.shield, 100 + 10 * lvl); }, true);
+        this.ev(Ev.Impact, Impact.Holy, u.x, u.z, 34);
         break;
       // ---- épéiste
       case 'charge': {
@@ -1110,7 +1130,7 @@ export class Sim {
           const t = Math.max(0, Math.min(len, (e.x - sx) * dx + (e.z - sz) * dz));
           const px = sx + dx * t - e.x, pz = sz + dz * t - e.z;
           if (px * px + pz * pz < 1.6) {
-            this.damage(e, 45 + 9 * lvl, DmgType.Phys, h.owner, h);
+            this.damage(e, (45 + 9 * lvl) * sm, DmgType.Phys, h.owner, h);
             e.stunT = Math.max(e.stunT, sec(0.8));
           }
         }
@@ -1118,25 +1138,37 @@ export class Sim {
         break;
       }
       case 'tourbillon':
-        for (let k = 0; k < 3; k++) for (const e of [...this.enemiesIn(u.x, u.z, 2.6, false, near)]) this.damage(e, 22 + 5 * lvl, DmgType.Phys, h.owner, h, 0, k > 0);
+        for (let k = 0; k < 3; k++) for (const e of [...this.enemiesIn(u.x, u.z, 2.6, false, near)]) this.damage(e, (22 + 5 * lvl) * sm, DmgType.Phys, h.owner, h, 0, k > 0);
         this.ev(Ev.Impact, Impact.Charge, u.x, u.z, 26);
         break;
+      case 'ralliement':
+        unitsNear(4.5, (o) => { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.5); o.buffT = sec(6); });
+        this.ev(Ev.Heal, u.x, u.z);
+        break;
       case 'ethan':
-        for (const e of this.enemiesIn(u.x, u.z, 3.8, false, near)) this.damage(e, 160 + 28 * lvl, DmgType.Phys, h.owner, h, 1);
+        for (const e of this.enemiesIn(u.x, u.z, 3.8, false, near)) this.damage(e, (160 + 28 * lvl) * sm, DmgType.Phys, h.owner, h, 1);
         unitsNear(4.5, (o) => { o.shield = 120 + 10 * lvl; }, true);
         this.ev(Ev.Impact, Impact.Holy, u.x, u.z, 38);
         break;
       // ---- gardien
       case 'marteau':
         for (const e of this.enemiesIn(u.x, u.z, 2.7, false, near)) {
-          this.damage(e, 40 + 7 * lvl, DmgType.Phys, h.owner, h);
+          this.damage(e, (40 + 7 * lvl) * sm, DmgType.Phys, h.owner, h);
           e.stunT = Math.max(e.stunT, sec(2));
         }
         this.ev(Ev.Impact, Impact.Hammer, u.x, u.z, 27);
         break;
-      case 'ralliement':
-        unitsNear(4.5, (o) => { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.5); o.buffT = sec(6); });
-        this.ev(Ev.Heal, u.x, u.z);
+      case 'defi':
+        for (const e of this.enemiesIn(u.x, u.z, 3.2, false, near)) {
+          this.damage(e, (20 + 5 * lvl) * sm, DmgType.Phys, h.owner, h);
+          e.stunT = Math.max(e.stunT, sec(e.def.boss ? 0.6 : 1.6));
+        }
+        u.shield = Math.max(u.shield, (110 + 18 * lvl) * sm);
+        this.ev(Ev.Impact, Impact.Rally, u.x, u.z, 32);
+        break;
+      case 'egide':
+        unitsNear(4.5, (o) => { o.shield = Math.max(o.shield, (70 + 12 * lvl) * sm); }, true);
+        this.ev(Ev.Impact, Impact.Holy, u.x, u.z, 30);
         break;
       case 'rempart':
         unitsNear(4.5, (o) => { o.shield = Math.max(o.shield, 200 + 25 * lvl); }, true);
@@ -1153,87 +1185,106 @@ export class Sim {
           const t = (e.x - u.x) * dx + (e.z - u.z) * dz;
           if (t < 0 || t > 13) continue;
           const px = u.x + dx * t - e.x, pz = u.z + dz * t - e.z;
-          if (px * px + pz * pz < 0.9) this.damage(e, 85 + 12 * lvl, DmgType.Phys, h.owner, h, 1);
+          if (px * px + pz * pz < 0.9) this.damage(e, (85 + 12 * lvl) * sm, DmgType.Phys, h.owner, h, 1);
         }
         break;
       }
+      case 'visee': {
+        // l'ennemi le plus solide près du point visé
+        let best: Enemy | null = null;
+        for (const e of this.enemiesIn(x, z, 2.2, true, near)) if (this.visible(e) && (!best || e.hp > best.hp)) best = e;
+        if (!best) break;
+        const flight = this.flightTicks(u.x, u.z, best.x, best.z, 26);
+        const pr = this.mkProj(FIRE_HERO_ARROW, null, h.owner, best, best.x, best.z, flight, (170 + 26 * lvl) * sm, DmgType.Phys, 0, true, h);
+        this.projs.push(pr);
+        this.ev(Ev.Fire, FIRE_HERO_ARROW, Src.Hero, h.owner, best.id, best.x, best.z, flight);
+        break;
+      }
       case 'pluie':
-        this.zones.push({ kind: Impact.ArrowRain, x, z, r: 2.3, t: sec(3), dps: 32 + 5 * lvl, dtype: DmgType.Phys, owner: h.owner, air: true, slow: 0 });
+        this.zones.push({ kind: Impact.ArrowRain, x, z, r: 2.3, t: sec(3), dps: (32 + 5 * lvl) * sm, dtype: DmgType.Phys, owner: h.owner, air: true, slow: 0 });
         this.ev(Ev.Impact, Impact.ArrowRain, x, z, 23);
         break;
       case 'aube':
-        for (const e of this.enemiesIn(u.x, u.z, 9, true, near)) this.damage(e, 120 + 18 * lvl, DmgType.Phys, h.owner, h, 1);
+        for (const e of this.enemiesIn(u.x, u.z, 9, true, near)) this.damage(e, (120 + 18 * lvl) * sm, DmgType.Phys, h.owner, h, 1);
         this.ev(Ev.Impact, Impact.Dawn, u.x, u.z, 90);
         break;
       // ---- mage
       case 'boule':
-        for (const e of [...this.enemiesIn(x, z, 1.9, true, near)]) this.damage(e, 55 + 10 * lvl, DmgType.Magic, h.owner, h, 0, false, true);
+        for (const e of [...this.enemiesIn(x, z, 1.9, true, near)]) this.damage(e, (55 + 10 * lvl) * sm, DmgType.Magic, h.owner, h, 0, false, true);
         this.ev(Ev.Impact, Impact.FireShell, x, z, 19);
+        break;
+      case 'flammes':
+        this.zones.push({ kind: Impact.FireShell, x, z, r: 2.4, t: sec(4), dps: (30 + 6 * lvl) * sm, dtype: DmgType.Magic, owner: h.owner, air: false, slow: 0 });
+        this.ev(Ev.Impact, Impact.FireShell, x, z, 24);
         break;
       case 'nova':
         for (const e of [...this.enemiesIn(u.x, u.z, 3, true, near)]) {
-          this.damage(e, 25 + 5 * lvl, DmgType.Magic, h.owner, h);
+          this.damage(e, (25 + 5 * lvl) * sm, DmgType.Magic, h.owner, h);
           if (!e.dead) e.stunT = Math.max(e.stunT, sec(e.def.boss ? 0.8 : 2));
         }
         this.ev(Ev.Impact, Impact.Frost, u.x, u.z, 30);
         break;
       case 'meteore': {
         const flight = sec(1.1);
-        this.projs.push(this.mkProj(FIRE_METEOR, null, h.owner, null, x, z, flight, 260 + 30 * lvl, DmgType.Magic, 3, false, h));
+        this.projs.push(this.mkProj(FIRE_METEOR, null, h.owner, null, x, z, flight, (260 + 30 * lvl) * sm, DmgType.Magic, 3, false, h));
         this.ev(Ev.Fire, FIRE_METEOR, Src.Sky, h.owner, 0xffff, x, z, flight);
         break;
       }
       // ---- nécromancien
-      case 'os': summon(2, 14); break;
-      case 'armee': summon(6, 18); break;
+      case 'os': summon(h.pas.has('legion') ? 3 : 2, 14); break;
+      case 'armee': summon(h.pas.has('legion') ? 8 : 6, 18); break;
+      case 'golem': {
+        const g = this.newUnit(SoldierKind.Squelette, h.owner, x, z, Math.round((420 + 45 * lvl) * (tough ? 1.4 : 1) * km), (16 + 3 * lvl) * km, (26 + 3 * lvl) * km, 0.35, 1.2, 0, null, sec(20 + (tough ? 4 : 0)));
+        g.hx = x; g.hz = z;
+        this.ev(Ev.Impact, Impact.Summon, x, z, 22);
+        break;
+      }
       case 'drain': {
         let total = 0;
-        for (const e of this.enemiesIn(u.x, u.z, 3.6, true, near)) total += this.damage(e, 32 + 7 * lvl, DmgType.Magic, h.owner, h);
+        for (const e of this.enemiesIn(u.x, u.z, 3.6, true, near)) total += this.damage(e, (32 + 7 * lvl) * sm, DmgType.Magic, h.owner, h);
         u.hp = Math.min(u.maxHp, u.hp + total * 0.5);
         this.ev(Ev.Impact, Impact.Drain, u.x, u.z, 36);
         break;
       }
-      // ---- alchimiste
-      case 'acide':
-        this.zones.push({ kind: Impact.Lava, x, z, r: 2, t: sec(4), dps: 26 + 5 * lvl, dtype: DmgType.True, owner: h.owner, air: false, slow: 0.35 });
-        this.ev(Ev.Impact, Impact.Lava, x, z, 20);
+      // ---- artificier
+      case 'bombe': {
+        const r = 2.2 * catalyse;
+        for (const e of [...this.enemiesIn(x, z, r, false, near)]) {
+          this.damage(e, (60 + 10 * lvl) * sm, DmgType.Phys, h.owner, h, 0, false, true);
+          if (!e.dead) e.stunT = Math.max(e.stunT, sec(0.7));
+        }
+        this.ev(Ev.Impact, Impact.Shell, x, z, Math.round(r * 10));
         break;
-      case 'elixir':
-        u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.3);
-        unitsNear(4.5, (o) => { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.4); o.buffT = sec(6); });
-        u.buffT = sec(6);
-        this.ev(Ev.Heal, u.x, u.z);
+      }
+      case 'acide': {
+        const r = 2 * catalyse;
+        this.zones.push({ kind: Impact.Lava, x, z, r, t: sec(catalyse > 1 ? 6 : 4), dps: (26 + 5 * lvl) * sm, dtype: DmgType.True, owner: h.owner, air: false, slow: 0.35 });
+        this.ev(Ev.Impact, Impact.Lava, x, z, Math.round(r * 10));
         break;
+      }
+      case 'tourelle': {
+        const k = (h.pas.has('mecanique') ? 1.4 : 1) * km;
+        const forge = h.pas.has('forge');
+        const t = this.newUnit(SoldierKind.Tourelle, h.owner, x, z, Math.round((220 + 20 * lvl) * k), (10 + 2 * lvl) * k, (16 + 2 * lvl) * k, 0.4, 0.6, 0, null, sec(forge ? 24 : 16));
+        t.range = 6.5;
+        t.speed = 0;
+        t.hx = x; t.hz = z;
+        this.ev(Ev.Impact, Impact.Turret, x, z, 10);
+        if (forge) {
+          this.zones.push({ kind: Impact.Lava, x, z, r: 2.4, t: sec(4), dps: (30 + 5 * lvl) * sm, dtype: DmgType.True, owner: h.owner, air: false, slow: 0.4 });
+          this.ev(Ev.Impact, Impact.Lava, x, z, 24);
+        }
+        break;
+      }
       case 'transmutation': {
         const p = this.players.find((q) => q.id === h.owner);
         for (const e of [...this.enemiesIn(x, z, 2.8, true, near)]) {
-          this.damage(e, 200 + 25 * lvl, DmgType.True, h.owner, h, 1, false, true);
+          this.damage(e, (200 + 25 * lvl) * sm, DmgType.True, h.owner, h, 1, false, true);
           if (p) { p.gold += 3; p.goldEarned += 3; }
         }
         this.ev(Ev.Impact, Impact.Arcane, x, z, 28);
         break;
       }
-      // ---- ingénieur
-      case 'tourelle': {
-        const k = h.pas.has('mecanique') ? 1.4 : 1;
-        const t = this.newUnit(SoldierKind.Tourelle, h.owner, x, z, Math.round((220 + 20 * lvl) * k), (10 + 2 * lvl) * k, (16 + 2 * lvl) * k, 0.4, 0.6, 0, null, sec(16));
-        t.range = 6.5;
-        t.speed = 0;
-        t.hx = x; t.hz = z;
-        this.ev(Ev.Impact, Impact.Turret, x, z, 10);
-        break;
-      }
-      case 'bombe':
-        for (const e of [...this.enemiesIn(x, z, 2.2, false, near)]) {
-          this.damage(e, 60 + 10 * lvl, DmgType.Phys, h.owner, h, 0, false, true);
-          if (!e.dead) e.stunT = Math.max(e.stunT, sec(0.7));
-        }
-        this.ev(Ev.Impact, Impact.Shell, x, z, 22);
-        break;
-      case 'forge':
-        this.zones.push({ kind: Impact.Lava, x, z, r: 3, t: sec(5), dps: 45 + 7 * lvl, dtype: DmgType.True, owner: h.owner, air: false, slow: 0.5 });
-        this.ev(Ev.Impact, Impact.Lava, x, z, 30);
-        break;
     }
   }
 
@@ -1338,7 +1389,7 @@ export class Sim {
     }
     let dmg = p.dmg;
     let flags = 0;
-    if (p.heroXp && this.heroCrit(p.heroXp)) { dmg *= 2; flags = 1; }
+    if (p.heroXp) { const k = this.heroCrit(p.heroXp); if (k > 1) { dmg *= k; flags = 1; } }
     const dealt = this.damage(e, dmg, p.dtype, p.owner, p.heroXp, flags, aoe && dmg < 10, aoe);
     if (p.heroXp && p.heroXp.pas.has('vampire')) p.heroXp.u.hp = Math.min(p.heroXp.u.maxHp, p.heroXp.u.hp + dealt * 0.2);
     if (e.dead) return;
@@ -1435,9 +1486,41 @@ export class Sim {
     return h.pas.has('clairvoyance') ? 6.5 : HERO_DETECT;
   }
 
-  /** Coup critique d'un héros (passifs Riposte, Œil perçant). */
+  /** Coup critique d'un héros (passifs Riposte, Œil perçant) : multiplicateur des dégâts (1 : pas de critique). */
   private heroCrit(h: Hero) {
-    return (h.pas.has('riposte') || h.pas.has('oeil')) && this.rng.next() < 0.2;
+    if (!(h.pas.has('riposte') || h.pas.has('oeil')) || this.rng.next() >= 0.2) return 1;
+    return h.pas.has('execution') ? 3 : 2;
+  }
+
+  /** Auras des héros sur les soldats proches (r = 4) : dégâts subis, dégâts infligés. */
+  private soldierAura(u: Unit, kind: 'def' | 'atk') {
+    let m = 1;
+    for (const h of this.heroes) {
+      if (h.u.dead || h.u === u) continue;
+      const dx = h.u.x - u.x, dz = h.u.z - u.z;
+      if (dx * dx + dz * dz >= 16) continue;
+      if (kind === 'def') {
+        if (h.pas.has('vaillant')) m *= 0.85;
+        if (h.pas.has('garde')) m *= 0.8;
+      } else if (h.pas.has('inspiration')) m *= 1.25;
+    }
+    return m;
+  }
+
+  /** Un soldat est-il près d'un héros à Présence apaisante ? */
+  private soothed(u: Unit) {
+    for (const h of this.heroes) {
+      if (h.u.dead || !h.pas.has('soin')) continue;
+      const dx = h.u.x - u.x, dz = h.u.z - u.z;
+      if (dx * dx + dz * dz < 16) return true;
+    }
+    return false;
+  }
+
+  /** Effets des passifs sur un coup de mêlée du héros (Brûlure, Toucher glacé). */
+  private heroOnHit(h: Hero, e: Enemy) {
+    if (h.pas.has('givre')) { e.slowMul = Math.min(e.slowMul, 0.7); e.slowT = Math.max(e.slowT, sec(1.5)); }
+    if (h.pas.has('brulure')) { e.poisonDps = (h.u.dmgMin + h.u.dmgMax) * 0.15; e.poisonT = sec(4); }
   }
 
   private stepEnemies() {
@@ -1541,9 +1624,9 @@ export class Sim {
             for (const u of this.units) {
               if (u.dead) continue;
               const dx = u.x - foe.x, dz = u.z - foe.z;
-              if (dx * dx + dz * dz < r2) this.hurtUnit(u, dmg);
+              if (dx * dx + dz * dz < r2) this.hurtUnit(u, dmg, e);
             }
-          } else this.hurtUnit(foe, dmg);
+          } else this.hurtUnit(foe, dmg, e);
         }
       } else {
         // déplacement
@@ -1565,17 +1648,13 @@ export class Sim {
     }
   }
 
-  private hurtUnit(u: Unit, dmg: number) {
+  private hurtUnit(u: Unit, dmg: number, src: Enemy | null = null) {
     if (u.dead) return;
     let d = dmg * (1 - Math.min(0.85, u.armor));
-    // aura de Samuel
-    if (u.kind !== HERO_UNIT) {
-      for (const h of this.heroes) {
-        if (!h.pas.has('vaillant') || h.u.dead) continue;
-        const dx = h.u.x - u.x, dz = h.u.z - u.z;
-        if (dx * dx + dz * dz < 16) { d *= 0.85; break; }
-      }
-    }
+    // auras des héros (Cœur vaillant, Garde rapprochée)
+    if (u.kind !== HERO_UNIT) d *= this.soldierAura(u, 'def');
+    // Épines : renvoie une part des coups de mêlée
+    if (src && u.hero && u.hero.pas.has('epines') && !src.dead) this.damage(src, d * 0.25, DmgType.True, u.owner, u.hero, 0, true);
     if (u.shield > 0) {
       const a = Math.min(u.shield, d);
       u.shield -= a;
@@ -1718,9 +1797,11 @@ export class Sim {
             let dmg = this.rollDmg(u.dmgMin, u.dmgMax) * (u.buffT > 0 ? 1.5 : 1) * (1 + (t ? t.auraDmg : 0));
             let flags = 0;
             if (t && t.level === 4 && t.sk[1] > 0 && this.rng.next() < TOWERS.barracks[4].skills![1].values[t.sk[1] - 1]) { dmg *= 2; flags = 1; }
-            if (u.hero && this.heroCrit(u.hero)) { dmg *= 2; flags = 1; }
-            const dealt = this.damage(e, dmg, u.hero ? u.hero.cls.dmgType : DmgType.Phys, u.owner, u.hero, flags);
+            if (u.hero) { const k = this.heroCrit(u.hero); if (k > 1) { dmg *= k; flags = 1; } }
+            else if (u.kind !== HERO_UNIT) dmg *= this.soldierAura(u, 'atk');
+            const dealt = this.damage(e, dmg, u.hero ? u.hero.base.dmgType : DmgType.Phys, u.owner, u.hero, flags);
             if (u.hero && u.hero.pas.has('vampire')) u.hp = Math.min(u.maxHp, u.hp + dealt * 0.2);
+            if (u.hero && !e.dead) this.heroOnHit(u.hero, e);
           }
         }
       }
@@ -1735,15 +1816,30 @@ export class Sim {
           u.cdT = u.cdTicks;
           const h = u.hero;
           const flask = !!h && h.pas.has('instable');
-          const kind = h ? (flask ? PROJ_KINDS.indexOf('shell') : h.cls.dmgType === DmgType.Magic || h.cls.id === 'alchimiste' ? FIRE_HERO_BOLT : FIRE_HERO_ARROW) : FIRE_TURRET;
-          const flight = this.flightTicks(u.x, u.z, tgt.x, tgt.z, flask ? 11 : 16);
-          const dmg = this.rollDmg(u.dmgMin, u.dmgMax) * (u.buffT > 0 ? 1.5 : 1);
-          this.projs.push(this.mkProj(kind, null, u.owner, flask ? null : tgt, tgt.x, tgt.z, flight, dmg, h ? h.cls.dmgType : DmgType.Phys, flask ? 1.2 : 0, true, h));
-          this.ev(Ev.Fire, kind, u.hero ? Src.Hero : Src.Unit, u.hero ? u.owner : u.id & 0xffff, tgt.id, tgt.x, tgt.z, flight);
+          const kind = h ? (flask ? PROJ_KINDS.indexOf('shell') : h.base.dmgType === DmgType.Magic || h.cls?.id === 'artificier' ? FIRE_HERO_BOLT : FIRE_HERO_ARROW) : FIRE_TURRET;
+          const shoot = (tg: Enemy) => {
+            const flight = this.flightTicks(u.x, u.z, tg.x, tg.z, flask ? 11 : 16);
+            const dmg = this.rollDmg(u.dmgMin, u.dmgMax) * (u.buffT > 0 ? 1.5 : 1);
+            const pr = this.mkProj(kind, null, u.owner, flask ? null : tg, tg.x, tg.z, flight, dmg, h ? h.base.dmgType : DmgType.Phys, flask ? 1.2 : 0, true, h);
+            if (h) {
+              if (h.pas.has('tirmortel')) pr.mortel = 0.06;
+              if (h.pas.has('givre')) { pr.slowF = 0.3; pr.slowT = sec(1.5); }
+              if (h.pas.has('brulure')) pr.poison = dmg * 0.3;
+            }
+            this.projs.push(pr);
+            this.ev(Ev.Fire, kind, h ? Src.Hero : Src.Unit, h ? u.owner : u.id & 0xffff, tg.id, tg.x, tg.z, flight);
+          };
+          shoot(tgt);
+          if (h && h.pas.has('multi')) {
+            const t2 = this.findTarget(u.x, u.z, u.range, true, tgt);
+            if (t2) shoot(t2);
+          }
         }
       }
       // régénération hors combat
       if (!u.target && u.hp < u.maxHp && u.regen > 0) u.hp = Math.min(u.maxHp, u.hp + u.regen * DT);
+      // Présence apaisante : les soldats proches d'un gardien se soignent même en combat
+      if (u.kind !== HERO_UNIT && u.hp < u.maxHp && this.soothed(u)) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02 * DT);
     }
   }
 

@@ -65,7 +65,7 @@ export const ui = $state({
     speed: 1,
     mutations: [] as number[],
     players: [] as HudPlayer[],
-    hero: { type: 0, cls: 0, nodes: 0, level: 1, xp: 0, hp: 1, cds: [0, 0, 0], respawn: 0, dead: false },
+    hero: { type: 0, cls: -1, kit: 0, level: 1, xp: 0, hp: 1, cds: [0, 0, 0], respawn: 0, dead: false },
     spells: [0, 0],
     /** objets de boutique restants dans la partie */
     items: [] as number[],

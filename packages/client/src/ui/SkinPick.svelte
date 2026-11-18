@@ -3,7 +3,7 @@
   import { setHero, ui } from '../state.svelte';
   import { save } from '../storage';
 
-  /** Premier lancement : choix de l'apparence du héros (ses pouvoirs viennent ensuite de l'arbre du héros). */
+  /** Premier lancement : choix de l'apparence (skin) du héros ; ses pouvoirs viennent ensuite de l'arbre du héros. */
   let pick = $state<HeroId>(ui.hero);
   function done() {
     setHero(pick);
@@ -14,8 +14,8 @@
 
 <div class="overlay-bg">
   <div class="panel box">
-    <h2>Choisissez votre héros</h2>
-    <p class="sub">Son apparence ne change rien à ses pouvoirs : en finissant des niveaux, vous gagnerez des points pour lui choisir une classe (épéiste, archer, mage, nécromancien…) dans l’arbre du héros. Vous pourrez changer d’apparence à tout moment.</p>
+    <h2>Choisissez votre apparence</h2>
+    <p class="sub">Ce n’est qu’un skin : tous les héros débutent en Aventurier, avec les mêmes statistiques et les mêmes compétences. En finissant des niveaux, vous gagnerez des points pour le développer dans l’arbre du héros et l’orienter vers une classe (épéiste, gardien, archer, mage, nécromancien, artificier). Vous pourrez changer d’apparence à tout moment.</p>
     <div class="list">
       {#each HERO_IDS as h}
         <button class="hero" class:on={pick === h} onclick={() => (pick = h)} ondblclick={() => { pick = h; done(); }}>
@@ -26,7 +26,7 @@
       {/each}
     </div>
     <p class="desc">{HEROES[pick].desc}</p>
-    <button class="btn gold big" onclick={done}>Partir à l’aventure avec {HEROES[pick].name}</button>
+    <button class="btn gold big" onclick={done}>Choisir {HEROES[pick].name}</button>
   </div>
 </div>
 

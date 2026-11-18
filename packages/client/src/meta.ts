@@ -1,4 +1,4 @@
-import { COMMON_COST, COMMON_RANKS, ITEMS, ITEM_MAX, NODE_COST, RANK_COST, TREE, TREE_RANKS, buildCost, heroPoints, sanitizeBuild, treeCost, type HeroBuild } from '@dfend/shared';
+import { CLASSES, CORE_COST, CORE_RANKS, EMPTY_BUILD, ITEMS, ITEM_MAX, RANK_COST, classNodes, nodeOpen, TREE, TREE_RANKS, buildCost, heroPoints, sanitizeBuild, treeCost, type HeroBuild } from '@dfend/shared';
 import { progress, saveProgress } from './state.svelte';
 
 /**
@@ -81,33 +81,36 @@ export function heroPointsTotal(): number {
 export function heroPointsLeft(): number {
   return heroPointsTotal() - buildCost(heroBuild());
 }
-/** Achète le prochain nœud de la chaîne de la classe `cls` (vocation si aucune classe). */
-export function canBuyNode(cls: number): boolean {
+/** Un rang de plus sur le nœud `i` de la branche `cls` (le premier achat fixe la classe). */
+export function canBuyNode(cls: number, i: number): boolean {
   const b = heroBuild();
-  if (b.cls !== cls && b.nodes > 0) return false;
-  const n = b.cls === cls ? b.nodes : 0;
-  return n < NODE_COST.length && heroPointsLeft() >= NODE_COST[n];
+  return nodeOpen(b, cls, i) && heroPointsLeft() >= classNodes(CLASSES[cls])[i].cost;
 }
-export function buyNode(cls: number): boolean {
-  if (!canBuyNode(cls)) return false;
+export function buyNode(cls: number, i: number): boolean {
+  if (!canBuyNode(cls, i)) return false;
   const b = heroBuild();
-  progress.hero = { cls, nodes: (b.cls === cls ? b.nodes : 0) + 1, common: b.common };
+  const r = b.cls === cls ? [...b.r] : [...EMPTY_BUILD.r];
+  r[i]++;
+  progress.hero = { cls, r, core: b.core };
   saveProgress();
   return true;
 }
-export function canBuyCommon(): boolean {
-  return heroBuild().common < COMMON_RANKS && heroPointsLeft() >= COMMON_COST;
+/** Un rang de plus sur le nœud `k` du cœur. */
+export function canBuyCore(k: number): boolean {
+  return heroBuild().core[k] < CORE_RANKS && heroPointsLeft() >= CORE_COST;
 }
-export function buyCommon(): boolean {
-  if (!canBuyCommon()) return false;
+export function buyCore(k: number): boolean {
+  if (!canBuyCore(k)) return false;
   const b = heroBuild();
-  progress.hero = { ...b, common: b.common + 1 };
+  const core = [...b.core];
+  core[k]++;
+  progress.hero = { ...b, core };
   saveProgress();
   return true;
 }
-/** Réinitialisation gratuite : tous les points sont rendus. */
+/** Réinitialisation gratuite : tous les points sont rendus, la classe est libérée. */
 export function resetHero() {
-  progress.hero = { cls: 0, nodes: 0, common: 0 };
+  progress.hero = sanitizeBuild(EMPTY_BUILD);
   saveProgress();
 }
 
