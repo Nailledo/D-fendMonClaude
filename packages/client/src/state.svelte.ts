@@ -79,6 +79,10 @@ export const ui = $state({
     targeting: '' as string,
     /** chapardeurs en fuite avec votre or */
     thief: { n: 0, gold: 0 },
+    /** boss en jeu : barre de vie en haut de l'écran */
+    boss: { on: false, type: 0, hp: 1, phase: 0, phases: 1 },
+    /** incrémenté à chaque entrée en scène / transformation d'un boss (éclair d'écran) */
+    bossFx: 0,
   },
   sel: null as Selection | null,
   dialog: null as null | { lines: Line[]; i: number },

@@ -111,3 +111,22 @@ export function enemyDef(id: string): EnemyDef {
   if (i === undefined) throw new Error('Ennemi inconnu : ' + id);
   return ENEMIES[i];
 }
+
+/** Phase d'un boss (0 = la première) et nombre de phases de sa chaîne de transformations. */
+export function bossPhase(type: number): { phase: number; phases: number } {
+  const id = ENEMIES[type]?.id;
+  let root = type;
+  for (let guard = 0; guard < 8; guard++) {
+    const prev = ENEMIES.findIndex((d) => d.ab.nextPhase === ENEMIES[root].id);
+    if (prev < 0) break;
+    root = prev;
+  }
+  let phase = 0, phases = 0;
+  for (let t = root, guard = 0; t >= 0 && guard < 8; guard++) {
+    if (ENEMIES[t].id === id) phase = phases;
+    phases++;
+    const n = ENEMIES[t].ab.nextPhase;
+    t = n ? ENEMY_INDEX[n] : -1;
+  }
+  return { phase, phases };
+}

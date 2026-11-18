@@ -629,3 +629,16 @@ describe('chapardeur', () => {
     expect(genStoryWaves(LEVELS[0], 1).some((w) => w.groups.some((g) => g.type === ENEMY_INDEX.chapardeur))).toBe(false);
   });
 });
+
+describe('boss', () => {
+  it('Kessin change d’arène et appelle sa garde en se transformant', () => {
+    const sim = new Sim(cfg({ mapId: 'trone' }));
+    const e = (sim as any).spawnEnemy(ENEMY_INDEX.kessin1, 0, 1, 0, 20) as Sim['enemies'][number];
+    const n0 = sim.enemies.length;
+    sim.damage(e, e.hp + 1, DmgType.True, 0, null);
+    expect(e.dead).toBe(false);
+    expect(e.type).toBe(ENEMY_INDEX.kessin2);
+    expect(e.path).toBe(1);
+    expect(sim.enemies.length - n0).toBe(6);
+  });
+});

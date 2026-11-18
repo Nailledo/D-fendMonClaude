@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  AVENTURIER, CLASSES, ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
+  AVENTURIER, CLASSES, ENEMIES, bossPhase, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_FLEEING, ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
@@ -93,6 +93,9 @@ export class GameClient {
   private lastWave = 0;
   /** chapardeurs en fuite avec votre or (id → or volé) */
   private thieves = new Map<number, number>();
+  /** boss déjà présentés (entrée en scène) */
+  private bossSeen = new Set<number>();
+  private tmpP = { x: 0, z: 0 };
   private ended = false;
   private dmgIdx = 0;
   private fpsAcc = 0;
@@ -861,11 +864,16 @@ export class GameClient {
     // ennemis rencontrés pour la première fois
     for (let i = 0; i < f.eN; i++) {
       const d = ENEMIES[f.eType[i]];
+      if (d?.boss && !this.bossSeen.has(f.eId[i])) {
+        this.bossSeen.add(f.eId[i]);
+        this.bossEntrance(d.name, d.desc, f.eX[i], f.eZ[i]);
+      }
       if (d && !this.seenTypes.has(d.id)) {
         this.seenTypes.add(d.id);
         progress.seen.push(d.id);
         saveProgress();
-        toast(`Nouvel ennemi : ${d.name}. ${d.desc}`, 'enemy', 6000);
+        // un boss est présenté par sa propre entrée en scène
+        if (!d.boss) toast(`Nouvel ennemi : ${d.name}. ${d.desc}`, 'enemy', 6000);
       }
       const tr = f.eTraits[i] & 7;
       if (tr) for (let k = 0; k < 3; k++) {
@@ -1092,6 +1100,16 @@ export class GameClient {
     if (best >= 0) this.r.focus(f.eX[best], f.eZ[best]);
   }
 
+  /** Entrée en scène d'un boss : caméra sur lui, secousse, bannière et éclair rouge. */
+  private bossEntrance(title: string, sub: string, x: number, z: number) {
+    banner(title, sub, 3400);
+    this.r.focus(x, z);
+    this.r.shake(0.6);
+    audio.play('boss');
+    ui.hud.bossFx++;
+    this.fx.ring(x, z, 5, 0xff3d00, 1.2, 2);
+  }
+
   private syncHud() {
     const s = this.interp.latest;
     if (!s) return;
@@ -1113,6 +1131,16 @@ export class GameClient {
         for (let i = 0; i < s.eCount; i++) if (s.eId[i] === id) { alive = true; break; }
         if (!alive) this.thieves.delete(id);
       }
+    }
+    let bi = -1;
+    for (let i = 0; i < s.eCount; i++) if (ENEMIES[s.eType[i]]?.boss) { bi = i; break; }
+    const hb = h.boss;
+    if (bi < 0) { if (hb.on) hb.on = false; }
+    else {
+      const t = s.eType[bi];
+      if (!hb.on || hb.type !== t) { const ph = bossPhase(t); hb.type = t; hb.phase = ph.phase; hb.phases = ph.phases; }
+      hb.hp = s.eHp[bi];
+      hb.on = true;
     }
     let tg = 0;
     for (const g of this.thieves.values()) tg += g;
@@ -1759,11 +1787,15 @@ export class GameClient {
         break;
       case Ev.BossPhase: {
         const d = ENEMIES[ev[2]];
-        banner(d?.name ?? 'Le boss se transforme !', d?.desc ?? '');
-        this.r.shake(0.9);
-        audio.play('boss');
         const i = f.enemyIdx(ev[1]);
         if (i >= 0) fx.burst(f.eX[i], 1.5, f.eZ[i], 60, 0xff3d00, 7, 0.2, 1, true, 0);
+        // nouvelle position : l'événement arrive avant le snapshot qui la porte, on la lit dans le dernier reçu
+        const s = this.interp.latest;
+        let x = i >= 0 ? f.eX[i] : 0, z = i >= 0 ? f.eZ[i] : 0;
+        if (s) for (let k = 0; k < s.eCount; k++) if (s.eId[k] === ev[1]) { const p = this.map.paths[s.ePath[k]]; if (p) { p.at(s.eDist[k], s.eLane[k], this.tmpP); x = this.tmpP.x; z = this.tmpP.z; } break; }
+        this.bossEntrance(d?.name ?? 'Le boss se transforme !', d?.desc ?? '', x, z);
+        this.r.shake(0.9);
+        fx.burst(x, 1.5, z, 50, 0xff6e40, 6, 0.2, 1, true, 1);
         break;
       }
       case Ev.UnitDeath:

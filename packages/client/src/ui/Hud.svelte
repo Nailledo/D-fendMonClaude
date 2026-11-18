@@ -81,7 +81,7 @@
   }
 </script>
 
-<div class="hud" class:touch={ui.touch}>
+<div class="hud" class:touch={ui.touch} class:bossOn={h.boss.on}>
   <!-- barre du haut -->
   <div class="top ui">
     <span class="stat life" class:low={h.lives <= 5} title="Vies"><Ico k="heart" fb={ICON.heart} /><b>{h.lives}</b></span>
@@ -98,6 +98,24 @@
       {#each h.mutations as m}<span class="chip mut" title={MUTATIONS[m]?.desc}>{MUTATIONS[m]?.name}</span>{/each}
     </div>
   {/if}
+
+  <!-- boss : barre de vie en haut de l'écran -->
+  {#if h.boss.on}
+    {@const bd = ENEMIES[h.boss.type]}
+    <div class="bossbar" class:low={h.boss.hp < 0.25} role="status" aria-label="{bd?.name} : {Math.round(h.boss.hp * 100)} %">
+      <div class="bname">
+        <img class="bpic" src={ui.portraits['e_' + bd?.id] ?? ''} alt="" />
+        <span>{bd?.name}</span>
+        {#if h.boss.phases > 1}
+          <span class="pips" title="Phase {h.boss.phase + 1} sur {h.boss.phases}">
+            {#each Array(h.boss.phases) as _, k}<i class:done={k < h.boss.phase} class:cur={k === h.boss.phase}></i>{/each}
+          </span>
+        {/if}
+      </div>
+      <div class="btrack"><i class="blag" style="width:{h.boss.hp * 100}%"></i><i class="bfill" style="width:{h.boss.hp * 100}%"></i></div>
+    </div>
+  {/if}
+  {#key h.bossFx}{#if h.bossFx}<div class="bossflash" aria-hidden="true"></div>{/if}{/key}
 
   <!-- alertes du haut : chapardeur, … -->
   <div class="alerts" class:below={h.mutations.length > 0}>
@@ -320,6 +338,25 @@
   .muts { position: absolute; top: calc(74px + var(--sat)); left: calc(14px + var(--sal)); display: flex; gap: 6px; flex-wrap: wrap; }
   .mut { background: #e4d4ff; color: var(--magic); cursor: help; padding: 3px 10px; box-shadow: 0 2px 0 var(--ink); }
 
+  /* ===== boss ===== */
+  .bossbar { position: absolute; top: calc(70px + var(--sat)); left: 50%; transform: translateX(-50%); width: min(460px, 46vw); pointer-events: none; animation: bossIn 0.6s cubic-bezier(.2,1.4,.4,1); }
+  .bname { display: flex; align-items: flex-end; gap: 8px; margin: 0 0 -6px 4px; position: relative; z-index: 1; }
+  .bpic { width: 46px; height: 46px; border-radius: 50%; border: var(--bw) solid var(--ink); background: #4a1d14; object-fit: cover; box-shadow: 0 3px 0 var(--ink); }
+  .bname span:not(.pips) { font-family: var(--font-display); font-size: 1.35em; color: #fff; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 6px; }
+  .pips { display: flex; gap: 4px; margin-left: auto; padding-bottom: 10px; }
+  .pips i { width: 14px; height: 14px; transform: rotate(45deg); border: 2.5px solid var(--ink); background: #6d4c41; }
+  .pips i.done { background: #3e2723; opacity: 0.6; }
+  .pips i.cur { background: #ff5a3c; box-shadow: 0 0 8px #ff8a65; }
+  .btrack { position: relative; height: 22px; border: var(--bw) solid var(--ink); border-radius: 99px; background: #3b1f18; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .btrack i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; }
+  .blag { background: #ffd180; transition: width 0.9s ease 0.25s; }
+  .bfill { background: linear-gradient(180deg, #ff8a65 0 30%, #e53935 30% 75%, #b71c1c 75%); border-right: 2px solid var(--ink); transition: width 0.15s; }
+  .bossbar.low .bfill { animation: bossLow 0.6s ease-in-out infinite; }
+  @keyframes bossLow { 50% { filter: brightness(1.5); } }
+  @keyframes bossIn { from { transform: translate(-50%, -30px) scale(0.6); opacity: 0; } }
+  .bossflash { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 35%, rgba(200, 20, 0, 0.55)); animation: bossFlash 1.4s ease-out forwards; }
+  @keyframes bossFlash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+
   /* ===== alertes du haut ===== */
   .alerts { position: absolute; top: calc(74px + var(--sat)); left: calc(12px + var(--sal)); width: min(252px, 70vw); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
   .alerts.below { top: calc(108px + var(--sat)); }
@@ -532,7 +569,14 @@
   .touch .targeting { bottom: calc(var(--bb) + 18px + var(--sab)); white-space: normal; text-align: center; max-width: calc(100vw - 24px); padding: 6px 6px 6px 16px; font-size: 0.92em; }
   .touch .chatwrap { bottom: calc(var(--bb) + 14px + var(--sab)); width: min(340px, calc(100vw - 16px)); left: calc(8px + var(--sal)); }
   .touch .banner { top: 18%; }
+  /* barre de boss en haut : la bannière descend d'un cran */
+  .bossOn .banner { top: 26%; }
+  .touch.bossOn .banner { top: 34%; }
   .touch .alerts { top: calc(62px + var(--sat)); }
+  .touch .bossbar { top: calc(60px + var(--sat)); }
+  .touch .bpic { width: 36px; height: 36px; }
+  .touch .bname span:not(.pips) { font-size: 1.1em; }
+  .touch .btrack { height: 16px; }
   .touch .alerts.below { top: calc(96px + var(--sat)); }
   .touch .thief { font-size: 0.85em; }
 

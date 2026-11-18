@@ -40,7 +40,7 @@
 
 <Loading />
 
-<div class="toasts">
+<div class="toasts" class:boss={ui.screen === 'game' && ui.hud.boss.on}>
   {#each ui.toasts as t (t.id)}
     <div class="toast {t.kind}">{t.text}</div>
   {/each}
@@ -54,4 +54,6 @@
   .toast.good { --tc: var(--good-fill); }
   .toast.enemy { --tc: #9b6bdf; color: var(--magic); }
   @media (max-width: 640px) { .toasts { top: calc(116px + env(safe-area-inset-top, 0px)); } }
+  /* barre de vie d'un boss en haut : les messages passent dessous */
+  .toasts.boss { top: calc(140px + env(safe-area-inset-top, 0px)); }
 </style>

@@ -630,12 +630,29 @@ export class Sim {
       e.abT = sec(3);
       e.ab2T = sec(4);
       for (const u of [...e.blockers]) this.release(u);
-      // en se transformant, le boss recule sur le chemin : le combat se joue en plusieurs temps
-      e.dist = Math.max(0.6, e.dist - 18);
+      this.ev(Ev.Teleport, e.id, e.x, e.z);
+      // en se transformant, le boss recule sur le chemin : le combat se joue en plusieurs temps ;
+      // sur une carte à plusieurs chemins, il change d'arène et surgit sur un autre chemin
+      const old = this.pathOf(e);
+      const back = Math.max(0.6, e.dist - 18);
+      if (this.map.paths.length > 1) {
+        e.path = (e.path + 1) % this.map.paths.length;
+        const np = this.pathOf(e);
+        e.dist = Math.max(0.6, Math.min(np.length * 0.5, (back / old.length) * np.length));
+      } else e.dist = back;
       this.pathOf(e).at(e.dist, e.lane, tmp);
       e.x = tmp.x;
       e.z = tmp.z;
       this.ev(Ev.BossPhase, e.id, nt);
+      // il appelle sa garde autour de lui
+      const sm = def.ab.summon;
+      if (sm) {
+        const st = ENEMY_INDEX[sm.type];
+        for (let k = 0; k < sm.count * 2; k++) {
+          const c = this.spawnEnemy(st, e.path, this.scaling.hpMul, (this.rng.next() * 2 - 1) * 0.8, Math.max(0.6, e.dist - 0.4 - k * 0.6));
+          c.dist = Math.max(0.6, e.dist - 0.4 - k * 0.6);
+        }
+      }
       return;
     }
     e.dead = true;
