@@ -88,7 +88,7 @@
         <label>Effets : {Math.round(s.volSfx * 100)} %<input type="range" min="0" max="1" step="0.05" bind:value={s.volSfx} oninput={commit} /></label>
         <button class="btn small" onclick={() => { audio.unlock(); audio.play('upgrade'); }}>Tester le son</button>
       {:else if tab === 'keys'}
-        <p class="muted">Tout se joue à la souris : clic gauche pour sélectionner/construire, clic droit pour déplacer le héros, molette pour zoomer, glisser pour déplacer la caméra. Au tactile : appui long pour déplacer le héros, pincement pour zoomer. Cliquez sur une touche pour la changer.</p>
+        <p class="muted">Tout se joue à la souris : clic gauche pour sélectionner/construire, clic droit pour déplacer le héros (sur un ennemi : l’attaquer), molette pour zoomer, glisser pour déplacer la caméra. Au tactile : appui long pour déplacer le héros (sur un ennemi : l’attaquer), pincement pour zoomer. Cliquez sur une touche pour la changer.</p>
         <div class="keys">
           {#each Object.keys(ACTION_LABELS) as a}
             {@const act = a as Action}

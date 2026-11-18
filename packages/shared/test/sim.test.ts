@@ -167,6 +167,53 @@ describe('coopération et héros', () => {
     expect(sim.players[0].gold - before).toBeLessThan(t.invested);
   });
 
+  it('la charge de Samuel s’arrête à sa portée', () => {
+    const sim = new Sim(cfg());
+    const u = sim.heroes[0].u;
+    const x0 = u.x, z0 = u.z;
+    sim.apply(0, { k: 'hskill', i: 0, x: x0 + 30, z: z0 });
+    expect(Math.hypot(u.x - x0, u.z - z0)).toBeLessThanOrEqual(7.001);
+  });
+
+  it('un clic droit sur un ennemi : la mêlée va au contact, le tir reste à portée', () => {
+    for (const hero of ['samuel', 'lyra'] as const) {
+      const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero }] }));
+      const u = sim.heroes[0].u;
+      sim.apply(0, { k: 'wave' });
+      let e: (typeof sim.enemies)[number] | undefined;
+      for (let i = 0; i < 20 * 30 && !e; i++) { sim.step(); e = sim.enemies.find((q) => !q.dead && !q.flying && q.dist > 3); }
+      expect(e, hero).toBeTruthy();
+      sim.apply(0, { k: 'hattack', e: e!.id });
+      expect(u.focus, hero).toBe(e);
+      let reached = false, minD = Infinity;
+      for (let i = 0; i < 20 * 30 && !e!.dead; i++) {
+        sim.step();
+        const d = Math.hypot(e!.x - u.x, e!.z - u.z);
+        minD = Math.min(minD, d);
+        if (hero === 'samuel' && u.fighting && u.target === e) reached = true;
+        if (hero === 'lyra' && d <= u.range && !u.moving) reached = true;
+      }
+      expect(reached, hero).toBe(true);
+      // l'archer ne va pas au corps à corps
+      if (hero === 'lyra') expect(minD).toBeGreaterThan(u.range * 0.5);
+    }
+  });
+
+  it('un nouvel ordre de déplacement annule la cible imposée', () => {
+    const sim = new Sim(cfg());
+    const u = sim.heroes[0].u;
+    sim.apply(0, { k: 'wave' });
+    let e: (typeof sim.enemies)[number] | undefined;
+    for (let i = 0; i < 20 * 30 && !e; i++) { sim.step(); e = sim.enemies.find((q) => !q.dead && q.dist > 1); }
+    sim.apply(0, { k: 'hattack', e: e!.id });
+    expect(u.focus).toBe(e);
+    sim.apply(0, { k: 'hmove', x: u.x + 1, z: u.z });
+    expect(u.focus).toBe(null);
+    // identifiant inconnu : ignoré
+    sim.apply(0, { k: 'hattack', e: 99999 });
+    expect(u.focus).toBe(null);
+  });
+
   it('un héros qui frappe un ennemi déjà bloqué prend les coups', () => {
     const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'brom' }] }));
     const hero = sim.heroes[0].u;

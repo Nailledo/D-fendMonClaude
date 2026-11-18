@@ -150,9 +150,27 @@ function extract(doc: Document): RawMesh[] {
         jointRoot = joints.map((j, i) => { const par = j.getParentNode(); return !par || partOfJoint(par.getName()) !== jointPart[i]; });
         jointPos = joints.map((j) => { const m = j.getWorldMatrix() as unknown as Mat4; return [m[12], m[13], m[14]]; });
       }
+      // objet tenu (arme accrochée à un os de la main) : il suit le membre de son os porteur
+      let held: { part: Part; pivot: [number, number, number] } | null = null;
+      if (!skin) {
+        let par = node.getParentNode();
+        while (par && partOfJoint(par.getName()) === Part.Body) par = par.getParentNode();
+        if (par) {
+          const part = partOfJoint(par.getName());
+          let root = par;
+          for (let q = par.getParentNode(); q && partOfJoint(q.getName()) === part; q = q.getParentNode()) root = q;
+          const m = root.getWorldMatrix() as unknown as Mat4;
+          held = { part, pivot: [m[12], m[13], m[14]] };
+        }
+      }
       for (const prim of mesh.listPrimitives()) {
         if (prim.getMode() !== 4) continue;
-        out.push(primToRaw(prim, world, jointM, jointPart, jointPos, jointRoot));
+        const raw = primToRaw(prim, world, jointM, jointPart, jointPos, jointRoot);
+        if (held) {
+          raw.part.fill(held.part);
+          for (let i = 0; i < raw.part.length; i++) raw.pivot.set(held.pivot, i * 3);
+        }
+        out.push(raw);
       }
     }
     for (const c of node.listChildren()) visit(c);

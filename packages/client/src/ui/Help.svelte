@@ -18,6 +18,7 @@
     <h3>Votre héros</h3>
     <ul>
       <li>Clic droit n’importe où pour le déplacer (au tactile : appui long), ou sélectionnez-le puis touchez le sol. Il bloque et combat les ennemis et gagne des niveaux.</li>
+      <li>Clic droit sur un ennemi (au tactile : appui long dessus, ou sélectionnez le héros puis touchez l’ennemi) pour l’attaquer : un héros de mêlée fonce au contact, un héros à distance se place juste à portée de tir. Un anneau rouge marque la cible ; un nouvel ordre de déplacement l’annule.</li>
       <li>Ses compétences se débloquent aux niveaux 1, 3 et 5 : <span class="kbd">{keyLabel(keys.skill1)}</span> <span class="kbd">{keyLabel(keys.skill2)}</span> <span class="kbd">{keyLabel(keys.ult)}</span>.</li>
     </ul>
     <h3>Sorts et vagues</h3>

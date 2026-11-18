@@ -114,6 +114,8 @@ export interface Unit {
   regen: number;
   speed: number;
   target: Enemy | null;
+  /** cible imposée par le joueur (héros) : poursuivie jusqu'à sa mort ou un nouvel ordre */
+  focus: Enemy | null;
   extra: Enemy[];
   dead: boolean;
   respawnT: number;
@@ -410,7 +412,7 @@ export class Sim {
     const u: Unit = {
       id: this.nextId++, kind, owner, tower, hero: null, idx: 0, x, z, hx: x, hz: z, hp, maxHp: hp, armor,
       dmgMin: dmin, dmgMax: dmax, cdTicks: Math.max(1, sec(cd)), cdT: 0, regen, speed: SOLDIER_SPEED,
-      target: null, extra: [], dead: false, respawnT: 0, life, buffT: 0, shield: 0, range: 0, rangedType: DmgType.Phys,
+      target: null, focus: null, extra: [], dead: false, respawnT: 0, life, buffT: 0, shield: 0, range: 0, rangedType: DmgType.Phys,
       moving: false, fighting: false,
     };
     this.units.push(u);
@@ -753,12 +755,33 @@ export class Sim {
         const x = clampNum(c.x, -this.map.def.hw, this.map.def.hw), z = clampNum(c.z, -this.map.def.hh, this.map.def.hh);
         if (!h || h.u.dead || x === null || z === null) return;
         this.release(h.u);
+        h.u.focus = null;
         // destination dans l'eau, un rocher ou une tour : au bord le plus proche
         const goal = { x, z };
         this.pushOut(goal);
         h.u.hx = goal.x;
         h.u.hz = goal.z;
         h.u.moving = true;
+        break;
+      }
+      case 'hattack': {
+        const h = this.heroes.find((h) => h.owner === pid);
+        if (!h || h.u.dead || typeof c.e !== 'number') return;
+        const e = this.enemies.find((q) => q.id === c.e);
+        if (!e || !this.targetable(e, true)) return;
+        const u = h.u;
+        this.release(u);
+        u.moving = false;
+        if (u.range <= 0 && e.flying) {
+          // un héros de mêlée ne touche pas les volants : il se place dessous
+          u.focus = null;
+          const goal = { x: e.x, z: e.z };
+          this.pushOut(goal);
+          u.hx = goal.x; u.hz = goal.z;
+          u.moving = true;
+          return;
+        }
+        u.focus = e;
         break;
       }
       case 'hskill': {
@@ -902,7 +925,7 @@ export class Sim {
       if (i === 0) {
         let dx = x - u.x, dz = z - u.z;
         const d = Math.sqrt(dx * dx + dz * dz) || 1;
-        const len = Math.min(7, d);
+        const len = Math.min(h.def.skills[0].range ?? 7, d);
         dx /= d; dz /= d;
         const sx = u.x, sz = u.z;
         this.release(u);
@@ -1278,6 +1301,7 @@ export class Sim {
 
   private killUnit(u: Unit) {
     this.release(u);
+    u.focus = null;
     u.dead = true;
     u.hp = 0;
     u.shield = 0;
@@ -1309,6 +1333,32 @@ export class Sim {
       }
       if (u.buffT > 0) u.buffT--;
       const t = u.tower;
+      // cible imposée (héros) : la mêlée va au contact, le tir s'approche juste à portée
+      if (u.focus) {
+        const f = u.focus;
+        if (!this.targetable(f, u.range > 0) || (u.range <= 0 && f.flying)) {
+          u.focus = null;
+          u.hx = u.x; u.hz = u.z;
+          u.moving = false;
+        } else if (u.range > 0) {
+          if (u.target) this.release(u);
+          const dx = u.x - f.x, dz = u.z - f.z;
+          const d = Math.sqrt(dx * dx + dz * dz) || 1;
+          if (d > u.range * 0.92) {
+            // point d'approche : sur la ligne qui mène à la cible, un peu en deçà de la portée
+            const want = u.range * 0.8;
+            u.hx = f.x + (dx / d) * want;
+            u.hz = f.z + (dz / d) * want;
+            u.moving = true;
+          } else if (u.moving) {
+            u.hx = u.x; u.hz = u.z;
+            u.moving = false;
+          }
+        } else {
+          if (u.target !== f) { this.release(u); this.engage(u, f); }
+          u.hx = f.x; u.hz = f.z;
+        }
+      }
       // validité de la cible
       if (u.target && (u.target.dead || u.target.burrowed || u.target.flying)) this.release(u);
       if (u.target) {
@@ -1317,7 +1367,7 @@ export class Sim {
         if (dx * dx + dz * dz > leash * leash) this.release(u);
       }
       // acquisition
-      if (!u.target && !u.moving && u.speed > 0) {
+      if (!u.target && !u.moving && !u.focus && u.speed > 0) {
         const r = u.hero ? 2.8 : t ? 2.6 : 2.4;
         const r2 = r * r;
         let best: Enemy | null = null;
@@ -1390,7 +1440,11 @@ export class Sim {
       }
       // tir à distance (héros à distance, tourelle)
       if (!u.fighting && u.range > 0 && u.cdT <= 0 && !u.moving) {
-        const tgt = this.findTarget(u.x, u.z, u.range, true);
+        let tgt: Enemy | null;
+        if (u.focus) {
+          const dx = u.focus.x - u.x, dz = u.focus.z - u.z;
+          tgt = dx * dx + dz * dz <= u.range * u.range ? u.focus : null;
+        } else tgt = this.findTarget(u.x, u.z, u.range, true);
         if (tgt) {
           u.cdT = u.cdTicks;
           const kind = u.hero ? (u.hero.def.id === 'nox' ? FIRE_HERO_BOLT : FIRE_HERO_ARROW) : FIRE_TURRET;

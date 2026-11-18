@@ -111,7 +111,7 @@ Fiabilité : **bon** = modèle du bon type trouvé ; **approx.** = modèle proch
 | soldier-3.glb (Garde royal) | Quaternius — King | approx. |
 | soldier-4.glb (Rôdeur) | KayKit — Rogue Hooded | bon |
 | soldier-5.glb (Renfort) | KayKit — Barbarian | approx. |
-| soldier-6.glb (Squelette) | KayKit Skeletons — Warrior | bon |
+| soldier-6.glb (Squelette) | KayKit Skeletons — Warrior, hache et petit bouclier du pack (dossier `assets/gltf`) accrochés aux mains | bon |
 | soldier-7.glb (Tourelle de Brom) | Kenney — Turret (https://poly.pizza/m/mXKbcMPLSS) ou Quaternius — Turret Gun | bon |
 
 ### Tours (20)

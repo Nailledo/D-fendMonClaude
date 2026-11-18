@@ -5,6 +5,7 @@
   const TIPS = [
     'Cliquez sur un emplacement vide pour construire une tour.',
     'Cliquez sur votre héros puis sur le sol pour le déplacer (ou clic droit).',
+    'Clic droit sur un ennemi (appui long au tactile) : votre héros le prend pour cible.',
     'Appeler la vague en avance (Espace) rapporte de l’or en bonus.',
     'Les casernes bloquent les ennemis sur le chemin : déplacez leur point de ralliement.',
     'Q, W et R déclenchent les compétences du héros ; 1 et 2 lancent les sorts.',

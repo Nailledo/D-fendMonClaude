@@ -11,6 +11,8 @@ export interface HeroSkillDef {
   unlock: number; // niveau du héros
   /** la compétence se lance au curseur (sinon centrée sur le héros) */
   targeted: boolean;
+  /** portée maximale depuis le héros (un point visé plus loin est ramené à cette distance) */
+  range?: number;
 }
 
 export interface HeroDef {
@@ -40,7 +42,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
     hp: 240, hpPerLevel: 20, dmg: [12, 20], dmgPerLevel: 2.5, dmgType: DmgType.Phys, cooldown: 1, armor: 0.3, speed: 3, regen: 5, range: 0,
     passive: { name: 'Cœur vaillant', desc: 'Les soldats proches de Samuel subissent 15 % de dégâts en moins.' },
     skills: [
-      { name: 'Charge héroïque', short: 'Charge', icon: 'charge', desc: 'Fonce vers le curseur et blesse tous les ennemis sur son passage.', cd: 12, unlock: 1, targeted: true },
+      { name: 'Charge héroïque', short: 'Charge', icon: 'charge', desc: 'Fonce vers le curseur, dans la limite de sa portée, et blesse tous les ennemis sur son passage.', cd: 12, unlock: 1, targeted: true, range: 7 },
       { name: 'Cri de ralliement', short: 'Ralliement', icon: 'rally', desc: 'Soigne les soldats proches et augmente leurs dégâts pendant 6 s.', cd: 20, unlock: 3, targeted: false },
       { name: 'Pour Ethan !', short: 'Pour Ethan', icon: 'ultSword', desc: 'Frappe titanesque en zone et bouclier sur les soldats autour.', cd: 60, unlock: 5, targeted: false },
     ],

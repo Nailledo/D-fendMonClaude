@@ -35,8 +35,8 @@ const E = (key: string, label: string, anim: AnimMode, height: number, prompt: s
 const H = (key: string, label: string, prompt: string): CatalogEntry => ({
   key: `hero:${key}`, src: `hero-${key}.glb`, group: 'heros', label, height: 1.35, tris: 2500, tex: 512, anim: 'rig', prompt: `${prompt}, ${CHAR}`,
 });
-const S = (k: number, label: string, prompt: string): CatalogEntry => ({
-  key: `soldier:${k}`, src: `soldier-${k}.glb`, group: 'soldats', label, height: 1.3, tris: 1200, tex: 512, anim: 'rig', prompt: `${prompt}, ${CHAR}`,
+const S = (k: number, label: string, prompt: string, tris = 1200): CatalogEntry => ({
+  key: `soldier:${k}`, src: `soldier-${k}.glb`, group: 'soldats', label, height: 1.3, tris, tex: 512, anim: 'rig', prompt: `${prompt}, ${CHAR}`,
 });
 const T = (fam: number, level: number, label: string, height: number, prompt: string): CatalogEntry => ({
   key: `tower:${fam}-${level}`, src: `tower-${fam}-${level}.glb`, group: 'tours', label, height, maxWidth: 2.4, tris: 2500, tex: 512, anim: 'static',
@@ -59,7 +59,8 @@ export const CATALOG: CatalogEntry[] = [
   S(3, 'Garde royal', 'royal guard with golden ornate armor, red cape, halberd'),
   S(4, 'Rôdeur', 'hooded ranger with leather armor and two short swords'),
   S(5, 'Renfort', 'volunteer farmer militia with straw hat, pitchfork and wooden buckler'),
-  S(6, 'Squelette', 'skeleton warrior with rusty sword and broken shield, cracked bones'),
+  // os fins (bras, jambes, cornes du casque) : une décimation trop forte les efface
+  S(6, 'Squelette', 'skeleton warrior with rusty sword and broken shield, cracked bones', 3200),
   S(7, 'Tourelle de Brom', 'small steampunk automated gun turret on three legs, brass and copper, spinning barrel'),
   // ------------------------------------------------------------ ennemis
   E('gobelin', 'Gobelin', 'rig', 1.0, 'small green goblin raider with a rusty dagger, ragged brown cloth, big pointy ears'),

@@ -287,6 +287,8 @@ export class Entities {
       const ei = f.enemyIdx(tg);
       if (ei < 0) continue;
       const d2 = (f.uX[i] - f.eX[ei]) ** 2 + (f.uZ[i] - f.eZ[ei]) ** 2;
+      // trop loin pour être au contact (héros qui accourt, archer qui vise sa cible de loin)
+      if (d2 > 6.25) continue;
       const hero = f.uKind[i] === HERO_UNIT ? 1 : 0;
       if (this.foeStamp[tg] === this.frameNo && (this.foeHero[tg] > hero || (this.foeHero[tg] === hero && this.foeD2[tg] <= d2))) continue;
       this.foeStamp[tg] = this.frameNo;

@@ -1,4 +1,4 @@
-import { EF_FLYING, ENEMIES, HERO_UNIT, Snapshot, type RuntimeMap } from '@dfend/shared';
+import { EF_FLYING, ENEMIES, HERO_UNIT, Snapshot, UF_DEAD, type RuntimeMap } from '@dfend/shared';
 import { FLY_HEIGHT } from '../art/enemies';
 
 const N = 65536;
@@ -171,7 +171,9 @@ export class Interp {
         const j = this.aMapU[id];
         dx = x - A.uX[j];
         dz = z - A.uZ[j];
-        if (dx * dx + dz * dz < 16) { x = A.uX[j] + dx * t; z = A.uZ[j] + dz * t; }
+        // un saut (réapparition) n'est pas interpolé ; la charge du héros (7 m d'un coup) l'est, pour qu'on la voie foncer
+        const jump = B.uKind[i] === HERO_UNIT && !(A.uFlags[j] & UF_DEAD) && !(B.uFlags[i] & UF_DEAD) ? 64 : 16;
+        if (dx * dx + dz * dz < jump) { x = A.uX[j] + dx * t; z = A.uZ[j] + dz * t; }
       }
       const k = f.uN++;
       f.uId[k] = id;

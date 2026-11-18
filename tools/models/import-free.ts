@@ -22,6 +22,7 @@ const PACKS = join(SRC, '_packs');
 
 const KK_ADV = 'kaykit-adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf';
 const KK_SKE = 'kaykit-skeletons/KayKit_Skeletons_1.1_FREE/characters/gltf';
+const KK_SKE_ASSETS = 'kaykit-skeletons/KayKit_Skeletons_1.1_FREE/assets/gltf';
 const RTS = 'quaternius-rts/glTF';
 const KEN = 'kenney-td/Models/GLB format';
 const MON = 'quaternius-monsters/Ultimate Monsters';
@@ -41,6 +42,10 @@ export interface Recipe {
   desat?: number;
   /** ne garde que les maillages dont le nom correspond (ex. la tête d'un squelette) */
   only?: RegExp;
+  /** objets accrochés à un os du modèle (arme dans `handslot.r`…) : ils suivent ce membre à la cuisson */
+  attach?: { node: string; src: string; scale?: number; rot?: [number, number, number, number] }[];
+  /** couleur imposée aux matériaux des maillages dont le nom correspond (yeux lumineux…) */
+  recolor?: { mesh: RegExp; rgb: [number, number, number] }[];
 }
 const KR = (...n: string[]) => n.map((p) => `${KEN}/tower-round-${p}.glb`);
 const KS = (...n: string[]) => n.map((p) => `${KEN}/tower-square-${p}.glb`);
@@ -56,7 +61,17 @@ export const FREE_SOURCES: Record<string, string | Recipe> = {
   'soldier-1.glb': `${KK_ADV}/Knight.glb`,
   'soldier-4.glb': `${KK_ADV}/Rogue_Hooded.glb`,
   'soldier-5.glb': `${KK_ADV}/Barbarian.glb`,
-  'soldier-6.glb': `${KK_SKE}/Skeleton_Warrior.glb`,
+  // squelette de William : hache à droite (la main qui frappe), petit bouclier à gauche, yeux verts de nécromancie
+  'soldier-6.glb': {
+    parts: [`${KK_SKE}/Skeleton_Warrior.glb`],
+    // orientations calculées dans le repère des os de main, bras abaissés par la cuisson :
+    // hache levée devant l'épaule (tranchant vers l'avant), bouclier tourné vers l'extérieur et l'avant
+    attach: [
+      { node: 'handslot.r', src: `${KK_SKE_ASSETS}/Skeleton_Axe.gltf`, scale: 0.8, rot: [0.1744, 0.2421, 0.5096, 0.807] },
+      { node: 'handslot.l', src: `${KK_SKE_ASSETS}/Skeleton_Shield_Small_A.gltf`, scale: 0.85, rot: [-0.1739, -0.4753, -0.6854, 0.5235] },
+    ],
+    recolor: [{ mesh: /Eyes/, rgb: [0.55, 1, 0.25] }],
+  },
   'soldier-7.glb': `${KEN}/weapon-turret.glb`,
   // tours
   'tower-0-0.glb': `${RTS}/WatchTower_FirstAge_Level1.gltf`,
@@ -161,6 +176,31 @@ async function load(io: NodeIO, src: string | Recipe): Promise<Document> {
     const [main, ...extra] = doc.getRoot().listScenes();
     for (const s of extra) { for (const c of s.listChildren()) main.addChild(c); s.dispose(); }
   }
+  for (const a of r.attach ?? []) {
+    const slot = doc!.getRoot().listNodes().find((n) => n.getName() === a.node);
+    if (!slot) throw new Error(`os ${a.node} introuvable`);
+    const part = await io.read(join(PACKS, a.src));
+    const scene = part.getRoot().listScenes()[0];
+    const holder = part.createNode(`held:${a.node}`);
+    if (a.scale) holder.setScale([a.scale, a.scale, a.scale]);
+    if (a.rot) holder.setRotation(a.rot);
+    for (const c of scene.listChildren()) holder.addChild(c);
+    scene.addChild(holder);
+    const map = mergeDocuments(doc!, part);
+    const h = map.get(holder) as typeof slot;
+    slot.addChild(h);
+    for (const s of doc!.getRoot().listScenes()) if (s.listChildren().includes(h)) s.removeChild(h);
+    for (const s of doc!.getRoot().listScenes().slice(1)) s.dispose();
+  }
+  for (const rc of r.recolor ?? []) for (const n of doc!.getRoot().listNodes()) {
+    if (!n.getMesh() || !rc.mesh.test(n.getName())) continue;
+    for (const p of n.getMesh()!.listPrimitives()) {
+      const m = p.getMaterial();
+      if (!m) continue;
+      const own = m.clone().setName(`${m.getName()}-${n.getName()}`).setBaseColorTexture(null).setBaseColorFactor([...rc.rgb, 1]);
+      p.setMaterial(own);
+    }
+  }
   if (r.only) for (const n of doc!.getRoot().listNodes()) if (n.getMesh() && !r.only.test(n.getName())) n.setMesh(null);
   if (r.desat) {
     const k = r.desat;
@@ -187,7 +227,7 @@ async function load(io: NodeIO, src: string | Recipe): Promise<Document> {
     const f = m.getBaseColorFactor();
     m.setBaseColorFactor([f[0] * r.tint[0], f[1] * r.tint[1], f[2] * r.tint[2], f[3]]);
   }
-  if (r.parts.length > 1) await doc!.transform(dedup(), unpartition());
+  if (r.parts.length > 1 || r.attach?.length) await doc!.transform(dedup(), unpartition());
   return doc!;
 }
 

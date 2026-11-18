@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   ENEMIES, Ev, FAMILIES, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
-  LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD,
+  LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   buildRuntimeMap, type Command, type GameConfig, type RuntimeMap,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
@@ -49,6 +49,8 @@ export class GameClient {
   readonly interp: Interp;
   private scratch: { tick: number; ev: number[] }[] = [];
   private targeting: Targeting = null;
+  /** instant du dernier ordre d'attaque (la marque de cible pulse brièvement) */
+  private focusPulse = -10;
   private mouse = { x: 0, y: 0, down: false, button: -1, sx: 0, sy: 0, moved: false, inside: true };
   private keysDown = new Set<string>();
   private hoverSlot = -1;
@@ -58,6 +60,8 @@ export class GameClient {
   private hoverRing: THREE.Mesh;
   private rallyFlag: THREE.Mesh;
   private aimRing: THREE.Mesh;
+  /** marque rouge sous l'ennemi que votre héros a reçu l'ordre d'attaquer */
+  private focusRing: THREE.Mesh;
   private disposers: (() => void)[] = [];
   private proj = { x: 0, y: 0, visible: false };
   private seenTypes = new Set<string>(progress.seen);
@@ -116,6 +120,8 @@ export class GameClient {
     this.aimRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), ringMat(0xffd54f, 0.9));
     this.aimRing.position.y = 0.1;
     this.aimRing.visible = false;
+    this.focusRing = new THREE.Mesh(new THREE.RingGeometry(0.78, 1, 40).rotateX(-Math.PI / 2), ringMat(0xef4444, 0.9));
+    this.focusRing.visible = false;
     const flag = new THREE.Group();
     this.rallyFlag = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 4), new THREE.MeshBasicMaterial({ color: 0x5d4037 }));
     const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshBasicMaterial({ color: 0xffd54f, side: THREE.DoubleSide }));
@@ -123,7 +129,7 @@ export class GameClient {
     this.rallyFlag.add(cloth);
     this.rallyFlag.visible = false;
     void flag;
-    for (const m of [this.rangeRing, this.hoverRing, this.aimRing, this.rallyFlag]) r.scene.add(m);
+    for (const m of [this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) r.scene.add(m);
     this.bindInput();
     audio.setBiome(this.map.def.biome);
     audio.intensity = 0;
@@ -290,6 +296,19 @@ export class GameClient {
     return { x: this.interp.frame.uX[ui_], z: this.interp.frame.uZ[ui_] };
   }
 
+  /** Portée maximale d'une compétence ciblée du héros (charge de Samuel), sinon 0. */
+  private skillRange(i: number): number {
+    return HEROES[HERO_IDS[ui.hud.hero.type]].skills[i]?.range ?? 0;
+  }
+
+  /** Point visé ramené à la portée de la compétence, depuis le héros. */
+  private clampSkill(i: number, p: { x: number; z: number }): { x: number; z: number } {
+    const range = this.skillRange(i), hp = this.heroPos();
+    if (!range || !hp) return p;
+    const dx = p.x - hp.x, dz = p.z - hp.z, d = Math.hypot(dx, dz);
+    return d <= range ? p : { x: hp.x + (dx / d) * range, z: hp.z + (dz / d) * range };
+  }
+
   // ------------------------------------------------------------ entrées
 
   private bindInput() {
@@ -362,7 +381,7 @@ export class GameClient {
         startPinch();
         return;
       }
-      // tactile : un appui long remplace le clic droit (déplacer le héros, annuler une visée)
+      // tactile : un appui long remplace le clic droit (déplacer le héros, attaquer un ennemi, annuler une visée)
       stopLongPress();
       if (e.pointerType === 'touch') {
         const x = e.clientX, y = e.clientY;
@@ -569,9 +588,12 @@ export class GameClient {
       this.targeting = null;
       ui.hud.targeting = '';
       if (t.kind === 'spell') { this.send({ k: 'spell', s: t.s, x: p.x, z: p.z }); this.fx.ring(p.x, p.z, 1.2, 0xffffff, 0.35); return true; }
-      if (t.kind === 'hskill') { this.send({ k: 'hskill', i: t.i, x: p.x, z: p.z }); return true; }
+      if (t.kind === 'hskill') { const q = this.clampSkill(t.i, p); this.send({ k: 'hskill', i: t.i, x: q.x, z: q.z }); return true; }
       if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; this.fx.ring(p.x, p.z, 1, 0xfff59d, 0.5); return true; }
       if (t.kind === 'hmove') {
+        // héros sélectionné puis appui sur un ennemi (tactile surtout) : il l'attaque
+        const ei = this.slotAt(p.x, p.z, slotRad) < 0 ? this.enemyAt(p.x, p.z) : -1;
+        if (ei >= 0) { this.attackEnemy(ei); ui.sel = null; return true; }
         // un clic sur un emplacement reste prioritaire
         if (this.slotAt(p.x, p.z, slotRad) < 0) {
           this.send({ k: 'hmove', x: p.x, z: p.z });
@@ -597,12 +619,7 @@ export class GameClient {
     }
     // ennemi
     const f = this.interp.frame;
-    const er = this.tapRadius(1.26);
-    let best = -1, bd = er * er;
-    for (let i = 0; i < f.eN; i++) {
-      const d = (f.eX[i] - p.x) ** 2 + (f.eZ[i] - p.z) ** 2;
-      if (d < bd) { bd = d; best = i; }
-    }
+    const best = this.enemyAt(p.x, p.z);
     if (best >= 0) {
       ui.sel = { kind: 'enemy', enemyType: f.eType[best], hp: f.eHp[best] };
       return true;
@@ -611,10 +628,40 @@ export class GameClient {
     return false;
   }
 
+  /** Ennemi sous le point visé (indice dans l'image interpolée), ou -1. */
+  private enemyAt(x: number, z: number): number {
+    const f = this.interp.frame;
+    const er = this.tapRadius(1.26);
+    let best = -1, bd = er * er;
+    for (let i = 0; i < f.eN; i++) {
+      const d = (f.eX[i] - x) ** 2 + (f.eZ[i] - z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  /** Ordre au héros d'attaquer cet ennemi (la mêlée y court, le tir se place à portée). */
+  private attackEnemy(i: number) {
+    const f = this.interp.frame;
+    this.targeting = null;
+    ui.hud.targeting = '';
+    this.send({ k: 'hattack', e: f.eId[i] });
+    this.focusPulse = this.time;
+    this.fx.ring(f.eX[i], f.eZ[i], 1, 0xef4444, 0.4);
+    audio.play('click');
+  }
+
+  /**
+   * Clic droit (appui long au tactile) : sur un ennemi, votre héros l'attaque ; ailleurs, il s'y rend.
+   * Pendant une visée de sort, il l'annule.
+   */
   private rightClick(sx: number, sy: number) {
     const p = this.r.pick(sx, sy);
     if (!p) return;
     if (this.targeting && this.targeting.kind !== 'hmove') { this.cancel(); return; }
+    const hp = this.heroPos();
+    const ei = hp ? this.enemyAt(p.x, p.z) : -1;
+    if (ei >= 0) { this.attackEnemy(ei); return; }
     this.targeting = null;
     ui.hud.targeting = '';
     this.send({ k: 'hmove', x: p.x, z: p.z });
@@ -743,8 +790,9 @@ export class GameClient {
         const id = HERO_IDS[ui.hud.hero.type];
         r = id === 'lyra' && t.i === 1 ? 2.3 : id === 'brom' && t.i === 2 ? 3 : 1.2;
       }
+      const q = t.kind === 'hskill' ? this.clampSkill(t.i, p) : p;
       this.aimRing.visible = true;
-      this.aimRing.position.set(p.x, 0.1, p.z);
+      this.aimRing.position.set(q.x, 0.1, q.z);
       this.aimRing.scale.setScalar(r);
     }
     if (p && t && t.kind === 'rally') {
@@ -784,15 +832,39 @@ export class GameClient {
         this.rallyFlag.visible = true;
         this.rallyFlag.position.set(snap.tRallyX[ti], 0.7, snap.tRallyZ[ti]);
       }
+    } else if (this.targeting?.kind === 'hskill' && this.skillRange(this.targeting.i) > 0) {
+      // compétence à portée limitée : cercle de portée autour du héros
+      const hp = this.heroPos();
+      if (hp) {
+        this.rangeRing.visible = true;
+        this.rangeRing.position.set(hp.x, 0.09, hp.z);
+        this.rangeRing.scale.setScalar(this.skillRange(this.targeting.i));
+      }
     } else if (s?.kind === 'build' && s.slot !== undefined && this.hoverFam >= 0) {
       const sl = this.map.slots[s.slot];
       this.rangeRing.visible = true;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
       this.rangeRing.scale.setScalar(TOWERS[FAMILIES[this.hoverFam]][0].range);
     }
+    // cible imposée à votre héros : anneau rouge sous l'ennemi (il pulse à l'ordre)
+    this.focusRing.visible = false;
+    const hi = snap.heroIndex(this.you);
+    const f = this.interp.frame;
+    const hu = hi >= 0 ? f.unitIdx(snap.hUnit[hi]) : -1;
+    if (hu >= 0 && f.uFlags[hu] & UF_FOCUS && f.uTarget[hu] !== 0xffff) {
+      const ei = f.enemyIdx(f.uTarget[hu]);
+      if (ei >= 0) {
+        const size = ENEMIES[f.eType[ei]]?.size ?? 1;
+        const pulse = Math.max(0, 1 - (this.time - this.focusPulse) / 0.3);
+        this.focusRing.visible = true;
+        this.focusRing.position.set(f.eX[ei], 0.12, f.eZ[ei]);
+        this.focusRing.scale.setScalar((0.55 + size * 0.3) * (1 + pulse * 0.6));
+      }
+    }
     // marques posées sur le relief
     const hm = this.world.heightAt;
     if (this.hoverRing.visible) drape(this.hoverRing, hm, 0.1);
+    if (this.focusRing.visible) drape(this.focusRing, hm, 0.12);
     if (this.rangeRing.visible) {
       drape(this.rangeRing, hm, 0.09);
       drape(this.rangeRing.children[0] as THREE.Mesh, hm, 0.07);
@@ -1249,7 +1321,8 @@ export class GameClient {
         break;
       }
       case Ev.HeroSkill: {
-        const [, owner, skill, x, z, hx, hz] = ev;
+        const [, owner, skill, , , hx, hz] = ev;
+        let [, , , x, z] = ev;
         const s = this.interp.latest!;
         const hi = s.heroIndex(owner);
         const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
@@ -1276,7 +1349,11 @@ export class GameClient {
           }
           audio.play('arrow', 1.5);
         } else if (type === 'samuel' && skill === 0) {
-          // charge : traînée bleutée et poussière le long du trajet
+          // charge : traînée bleutée et poussière le long du trajet réel (s'arrête à la portée, pas au curseur)
+          const d0 = Math.hypot(x - hx, z - hz), range = HEROES.samuel.skills[0].range ?? 7;
+          const k = d0 > range ? range / d0 : 1;
+          x = hx + (x - hx) * k;
+          z = hz + (z - hz) * k;
           fx.beams.add(hx, 0.6, hz, x, 0.6, z, 0.3, 0.3, 0x90caf9);
           const l = Math.hypot(x - hx, z - hz);
           for (let k = 0; k < Math.min(30, l * 3); k++) {

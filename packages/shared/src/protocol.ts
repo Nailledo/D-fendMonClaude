@@ -131,6 +131,8 @@ const EV_SCHEMA: Record<number, string> = {
 // Drapeaux
 export const EF_FLYING = 1, EF_BURROWED = 2, EF_FIGHTING = 4, EF_SLOWED = 8, EF_DOT = 16, EF_STUNNED = 32, EF_SHIELDED = 64, EF_ENRAGED = 128;
 export const UF_DEAD = 1, UF_FIGHTING = 2, UF_BUFF = 4, UF_SHIELD = 8, UF_MOVING = 16;
+/** le héros poursuit une cible imposée par son joueur (son id est alors dans la cible de l'unité) */
+export const UF_FOCUS = 32;
 export const PF_ACTIVE = 1, PF_CONNECTED = 2, PF_SPEED2 = 4;
 
 const writer = new Writer(32768);
@@ -205,8 +207,9 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
     w.pos(u.x);
     w.pos(u.z);
     w.frac(u.maxHp > 0 ? u.hp / u.maxHp : 0);
-    w.u8((u.dead ? UF_DEAD : 0) | (u.fighting ? UF_FIGHTING : 0) | (u.buffT > 0 ? UF_BUFF : 0) | (u.shield > 0 ? UF_SHIELD : 0) | (u.moving ? UF_MOVING : 0));
-    w.id(u.target && !u.target.dead ? u.target.id : 0xffff);
+    w.u8((u.dead ? UF_DEAD : 0) | (u.fighting ? UF_FIGHTING : 0) | (u.buffT > 0 ? UF_BUFF : 0) | (u.shield > 0 ? UF_SHIELD : 0) | (u.moving ? UF_MOVING : 0) | (u.focus ? UF_FOCUS : 0));
+    const tg = u.focus ?? u.target;
+    w.id(tg && !tg.dead ? tg.id : 0xffff);
   }
   // héros
   w.u8(sim.heroes.length);

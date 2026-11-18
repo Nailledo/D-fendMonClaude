@@ -38,6 +38,8 @@ export type Command =
   | { k: 'sell'; tower: number }
   | { k: 'rally'; tower: number; x: number; z: number }
   | { k: 'hmove'; x: number; z: number }
+  /** le héros prend un ennemi pour cible : au contact pour la mêlée, à portée de tir pour les héros à distance */
+  | { k: 'hattack'; e: number }
   | { k: 'hskill'; i: 0 | 1 | 2; x: number; z: number }
   | { k: 'spell'; s: 0 | 1; x: number; z: number }
   | { k: 'wave' }
