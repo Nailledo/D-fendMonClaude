@@ -6,7 +6,9 @@ export type Screen = 'title' | 'story' | 'survival' | 'multi' | 'lobby' | 'game'
 export type Overlay = null | 'settings' | 'encyclo' | 'leaderboard' | 'heroes' | 'help' | 'atelier' | 'herotree' | 'skin';
 
 export interface Selection {
-  kind: 'build' | 'tower' | 'enemy' | 'hero' | 'ally';
+  kind: 'build' | 'tower' | 'enemy' | 'hero' | 'ally' | 'prop';
+  /** élément de carte interactive (indice dans map.props) */
+  prop?: number;
   slot?: number;
   tower?: number;
   fam?: number;
@@ -90,6 +92,8 @@ export const ui = $state({
     adaptFx: 0,
     /** météo de la vague */
     weather: { rain: false, night: false },
+    /** élément de carte sélectionné : état et rechargement (s) */
+    prop: { st: 0, cd: 0 },
   },
   sel: null as Selection | null,
   dialog: null as null | { lines: Line[]; i: number },

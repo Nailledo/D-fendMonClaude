@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, weatherFor, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, weatherFor, PropKind, PROP_FOUND, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 /** arbre : vocation, la voie gauche (0) ou droite (1) jusqu'au rang `upto`, l'ultime si demandé */
 /** rangs : la racine et les `n` premiers nœuds de la route `j` (au maximum) */
@@ -713,5 +713,70 @@ describe('météo', () => {
     (sim as any).stepEnemies();
     expect(1e6 - e.hp - dry).toBeCloseTo(dry * 0.5);
     expect(e.burnT).toBe(97);
+  });
+});
+
+describe('carte interactive', () => {
+  const prop = (sim: Sim, kind: PropKind) => sim.map.props.findIndex((p) => p.kind === kind);
+  it('chaque carte a ses éléments, hors des emplacements et des obstacles', () => {
+    for (const id of Object.keys(MAPS)) {
+      const m = buildRuntimeMap(id, 1);
+      expect(m.props.filter((p) => p.kind === PropKind.Poudre).length).toBe(2);
+      expect(m.props.filter((p) => p.kind === PropKind.Camp).length).toBe(1);
+      expect(m.props.filter((p) => p.kind === PropKind.Secret).length).toBe(2);
+      for (const p of m.props) {
+        for (const s of m.slots) expect(Math.hypot(s.x - p.x, s.z - p.z)).toBeGreaterThan(1.4);
+        if (p.kind !== PropKind.Pont) for (const o of m.obstacles) expect(Math.hypot(o.x - p.x, o.z - p.z)).toBeGreaterThan(o.r);
+      }
+      expect(buildRuntimeMap(id, 3).props).toEqual(m.props);
+    }
+  });
+  it('le pont tombe sous les ennemis, puis il est rebâti', () => {
+    const sim = new Sim(cfg());
+    const i = prop(sim, PropKind.Pont);
+    const b = sim.map.props[i];
+    const pr = sim.map.paths[0].project(b.x, b.z);
+    const e = (sim as any).spawnEnemy(ENEMY_INDEX.gobelin, 0, 1, 0, pr.d) as Sim['enemies'][number];
+    e.hp = e.maxHp = 1000;
+    e.x = b.x; e.z = b.z;
+    sim.apply(0, { k: 'prop', i });
+    expect(e.hp).toBe(700);
+    expect(e.stunT).toBeGreaterThan(0);
+    expect(sim.propState[i]).toBe(1);
+    sim.apply(0, { k: 'prop', i });
+    expect(e.hp).toBe(700);
+    for (let t = 0; t < 18 * 30 + 2; t++) (sim as any).stepProps();
+    expect(sim.propState[i]).toBe(0);
+    expect(sim.propCd[i]).toBeGreaterThan(0);
+  });
+  it('le tonneau explose une fois par vague ; le camp coûte de l’or et envoie des mercenaires', () => {
+    const sim = new Sim(cfg());
+    const i = prop(sim, PropKind.Poudre);
+    sim.apply(0, { k: 'prop', i });
+    expect(sim.propState[i]).toBe(1);
+    sim.apply(0, { k: 'wave' });
+    expect(sim.propState[i]).toBe(0);
+    const c = prop(sim, PropKind.Camp);
+    const gold = sim.players[0].gold, units = sim.units.length;
+    sim.apply(0, { k: 'prop', i: c });
+    expect(sim.players[0].gold).toBe(gold - 90);
+    expect(sim.units.length).toBe(units + 3);
+    sim.apply(0, { k: 'prop', i: c });
+    expect(sim.players[0].gold).toBe(gold - 90);
+  });
+  it('un secret se trouve en insistant, une seule fois', () => {
+    const sim = new Sim(cfg());
+    const i = prop(sim, PropKind.Secret);
+    const gold = sim.players[0].gold;
+    for (let k = 0; k < 20; k++) {
+      sim.apply(0, { k: 'prop', i });
+      sim.propCd[i] = 0;
+    }
+    expect(sim.propState[i]).toBe(PROP_FOUND);
+    expect(sim.players[0].gold).toBeGreaterThan(gold);
+    const snap = new Snapshot();
+    snap.decode(encodeSnapshot(sim, []));
+    expect(snap.propN).toBe(sim.map.props.length);
+    expect(snap.propState[i]).toBe(PROP_FOUND);
   });
 });

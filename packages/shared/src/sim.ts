@@ -1,6 +1,7 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
+import { CAMP_CD_S, MERC, PONT_BROKEN_S, PONT_CD_S, PONT_DMG, PONT_R, PONT_SLOW, PONT_STUN_S, POUDRE_DMG, POUDRE_R, PROP_INFO, PropKind, SECRETS } from './data/props';
 import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, RENFORT_COUNT, RENFORT_DUR_S, RENFORT_TIERS, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, sanitizeSpells, type HeroDef } from './data/heroes';
 import { AVENTURIER, SKILL_UNLOCK, buildKit, classOf, heroPassives, heroSkills, heroStatBonus, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild, type StatKind } from './data/classes';
@@ -44,6 +45,7 @@ export const enum Ev {
   Recover = 27, // victime, or rendu (bonus compris), x, z (chapardeur rattrapé)
   Escape = 28, // enemyId, victime, or (chapardeur enfui avec son butin)
   Adapt = 29, // type de dégâts appris (0 physique, 1 magie), résistance (%)
+  Prop = 30, // élément de carte, joueur, état (pont : 1 ; secret : clics, 255 trouvé), valeur (touchés, or)
 }
 
 export const enum Impact {
@@ -277,6 +279,8 @@ export interface PlayerState {
 }
 
 /** Météo : dégâts du feu sous la pluie, bonus du givre sous la pluie, portée des archers la nuit, rayon d'une torche. */
+/** secret trouvé (état d'un élément de carte) */
+export const PROP_FOUND = 255;
 export const RAIN_FIRE = 0.5;
 export const RAIN_FROST = 1.3;
 export const NIGHT_RANGE = 0.78;
@@ -328,6 +332,12 @@ export class Sim {
   rain = false;
   night = false;
   adaptDmg: [number, number] = [0, 0];
+  /**
+   * Carte interactive, par élément de map.props : rechargement (ticks) et état — pont : 1 effondré ;
+   * tonneau : 1 déjà sauté ; secret : clics reçus, PROP_FOUND une fois trouvé.
+   */
+  propCd: number[];
+  propState: number[];
   players: PlayerState[];
   towers: Tower[] = [];
   towerBySlot: (Tower | null)[];
@@ -367,6 +377,8 @@ export class Sim {
       this.lives = this.maxLives = this.maxLives + extra;
     }
     this.towerBySlot = this.map.slots.map(() => null);
+    this.propCd = this.map.props.map(() => 0);
+    this.propState = this.map.props.map(() => 0);
     const startGold = Math.round((this.level ? this.level.startGold : SURVIVAL_START_GOLD) * this.scaling.startGoldMul);
     this.players = cfg.players.map((p) => ({
       id: p.id, name: p.name, gold: startGold + this.perk(p.id).gold, active: true, connected: true, speedVote: 1 as 1 | 2,
@@ -406,6 +418,7 @@ export class Sim {
       const c: number[] = [];
       for (const [px, pz, r] of this.map.def.pools ?? []) c.push(px, pz, r + 0.3);
       for (const o of this.map.obstacles) c.push(o.x, o.z, o.r + 0.28);
+      for (const p of this.map.props) if (p.kind !== PropKind.Pont) c.push(p.x, p.z, (p.kind === PropKind.Camp ? 1.1 : 0.4) + 0.28);
       this.solidsCache = c;
     }
     return this.solidsCache;
@@ -806,6 +819,8 @@ export class Sim {
       wave = genSurvivalWave(this.map.def.biome, this.cfg.seed, this.waveIdx, this.activePaths(this.waveIdx));
     }
     this.adaptWave();
+    // un nouveau tonneau de poudre est livré à chaque vague
+    this.map.props.forEach((p, i) => { if (p.kind === PropKind.Poudre) this.propState[i] = 0; });
     const wx = weatherFor(this.map.def.biome, this.cfg.seed, this.waveIdx);
     this.rain = wx.rain;
     this.night = wx.night;
@@ -1100,6 +1115,12 @@ export class Sim {
         p.speedVote = c.v === 2 ? 2 : 1;
         break;
       }
+      case 'prop': {
+        const i = c.i;
+        if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= this.map.props.length) return;
+        this.useProp(p, i);
+        break;
+      }
       case 'gift': {
         const to = this.player(c.to);
         const amt = clampNum(c.amt, 0, 100000);
@@ -1285,6 +1306,98 @@ export class Sim {
         }
         this.ev(Ev.Impact, Impact.Quake, x, z, Math.round(34 * am));
         break;
+    }
+  }
+
+  /** Carte interactive : pont, tonneau, camp de mercenaires ou secret. */
+  private useProp(p: PlayerState, i: number) {
+    const prop = this.map.props[i];
+    if (this.propCd[i] > 0) return;
+    const st = this.propState[i];
+    switch (prop.kind) {
+      case PropKind.Pont: {
+        if (st !== 0) return;
+        // les ennemis à pied sur le tablier tombent dans le ruisseau
+        let n = 0;
+        for (const e of [...this.enemiesIn(prop.x, prop.z, PONT_R, false)]) {
+          n++;
+          this.damage(e, PONT_DMG, DmgType.True, p.id, null, 0, false, true);
+          if (!e.dead) e.stunT = Math.max(e.stunT, sec(e.def.boss ? 0.6 : PONT_STUN_S));
+        }
+        this.propState[i] = 1;
+        this.propCd[i] = sec(PONT_CD_S);
+        this.ev(Ev.Prop, i, p.id, 1, n);
+        break;
+      }
+      case PropKind.Poudre: {
+        if (st !== 0) return;
+        let n = 0;
+        for (const e of [...this.enemiesIn(prop.x, prop.z, POUDRE_R, false)]) {
+          n++;
+          this.damage(e, POUDRE_DMG, DmgType.Phys, p.id, null, 0, false, true);
+        }
+        // l'explosion blesse aussi les soldats trop proches (un peu)
+        for (const u of this.units) if (!u.dead && !u.hero && (u.x - prop.x) ** 2 + (u.z - prop.z) ** 2 < POUDRE_R * POUDRE_R) this.hurtUnit(u, 25);
+        this.propState[i] = 1;
+        this.ev(Ev.Prop, i, p.id, 1, n);
+        this.ev(Ev.Impact, Impact.Shell, prop.x, prop.z, Math.round(POUDRE_R * 10));
+        break;
+      }
+      case PropKind.Camp: {
+        const cost = PROP_INFO[PropKind.Camp].cost;
+        if (p.gold < cost) return;
+        p.gold -= cost;
+        // ils vont barrer le chemin le plus proche du camp
+        let best = Infinity, gx = prop.x, gz = prop.z;
+        const o = { x: 0, z: 0 };
+        for (const path of this.map.paths) {
+          const pr = path.project(prop.x, prop.z);
+          if (pr.dist2 < best) { best = pr.dist2; path.at(pr.d, 0, o); gx = o.x; gz = o.z; }
+        }
+        for (let k = 0; k < MERC.n; k++) {
+          const a = (k / MERC.n) * Math.PI * 2 + prop.ang;
+          const q = this.placeOut({ x: prop.x + Math.cos(a) * 1.5, z: prop.z + Math.sin(a) * 1.5 }, 0.45);
+          const u = this.newUnit(MERC.kind, p.id, q.x, q.z, MERC.hp, MERC.dmg[0], MERC.dmg[1], MERC.armor, 1, 0, null, sec(MERC.dur));
+          const g = this.placeOut({ x: gx + Math.cos(a) * 0.7, z: gz + Math.sin(a) * 0.7 }, 0.3);
+          u.hx = g.x;
+          u.hz = g.z;
+        }
+        this.propCd[i] = sec(CAMP_CD_S);
+        this.ev(Ev.Prop, i, p.id, 1, MERC.n);
+        break;
+      }
+      case PropKind.Secret: {
+        const def = SECRETS[this.map.def.biome]?.[prop.v];
+        if (!def || st === PROP_FOUND) return;
+        const n = st + 1;
+        // un petit délai entre deux clics : on ne le trouve pas en martelant par accident
+        this.propCd[i] = sec(0.25);
+        if (n >= def.clicks) {
+          this.propState[i] = PROP_FOUND;
+          p.gold += def.gold;
+          p.goldEarned += def.gold;
+          this.ev(Ev.Prop, i, p.id, PROP_FOUND, def.gold);
+        } else {
+          this.propState[i] = n;
+          this.ev(Ev.Prop, i, p.id, n, 0);
+        }
+        break;
+      }
+    }
+  }
+
+  /** Rechargements des éléments de carte ; pont effondré : les ennemis pataugent dans le gué. */
+  private stepProps() {
+    const props = this.map.props;
+    for (let i = 0; i < props.length; i++) {
+      if (this.propCd[i] > 0) this.propCd[i]--;
+      const pr = props[i];
+      if (pr.kind !== PropKind.Pont || this.propState[i] !== 1) continue;
+      if (this.propCd[i] <= sec(PONT_CD_S - PONT_BROKEN_S)) { this.propState[i] = 0; continue; }
+      for (const e of this.enemiesIn(pr.x, pr.z, PONT_R + 0.4, false)) {
+        e.slowMul = Math.min(e.slowMul, PONT_SLOW);
+        e.slowT = Math.max(e.slowT, 2);
+      }
     }
   }
 
@@ -1834,6 +1947,7 @@ export class Sim {
     this.stepTowers();
     this.stepProjectiles();
     this.stepZones();
+    this.stepProps();
     this.cleanup();
     this.stepCooldowns();
     this.checkEnd();

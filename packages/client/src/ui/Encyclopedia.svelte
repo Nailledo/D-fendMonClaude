@@ -1,12 +1,13 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { CLASSES, ENEMIES, FAMILIES, TOWERS, TRAITS } from '@dfend/shared';
+  import { CLASSES, ENEMIES, FAMILIES, SECRETS, SECRET_TOTAL, TOWERS, TRAITS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
   import { FAMILY_COLOR, FAMILY_NAME, ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { UPGRADE_ICON } from './skillIcons';
   import HeroSheet from './HeroSheet.svelte';
 
-  let tab = $state<'towers' | 'enemies' | 'heroes'>('towers');
+  let tab = $state<'towers' | 'enemies' | 'heroes' | 'secrets'>('towers');
+  const WORLD_NAME = { vallee: 'Vallée', marais: 'Marais', cendre: 'Terres de cendre' } as const;
   const enemies = ENEMIES.filter((e) => !e.spawnOnly || e.boss);
   const seenCount = $derived(enemies.filter((e) => progress.seen.includes(e.id)).length);
 </script>
@@ -21,6 +22,7 @@
       <button class:on={tab === 'towers'} onclick={() => (tab = 'towers')}>Tours</button>
       <button class:on={tab === 'enemies'} onclick={() => (tab = 'enemies')}>Ennemis ({seenCount})</button>
       <button class:on={tab === 'heroes'} onclick={() => (tab = 'heroes')}>Classes du héros</button>
+      <button class:on={tab === 'secrets'} onclick={() => (tab = 'secrets')}>Secrets ({progress.secrets.length}/{SECRET_TOTAL})</button>
     </div>
     <div class="body scroll">
       {#if tab === 'towers'}
@@ -70,6 +72,20 @@
             </div>
           {/each}
         </div>
+      {:else if tab === 'secrets'}
+        <p class="small intro">Chaque carte cache deux clins d’œil. Ils scintillent parfois… et il faut parfois insister.</p>
+        {#each Object.entries(SECRETS) as [world, list]}
+          <h3>{WORLD_NAME[world as keyof typeof WORLD_NAME]}</h3>
+          <div class="traits">
+            {#each list as sc}
+              {@const known = progress.secrets.includes(sc.id)}
+              <div class="trait" class:unknown={!known} style="--tc:#c8a032">
+                <span class="ti">{known ? '★' : '?'}</span>
+                <div><b>{known ? sc.name : '???'}</b><span class="small">{known ? sc.done : 'Pas encore trouvé.'}</span></div>
+              </div>
+            {/each}
+          </div>
+        {/each}
       {:else}
         <div class="heroes">
           <p class="small intro">L’apparence du héros ne change rien à ses pouvoirs : ils dépendent de la classe choisie dans l’arbre du héros.</p>

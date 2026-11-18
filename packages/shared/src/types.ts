@@ -63,6 +63,7 @@ export type Command =
   /** objet de boutique (x, z : point visé pour les objets ciblés) */
   | { k: 'item'; i: number; x: number; z: number }
   | { k: 'spell'; s: 0 | 1; x: number; z: number }
+  | { k: 'prop'; i: number }
   | { k: 'wave' }
   | { k: 'speed'; v: 1 | 2 }
   | { k: 'gift'; to: number; amt: number };

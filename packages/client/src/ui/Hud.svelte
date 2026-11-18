@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, ADAPT_SHARE, ADAPT_WEAK, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, ADAPT_SHARE, ADAPT_WEAK, PROP_INFO, PONT_CD_S, PONT_BROKEN_S, PropKind, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -323,6 +323,24 @@
         {/if}
       {/each}
     </div>
+  {:else if sel?.kind === 'prop' && sel.prop !== undefined && g()?.map.props[sel.prop]}
+    {@const pi = sel.prop}
+    {@const mp = g()!.map.props[pi]}
+    {@const info = PROP_INFO[mp.kind]}
+    {@const pp = h.prop}
+    {@const ready = pp.cd <= 0 && pp.st === 0}
+    <div class="info panel ui prop sheet-{ui.sheet}">
+      <div class="tsh"><b>{info.name}</b>{#if info.cost}<span class="tc" class:poor={h.gold < info.cost}><Ico k="coin" fb={ICON.coin} />{info.cost}</span>{/if}</div>
+      <div class="small">{info.desc}</div>
+      <div class="pst" class:ok={ready}>
+        {#if mp.kind === PropKind.Pont && pp.st === 1}Effondré : rebâti dans {Math.max(0, pp.cd - (PONT_CD_S - PONT_BROKEN_S))} s
+        {:else if mp.kind === PropKind.Pont && pp.cd > 0}Rebâti, mais encore trop solide : {pp.cd} s
+        {:else if mp.kind === PropKind.Poudre && pp.st === 1}Déjà sauté : un nouveau tonneau arrive à la prochaine vague.
+        {:else if mp.kind === PropKind.Camp && pp.cd > 0}Les mercenaires se reposent : {pp.cd} s
+        {:else}Prêt !{/if}
+      </div>
+      <button class="btn act" disabled={!ready || h.gold < info.cost} onclick={() => g()?.useProp(pi)}>{info.act}</button>
+    </div>
   {:else if sel?.kind === 'tower' && sel.fam !== undefined}
     <TowerPanel />
   {:else if sel?.kind === 'build'}
@@ -554,6 +572,9 @@
   .tc { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-display); font-size: 1.15em; color: #a05f00; font-variant-numeric: tabular-nums; }
   .tc.poor { color: var(--bad); }
   .tipsheet .again { margin-top: 6px; }
+  .info.prop .pst { margin: 8px 0; font-weight: 900; font-size: 0.86em; color: var(--muted); }
+  .info.prop .pst.ok { color: var(--good, #2e7d32); }
+  .info.prop .act { width: 100%; }
   .nowrap { white-space: nowrap; margin-left: 8px; }
   .small { font-size: 0.9em; color: var(--muted); font-weight: 700; }
   .stats { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; font-weight: 900; font-size: 0.82em; font-variant-numeric: tabular-nums; }

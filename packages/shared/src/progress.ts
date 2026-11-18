@@ -27,10 +27,12 @@ export interface Progress {
   hero: HeroBuild;
   /** les deux sorts généraux choisis (index de SPELLS) ; les sorts s'obtiennent en terminant des niveaux */
   spells: [number, number];
+  /** clins d'œil cachés trouvés sur les cartes (identifiants de SECRETS) */
+  secrets: string[];
 }
 
 export function emptyProgress(): Progress {
-  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], treeV: TREE_VERSION, items: [], shopSpent: 0, bonusStars: 0, hero: sanitizeBuild(EMPTY_BUILD), spells: [...DEFAULT_SPELLS] };
+  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], treeV: TREE_VERSION, items: [], shopSpent: 0, bonusStars: 0, hero: sanitizeBuild(EMPTY_BUILD), spells: [...DEFAULT_SPELLS], secrets: [] };
 }
 
 const MAX_LEVELS = 64;
@@ -45,6 +47,7 @@ export function sanitizeProgress(raw: unknown): Progress {
   const p = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   const stars = Array.isArray(p.stars) ? p.stars.slice(0, MAX_LEVELS) : [];
   const seen = Array.isArray(p.seen) ? p.seen.filter((s): s is string => typeof s === 'string' && /^[\w-]{1,32}$/.test(s)) : [];
+  const secrets = Array.isArray(p.secrets) ? p.secrets.filter((s): s is string => typeof s === 'string' && /^[a-z]{1,16}$/.test(s)) : [];
   const meta = sanitizeMeta(p.tree, p.items);
   migrateTree(meta.tree, int(p.treeV, TREE_VERSION) || 1);
   return {
@@ -60,6 +63,7 @@ export function sanitizeProgress(raw: unknown): Progress {
     bonusStars: int(p.bonusStars, 1e6),
     hero: sanitizeBuild(p.hero),
     spells: sanitizeSpells(p.spells),
+    secrets: [...new Set(secrets)].slice(0, 64),
   };
 }
 
@@ -116,6 +120,7 @@ export function mergeProgress(local: Progress, remote: Progress, localAt: number
     bonusStars: Math.max(a.bonusStars, b.bonusStars),
     hero: sanitizeBuild(spend.hero),
     spells: [...spend.spells],
+    secrets: [...new Set([...a.secrets, ...b.secrets])].slice(0, 64),
   };
   // garde-fou : jamais de solde négatif (l'arbre se rembourse, la boutique non)
   if (progressEarned(out) - out.shopSpent - treeCost(out.tree) < 0) out.tree = TREE.map(() => 0);

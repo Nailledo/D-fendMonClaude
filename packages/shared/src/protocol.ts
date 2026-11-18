@@ -139,6 +139,7 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.Recover]: 'bwpp',
   [Ev.Escape]: 'wbw',
   [Ev.Adapt]: 'bb',
+  [Ev.Prop]: 'bbbw',
 };
 
 // Drapeaux
@@ -175,6 +176,12 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
   w.frac(sim.adapt[1]);
   const ad = sim.adaptDmg[0] + sim.adaptDmg[1];
   w.frac(ad > 0 ? sim.adaptDmg[0] / ad : 0.5);
+  // carte interactive : état et rechargement de chaque élément
+  w.u8(sim.propState.length);
+  for (let i = 0; i < sim.propState.length; i++) {
+    w.u8(sim.propState[i]);
+    w.u16(Math.min(0xffff, sim.propCd[i]));
+  }
   // joueurs
   w.u8(sim.players.length);
   for (const p of sim.players) {
@@ -300,6 +307,10 @@ export class Snapshot {
   /** météo de la vague : pluie, nuit */
   rain = false;
   night = false;
+  /** carte interactive (voir Sim.propState / propCd) */
+  propN = 0;
+  propState = new Uint8Array(32);
+  propCd = new Uint16Array(32);
   // joueurs
   pCount = 0;
   pId = new Uint8Array(4);
@@ -392,6 +403,11 @@ export class Snapshot {
     this.adaptPhys = r.frac();
     this.adaptMagic = r.frac();
     this.adaptShare = r.frac();
+    this.propN = r.u8();
+    for (let i = 0; i < this.propN; i++) {
+      const st = r.u8(), cd = r.u16();
+      if (i < 32) { this.propState[i] = st; this.propCd[i] = cd; }
+    }
     this.pCount = r.u8();
     for (let i = 0; i < this.pCount; i++) {
       this.pId[i] = r.u8(); this.pGold[i] = r.u32(); this.pCd0[i] = r.u16(); this.pCd1[i] = r.u16(); this.pFlags[i] = r.u8();

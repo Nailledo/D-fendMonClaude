@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import {
   AVENTURIER, CLASSES, ENEMIES, bossPhase, NIGHT_RANGE, TORCH_R, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, sanitizeSpells, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
-  ET_FLEEING, ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
+  ET_FLEEING, ET_REVEALED, PROP_FOUND, PROP_INFO, PropKind, SECRETS, SECRET_TOTAL, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
 import { forgetPools } from '../render/InstPool';
 import { Decal, Fx } from '../render/Fx';
 import { WeatherView } from '../render/Weather';
+import { PropsView } from '../render/Props';
 import type { Renderer } from '../render/Renderer';
 import { buildWorld, type WorldInfo } from '../render/World';
 import type { Host } from '../net/host';
@@ -98,6 +99,10 @@ export class GameClient {
   private bossSeen = new Set<number>();
   private tmpP = { x: 0, z: 0 };
   private weather: WeatherView;
+  /** carte interactive : pont, tonneaux, camp, secrets */
+  private props: PropsView;
+  private hoverProp = -1;
+  private sparkleT = 3;
   private ended = false;
   private dmgIdx = 0;
   private fpsAcc = 0;
@@ -132,6 +137,8 @@ export class GameClient {
     this.fx.setGround(this.world.ground);
     this.weather = new WeatherView(this.map.torches, this.world.heightAt);
     r.scene.add(this.weather.group);
+    this.props = new PropsView(this.map.props, this.map.def.biome, this.world.heightAt);
+    r.scene.add(this.props.group);
     this.interp = new Interp(this.map, host.local);
     host.onSnapshot = (b) => {
       this.snapshotBytes += b.byteLength;
@@ -677,6 +684,19 @@ export class GameClient {
     const hp = this.heroPos();
     const hr = this.tapRadius(1.14);
     if (hp && (hp.x - p.x) ** 2 + (hp.z - p.z) ** 2 < hr * hr) { this.selectHero(); audio.play('click'); return true; }
+    // carte interactive (un emplacement tout proche reste prioritaire)
+    const pi = this.slotAt(p.x, p.z, 1.1) < 0 ? this.props.at(p.x, p.z, ui.touch ? 0.3 : 0, this.interp.latest) : -1;
+    if (pi >= 0) {
+      audio.play('click');
+      if (this.map.props[pi].kind === PropKind.Secret) {
+        // un secret réagit tout de suite, sans fenêtre : on le découvre en insistant
+        this.send({ k: 'prop', i: pi });
+        this.props.poke(pi);
+        ui.sel = null;
+      } else ui.sel = { kind: 'prop', prop: pi };
+      this.syncHud();
+      return true;
+    }
     // emplacement / tour
     const slot = this.slotAt(p.x, p.z, slotRad);
     if (slot >= 0) {
@@ -830,6 +850,17 @@ export class GameClient {
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
     r.setWeather(snap.rain, snap.night);
     this.weather.update(dt, this.time, r.wx.rain, r.wx.night, r.cam.x, r.cam.z);
+    this.props.update(dt, this.time, snap, this.hoverProp);
+    // un secret pas encore trouvé scintille de temps en temps : de quoi intriguer l'œil attentif
+    if ((this.sparkleT -= dt) <= 0) {
+      this.sparkleT = 4 + Math.random() * 5;
+      const hidden = this.map.props.map((p, i) => i).filter((i) => this.map.props[i].kind === PropKind.Secret && snap.propState[i] !== PROP_FOUND);
+      const i = hidden[Math.floor(Math.random() * hidden.length)];
+      if (i !== undefined) {
+        const p = this.map.props[i];
+        for (let k = 0; k < 3; k++) this.fx.glow.spawn(p.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.5, p.z + (Math.random() - 0.5) * 0.6, 0, 0.5, 0, 0.9, 0.12, 0xfff8e1, 0);
+      }
+    }
     // château : un monstre qui franchit la porte le fait trembler ; il brûle quand les vies s'épuisent
     const castle = this.world.castle;
     for (; this.ents.castleEntered > 0; this.ents.castleEntered--) castle.hit(this.fx);
@@ -921,6 +952,7 @@ export class GameClient {
     // au tactile, il n'y a de survol que pendant qu'un doigt est posé
     const p = ui.touch && !this.mouse.down ? null : this.r.pick(this.mouse.x, this.mouse.y);
     this.hoverSlot = p ? this.slotAt(p.x, p.z) : -1;
+    this.hoverProp = p && !this.targeting && this.hoverSlot < 0 ? this.props.at(p.x, p.z, 0, this.interp.latest) : -1;
     const t = this.targeting;
     this.aimRing.visible = false;
     if (p && t && (t.kind === 'spell' || t.kind === 'hskill' || t.kind === 'item')) {
@@ -1133,10 +1165,29 @@ export class GameClient {
     this.fx.ring(x, z, 5, 0xff3d00, 1.2, 2);
   }
 
+  /** Bouton du panneau d'un élément de carte : faire tomber le pont, allumer la mèche, engager. */
+  useProp(i: number) {
+    const p = this.map.props[i];
+    if (!p) return;
+    const s = this.interp.latest;
+    const st = s && i < s.propN ? s.propState[i] : 0, cd = s && i < s.propN ? s.propCd[i] : 0;
+    if (!PropsView.ready(p, st, cd)) { audio.play('deny'); return; }
+    if (PROP_INFO[p.kind].cost > ui.hud.gold) { toast('Pas assez d’or pour engager les mercenaires.', 'info', 1800); audio.play('deny'); return; }
+    this.send({ k: 'prop', i });
+    this.props.poke(i);
+    if (p.kind !== PropKind.Camp) ui.sel = null;
+  }
+
   private syncHud() {
     const s = this.interp.latest;
     if (!s) return;
     const h = ui.hud;
+    if (ui.sel?.kind === 'prop' && ui.sel.prop !== undefined) {
+      const i = ui.sel.prop;
+      const st = i < s.propN ? s.propState[i] : 0, cd = i < s.propN ? Math.ceil(s.propCd[i] / TICK_RATE) : 0;
+      if (h.prop.st !== st) h.prop.st = st;
+      if (h.prop.cd !== cd) h.prop.cd = cd;
+    }
     const pi = s.playerIndex(this.you);
     h.gold = pi >= 0 ? s.pGold[pi] : 0;
     h.lives = s.lives;
@@ -1627,6 +1678,57 @@ export class GameClient {
         this.syncHud();
         break;
       }
+      case Ev.Prop: {
+        const [, i, pid, st, val] = ev;
+        const p = this.map.props[i];
+        if (!p) break;
+        const mine = pid === this.you;
+        this.props.poke(i);
+        if (p.kind === PropKind.Pont) {
+          // le tablier s'effondre : éclaboussures, planches, secousse
+          const liquid = this.map.def.biome === 'cendre' ? 0xff8a3d : this.map.def.biome === 'marais' ? 0x7f9a5a : 0x9fd8f0;
+          fx.burst(p.x, 0.3, p.z, 50, liquid, 5, 0.14, 0.9, false, -9);
+          fx.burst(p.x, 0.4, p.z, 18, 0x8d6e47, 4, 0.12, 1, false, -9);
+          this.r.shake(0.45);
+          audio.play('explosion', 0.7);
+          this.floatText(p.x, 1.6, p.z, val > 0 ? `Plouf ! ${val} à l’eau` : 'Le pont s’effondre', 'name');
+        } else if (p.kind === PropKind.Poudre) {
+          fx.burst(p.x, 0.6, p.z, 40, 0xffa726, 6, 0.16, 0.8, true, -3);
+          fx.burst(p.x, 0.5, p.z, 24, 0x424242, 3, 0.2, 1.4, false, 1);
+          this.r.shake(0.5);
+          audio.play('explosion');
+          this.floatText(p.x, 1.8, p.z, 'BOUM !', 'name');
+        } else if (p.kind === PropKind.Camp) {
+          fx.ring(p.x, p.z, 2, 0xffd54f, 0.6);
+          audio.play('build');
+          this.floatText(p.x, 2.4, p.z, 'Mercenaires engagés !', 'name');
+          if (mine) this.damageNumber(p.x, 2, p.z, -PROP_INFO[PropKind.Camp].cost, 'gold');
+        } else {
+          const def = SECRETS[this.map.def.biome]?.[p.v];
+          if (!def) break;
+          if (st === PROP_FOUND) {
+            fx.burst(p.x, 0.7, p.z, 40, 0xffd54f, 4, 0.12, 1, true, -4);
+            for (let k = 0; k < 16; k++) fx.sparks.spawn(p.x, 0.8, p.z, (Math.random() - 0.5) * 4, 3 + Math.random() * 3, (Math.random() - 0.5) * 4, 1, 0.1, 0xffd54f);
+            if (def.vanish) fx.burst(p.x, 0.5, p.z, 20, 0xffffff, 2, 0.2, 0.8, false, 0.5);
+            audio.play('levelup');
+            if (mine) {
+              this.damageNumber(p.x, 1.6, p.z, val, 'gold');
+              if (!progress.secrets.includes(def.id)) {
+                progress.secrets.push(def.id);
+                saveProgress();
+              }
+              toast(`${def.done} Secret trouvé ! (${progress.secrets.length}/${SECRET_TOTAL})`, 'good', 6000);
+            } else {
+              const who = ui.hud.players.find((q) => q.id === pid);
+              toast(`${who?.name ?? 'Un allié'} a trouvé un secret : ${def.done}`, 'good', 5000);
+            }
+          } else {
+            this.floatText(p.x, 1.3, p.z, def.steps[Math.min(def.steps.length - 1, st - 1)] ?? '…', 'name');
+          }
+        }
+        this.syncHud();
+        break;
+      }
       case Ev.Adapt: {
         const [, dom, v] = ev;
         toast(`Kessin s’adapte : les ennemis résistent désormais ${dom ? 'à la magie' : 'aux armes'} (−${v} %), mais craignent ${dom ? 'les armes' : 'la magie'}. Variez vos dégâts !`, 'enemy', 5000);
@@ -1986,7 +2088,7 @@ export class GameClient {
     for (const d of this.disposers) d();
     this.host.dispose();
     const scene = this.r.scene;
-    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.weather.group, this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
+    for (const obj of [this.world.group, this.ents.group, this.fx.group, this.weather.group, this.props.group, this.rangeRing, this.hoverRing, this.aimRing, this.focusRing, this.rallyFlag]) { scene.remove(obj); forgetPools(obj); }
     scene.traverse(() => {});
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => {
       const m = c as THREE.Mesh;
