@@ -59,6 +59,9 @@
 
   /** corps d'une icône au trait (sans son <svg>), pour la dessiner dans le SVG de l'arbre */
   const body = (svg: string) => svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+  /** image 3D d'une compétence ou d'un passif (absente : pictogramme au trait) */
+  const nodePic = (n: TreeNode): string | undefined =>
+    n.kind === 'skill' || n.kind === 'ult' ? ui.icons[skillIcon(n.skill).k] : n.kind === 'passive' ? ui.icons[passiveIcon(n).k] : undefined;
   const nodeGlyph = (n: TreeNode, c: number) =>
     body(nodeIcon(n.kind === 'root' ? ROOT_ICON[c] : n.kind === 'skill' || n.kind === 'ult' ? n.skill.icon : n.icon));
 
@@ -262,6 +265,8 @@
                 {@const r = rankOf(ci, i)}
                 {@const open = nodeOpen(build, ci, i)}
                 {@const on = sel.t === 'node' && sel.i === i}
+                {@const pic = nodePic(n)}
+                {@const ps = n.kind === 'passive' ? s * 1.75 : s * 2}
                 <g
                   class="node {n.kind}"
                   class:owned={r > 0}
@@ -285,7 +290,11 @@
                     <circle r={s} class="disc" />
                     {#if n.kind === 'skill' || n.kind === 'ult'}<circle r={s - 5} class="inner" />{/if}
                   {/if}
-                  <g class="glyph" transform="translate({-s * 0.6},{-s * 0.6}) scale({(s * 1.2) / 24})">{@html nodeGlyph(n, ci)}</g>
+                  {#if pic}
+                    <image href={pic} x={-ps / 2} y={-ps / 2} width={ps} height={ps} class="pic" />
+                  {:else}
+                    <g class="glyph" transform="translate({-s * 0.6},{-s * 0.6}) scale({(s * 1.2) / 24})">{@html nodeGlyph(n, ci)}</g>
+                  {/if}
                   {#if n.ranks > 1}
                     {@const po = pillOff(i, s)}
                     <g transform="translate({po[0].toFixed(1)},{po[1].toFixed(1)})"><rect x="-20" y="-11" width="40" height="21" rx="10.5" class="pill" /><text y="5" class="rk">{r}/{n.ranks}</text></g>
@@ -452,6 +461,11 @@
   .owned.afford .disc { stroke: #ffd24a; }
   .shut .disc { stroke: #252d3f; fill: #0e131f; }
   .shut .glyph { color: #2f374a; }
+  /* image de la compétence : grisée tant qu'elle n'est pas apprise */
+  .pic { pointer-events: none; filter: grayscale(0.85) brightness(0.55); transition: filter 0.15s; }
+  .open .pic { filter: grayscale(0.4) brightness(0.85); }
+  .owned .pic { filter: none; }
+  .shut .pic { filter: grayscale(1) brightness(0.35); }
   .ult .disc { stroke-width: 4; }
   .ult.owned .disc { stroke: #ffd24a; }
   .node:hover .disc, .node:focus-visible .disc { stroke: #fff; }
