@@ -1,6 +1,6 @@
 /**
  * Corrige les parties animées des modèles déjà cuits (public/models/*.glb) :
- *   pnpm tsx tools/models/fixparts.ts
+ *   pnpm tsx tools/models/fixparts.ts [id…]   (sans argument : tous les ennemis)
  *
  * La cuisson devinait jambes / bras / ailes d'après la forme : sur les créatures rondes (gobelin, loup)
  * la bouche et la langue suivaient les « jambes », sur les volants les yeux battaient avec les ailes.
@@ -26,7 +26,8 @@ const enum P { Body = 0, LegL = 1, LegR = 2, ArmL = 3, ArmR = 4, WingL = 5, Wing
 const BLOBS = new Set(['gobelin', 'loup', 'limon', 'petitlimon', 'ver', 'vasiere', 'invocateur']);
 const FLYERS = new Set(['corbeau', 'chauvesouris', 'gargouille']);
 /** modèles dont les « bras » détectés sont en réalité les jambes (membres qui descendent jusqu'au sol) */
-const ARMS_ARE_LEGS = new Set<string>();
+const ARMS_ARE_LEGS = new Set<string>(['diablotin']);
+const ONLY = new Set(process.argv.slice(2));
 
 function read(p: Primitive, s: string) {
   const a = p.getAttribute(s)!, out: number[] = [], e: number[] = new Array(a.getElementSize()).fill(0);
@@ -53,6 +54,7 @@ function islands(pos: number[], idx: ArrayLike<number>) {
 
 for (const file of readdirSync(MODELS).filter((f) => f.startsWith('enemy-') && f.endsWith('.glb'))) {
   const id = file.slice(6, -4);
+  if (ONLY.size && !ONLY.has(id)) continue;
   const doc = await io.read(join(MODELS, file));
   const prim = doc.getRoot().listMeshes()[0].listPrimitives()[0];
   const pos = read(prim, 'POSITION');

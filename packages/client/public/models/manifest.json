@@ -221,11 +221,6 @@
    "height": 1.2,
    "tris": 1200
   },
-  "enemy:golem": {
-   "file": "enemy-golem.glb",
-   "height": 1.7,
-   "tris": 1800
-  },
   "enemy:chevalierinf": {
    "file": "enemy-chevalierinf.glb",
    "height": 1.5,
@@ -402,11 +397,6 @@
   "enemy:loup": {
    "file": "enemy-loup.glb",
    "height": 0.8,
-   "tris": 1200
-  },
-  "enemy:ver": {
-   "file": "enemy-ver.glb",
-   "height": 0.9,
    "tris": 1200
   },
   "enemy:vasiere": {

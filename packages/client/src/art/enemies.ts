@@ -178,14 +178,31 @@ const MODELS: Record<string, Build> = {
     MODELS.limon(g);
   },
   ver(g) {
-    const c = 0x8d6e63;
-    for (let i = 0; i < 5; i++) g.ball(0.3 - i * 0.03, i % 2 ? c : 0x795548, 0, 0.3 + (i === 0 ? 0.2 : 0), 0.3 - i * 0.32, 1, 1, 1);
-    g.ball(0.34, 0xa1887f, 0, 0.55, 0.45);
-    g.cyl(0.2, 0.2, 0.08, 8, 0x3e2723, 0, 0.55, 0.76, Math.PI / 2);
-    for (let k = 0; k < 6; k++) {
-      const a = (k / 6) * Math.PI * 2;
-      g.cone(0.04, 0.12, 3, 0xfff8e1, Math.cos(a) * 0.16, 0.55 + Math.sin(a) * 0.16, 0.8, Math.PI / 2);
+    // ver des vases : un long corps annelé qui jaillit de la boue, gueule ronde garnie de crocs
+    const flesh = 0xc98a7d, ring = 0xa86a5e, mud = 0x4e3b2a;
+    g.rock(0.42, mud, 0, 0.05, -0.55, 1.4, 0.35, 1.3);
+    g.rock(0.2, mud, 0.3, 0.04, -0.3, 1, 0.5, 1);
+    // segments en arc : de la boue (derrière) jusqu'à la tête dressée (devant)
+    const n = 7;
+    for (let k = 0; k < n; k++) {
+      const t = k / (n - 1), a = t * Math.PI * 0.62;
+      const z = -0.55 + Math.sin(a) * 0.75, y = 0.12 + (1 - Math.cos(a)) * 0.2 + t * 0.62;
+      const r = 0.2 + t * 0.07;
+      g.ball(r, k % 2 ? ring : flesh, 0, y, z, 1, 0.92, 1.05);
+      // anneau perpendiculaire au corps : axe du tore (z) incliné selon la pente de l'arc
+      const dz = Math.cos(a) * 0.75 * 0.62 * Math.PI, dy = Math.sin(a) * 0.2 * 0.62 * Math.PI + 0.62;
+      if (k > 0 && k < n - 1) g.torus(r * 0.98, ring, 0, y, z, -Math.atan2(dy, dz));
     }
+    // tête et gueule (vers +z)
+    g.ball(0.3, flesh, 0, 0.98, 0.3, 1, 1, 0.9);
+    g.cyl(0.22, 0.24, 0.1, 10, 0x5d1f1f, 0, 0.98, 0.55, Math.PI / 2);
+    g.cyl(0.13, 0.13, 0.06, 10, 0x1a0808, 0, 0.98, 0.6, Math.PI / 2);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      g.cone(0.035, 0.12, 3, 0xfff8e1, Math.cos(a) * 0.17, 0.98 + Math.sin(a) * 0.17, 0.62, Math.PI / 2);
+    }
+    // petites taches sombres sur le dos
+    for (const [y, z] of [[0.62, -0.1], [0.8, 0.08], [0.45, -0.3]]) g.ball(0.05, 0x7b4a40, 0.17, y, z, 1, 0.6, 1);
   },
   chauvesouris(g) {
     g.ball(0.35, 0x4a3b55, 0, 0, 0, 1, 1, 1.1);
@@ -223,18 +240,29 @@ const MODELS: Record<string, Build> = {
     eyes(g, 1.55, 0.36, 0.12, 0xffeb3b, 0.06);
   },
   golem(g) {
-    const rock = 0x3e3a3a, lava = 0xff8f00;
-    legs(g, rock, 0.6, 0.3, 0.36);
-    g.rock(0.62, rock, 0, 1.1, 0, 1.15, 1, 0.9);
-    g.box(0.5, 0.06, 0.06, lava, 0.1, 1.15, 0.5, 0, 0, 0.6);
-    g.box(0.4, 0.06, 0.06, lava, -0.15, 0.95, 0.52, 0, 0, -0.4);
-    g.ball(0.14, lava, 0, 1.25, 0.5);
+    // golem de lave : roche rouge sombre fendue de magma incandescent
+    const rock = 0x6b1d12, dark = 0x3d0f0a, lava = 0xff6d00, hot = 0xffd54f;
+    legs(g, dark, 0.6, 0.3, 0.36);
+    g.rock(0.64, rock, 0, 1.1, 0, 1.15, 1, 0.9);
+    g.rock(0.36, dark, 0.05, 1.45, -0.2, 1.3, 0.8, 1);
+    // fissures et cœur de magma sur le torse
+    g.box(0.55, 0.07, 0.07, lava, 0.08, 1.18, 0.52, 0, 0, 0.6);
+    g.box(0.42, 0.07, 0.07, lava, -0.14, 0.95, 0.54, 0, 0, -0.4);
+    g.box(0.3, 0.06, 0.06, lava, 0.25, 0.85, 0.5, 0, 0, 1.1);
+    g.box(0.07, 0.4, 0.07, lava, -0.42, 1.2, 0.36, 0, 0, 0.2);
+    g.ball(0.17, hot, 0, 1.25, 0.5);
+    g.ball(0.1, lava, 0.3, 1.45, 0.38);
+    // épaules fumantes : coulées de lave figées
+    for (const x of [0.55, -0.55]) { g.rock(0.26, dark, x, 1.62, 0); g.cone(0.08, 0.18, 4, lava, x * 1.05, 1.82, 0.02); }
     arms(g, rock, 1.4, 0.75, 0.75, 0.3);
-    g.setPart(Part.ArmR, -0.75, 1.4, 0).rock(0.3, rock, -0.75, 0.55, 0);
-    g.setPart(Part.ArmL, 0.75, 1.4, 0).rock(0.3, rock, 0.75, 0.55, 0);
+    g.setPart(Part.ArmR, -0.75, 1.4, 0).rock(0.32, dark, -0.75, 0.55, 0);
+    g.setPart(Part.ArmR, -0.75, 1.4, 0).box(0.25, 0.05, 0.05, lava, -0.75, 0.62, 0.27, 0, 0, 0.5);
+    g.setPart(Part.ArmL, 0.75, 1.4, 0).rock(0.32, dark, 0.75, 0.55, 0);
+    g.setPart(Part.ArmL, 0.75, 1.4, 0).box(0.25, 0.05, 0.05, lava, 0.75, 0.62, 0.27, 0, 0, -0.5);
     g.setPart(Part.Body);
-    g.rock(0.3, rock, 0, 1.82, 0.12);
-    eyes(g, 1.85, 0.38, 0.12, 0xffd54f, 0.06);
+    g.rock(0.3, rock, 0, 1.84, 0.12);
+    g.box(0.34, 0.05, 0.05, lava, 0, 1.74, 0.38);
+    eyes(g, 1.87, 0.38, 0.12, hot, 0.06);
   },
   invocateur(g) {
     const robe = 0x311b3f;
@@ -392,12 +420,24 @@ export function stunStarsGeometry(): THREE.BufferGeometry {
   return g;
 }
 
+/** Art en code plus grand que la hauteur voulue (multipliée ensuite par la taille de l'ennemi). */
+const CODE_SCALE: Record<string, number> = { golem: 0.78 };
+
 export function enemyGeometry(id: string): THREE.BufferGeometry {
   let g = cache.get(id);
   if (!g) {
     const b = new GB(id.length * 97 + 13);
     (MODELS[id] ?? MODELS.gobelin)(b);
     g = b.build();
+    const k = CODE_SCALE[id];
+    if (k) {
+      // échelle de l'art en code : sommets et pivots d'animation ensemble
+      g.scale(k, k, k);
+      const a = g.getAttribute('aAnim') as THREE.BufferAttribute;
+      for (let i = 0; i < a.count; i++) a.setXYZW(i, a.getX(i), a.getY(i) * k, a.getZ(i) * k, a.getW(i) * k);
+      g.computeBoundingBox();
+      g.computeBoundingSphere();
+    }
     cache.set(id, g);
   }
   return g;
