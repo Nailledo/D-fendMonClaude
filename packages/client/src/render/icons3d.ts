@@ -171,6 +171,39 @@ export const ICONS3D: Record<string, Icon3D> = {
       g.rock(0.35, 0x6d7b52, -0.45, -0.95, 0, 1.4, 0.5, 1);
     },
   },
+  // ------------------------------------------------ carte interactive
+  prop_merc: {
+    // camp de mercenaires : casque à plumet et épée, payés d'une pièce d'or
+    medal: M.camp, rot: [0.15, -0.35, 0],
+    build(g) {
+      sword(g, 0.55, -0.05, -0.55, 1.9);
+      g.ball(0.62, STEEL, -0.1, 0.05, 0, 1, 0.85, 1, 1);
+      g.cyl(0.66, 0.66, 0.16, 10, IRON, -0.1, -0.12, 0);
+      g.box(0.12, 0.55, 0.1, IRON, -0.1, -0.2, 0.6);
+      g.cone(0.18, 0.75, 6, RED, -0.1, 0.75, -0.05, -0.5);
+      g.cyl(0.32, 0.32, 0.1, 12, GOLD, -0.55, -0.72, 0.35, Math.PI / 2 - 0.25, 0, 0.2);
+      g.cyl(0.24, 0.24, 0.12, 12, GOLD_D, -0.55, -0.72, 0.35, Math.PI / 2 - 0.25, 0, 0.2);
+    },
+  },
+  prop_poudre: {
+    // tonneau de poudre cerclé de fer, mèche allumée
+    medal: M.art, rot: [0.2, -0.4, 0],
+    build(g) {
+      g.cyl(0.62, 0.62, 1.3, 10, WOOD, -0.05, -0.2, 0);
+      g.cyl(0.7, 0.62, 0.35, 10, 0x9a6b3c, -0.05, 0.15, 0);
+      g.cyl(0.62, 0.7, 0.35, 10, 0x9a6b3c, -0.05, -0.55, 0);
+      for (const y of [-0.7, -0.2, 0.3]) g.cyl(0.71, 0.71, 0.08, 10, IRON, -0.05, y, 0);
+      g.cyl(0.55, 0.55, 0.05, 10, 0x6d4425, -0.05, 0.46, 0);
+      g.box(0.5, 0.32, 0.04, 0x2b1a12, -0.05, -0.2, 0.7);
+      g.cyl(0.045, 0.045, 0.6, 4, 0x3e2723, 0.2, 0.75, 0, 0, 0, -0.6);
+      g.ball(0.16, YEL, 0.42, 1.03, 0);
+      g.ball(0.09, 0xffffff, 0.42, 1.03, 0.12);
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        g.box(0.06, 0.26, 0.04, ORANGE, 0.42 + Math.cos(a) * 0.26, 1.03 + Math.sin(a) * 0.26, 0, 0, 0, a + Math.PI / 2);
+      }
+    },
+  },
   // ------------------------------------------------ compétences de Samuel
   sk_samuel_1: {
     medal: M.gold, rot: [0.15, -0.35, 0],

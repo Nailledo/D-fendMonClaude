@@ -64,10 +64,12 @@ export class PropsView {
       const vanish = p.kind === PropKind.Secret && st === PROP_FOUND && SECRETS[this.biome]?.[p.v]?.vanish;
       it.root.visible = !((p.kind === PropKind.Poudre && st === 1) || vanish);
       it.wob = Math.max(0, it.wob - dt * 2.2);
-      const w = it.wob;
-      // secousse : écrasement puis rebond, petit saut ; léger battement sous le curseur
+      // seuls les secrets réagissent au clic (secousse, petit saut, battement sous le curseur) :
+      // le camp et le tonneau ouvrent leur menu sans bouger
+      const secret = p.kind === PropKind.Secret;
+      const w = secret ? it.wob : 0;
       const sq = 1 + Math.sin(w * Math.PI * 4) * 0.12 * w;
-      const k = it.k * (hover === i ? 1 + 0.04 * Math.sin(time * 6) : 1);
+      const k = it.k * (secret && hover === i ? 1 + 0.04 * Math.sin(time * 6) : 1);
       it.root.scale.set(k / Math.sqrt(sq), k * sq, k / Math.sqrt(sq));
       it.root.position.y = it.y + Math.sin(w * Math.PI) * 0.25 * w;
       it.root.rotation.y = -p.ang + Math.sin(w * Math.PI * 6) * 0.15 * w;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  AVENTURIER, CLASSES, ENEMIES, skinIndex, bossPhase, NIGHT_RANGE, TORCH_R, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
+  AVENTURIER, CAMP_RALLY_R, CLASSES, ENEMIES, skinIndex, bossPhase, NIGHT_RANGE, TORCH_R, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, sanitizeSpells, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_FLEEING, ET_REVEALED, PROP_FOUND, PROP_INFO, PropKind, SECRETS, SECRET_TOTAL, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
@@ -27,7 +27,7 @@ export const dom: { radial: HTMLElement | null; waves: (HTMLElement | null)[]; d
   radial: null, waves: [], dmg: null, pings: null,
 };
 
-type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'item'; i: number } | { kind: 'hskill'; i: 0 | 1 | 2 } | { kind: 'rally'; tower: number } | { kind: 'hmove' };
+type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'item'; i: number } | { kind: 'hskill'; i: 0 | 1 | 2 } | { kind: 'rally'; tower: number } | { kind: 'campRally'; prop: number } | { kind: 'hmove' };
 
 const FAM_ACTIONS: Action[] = ['buildArcher', 'buildBarracks', 'buildMage', 'buildArtillery', 'buildMine', 'buildCamp'];
 const DEATH_COLORS: Record<string, number> = { vallee: 0x7cb342, marais: 0x6f9a8a, cendre: 0xd84315 };
@@ -294,6 +294,22 @@ export class GameClient {
     if (!s || s.kind !== 'tower' || !s.mine || s.fam !== 1 || s.tower === undefined) return;
     this.targeting = { kind: 'rally', tower: s.tower };
     ui.hud.targeting = 'Choisissez le point de ralliement';
+  }
+
+  /** Camp de mercenaires sélectionné : choisir où ils se postent, dans la zone autour du camp. */
+  startCampRally() {
+    const s = ui.sel;
+    if (!s || s.kind !== 'prop' || s.prop === undefined || this.map.props[s.prop]?.kind !== PropKind.Camp) return;
+    this.targeting = { kind: 'campRally', prop: s.prop };
+    ui.hud.targeting = 'Choisissez où se postent les mercenaires';
+  }
+
+  /** Point visé ramené dans la zone de placement du camp `i` (même règle que la simulation). */
+  private clampCamp(i: number, p: { x: number; z: number }) {
+    const c = this.map.props[i];
+    const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz);
+    const k = d > CAMP_RALLY_R ? CAMP_RALLY_R / d : 1;
+    return { x: c.x + dx * k, z: c.z + dz * k };
   }
 
   castSpell(s: 0 | 1) {
@@ -615,7 +631,9 @@ export class GameClient {
         break;
       }
       case 'sell': this.selectHoveredTower(); this.sell(); break;
-      case 'rally': this.selectHoveredTower(); this.startRally(); break;
+      case 'rally':
+        if (ui.sel?.kind === 'prop') { this.startCampRally(); break; }
+        this.selectHoveredTower(); this.startRally(); break;
       case 'prio': this.selectHoveredTower(); this.setPrio(); break;
       case 'wave': this.callWave(); break;
       case 'speed': this.toggleSpeed(); break;
@@ -678,6 +696,13 @@ export class GameClient {
       if (t.kind === 'item') { this.send({ k: 'item', i: t.i, x: p.x, z: p.z }); return true; }
       if (t.kind === 'hskill') { const q = this.clampSkill(t.i, p); this.send({ k: 'hskill', i: t.i, x: q.x, z: q.z }); return true; }
       if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; this.fx.ring(p.x, p.z, 1, 0xfff59d, 0.5); return true; }
+      if (t.kind === 'campRally') {
+        const q = this.clampCamp(t.prop, p);
+        this.send({ k: 'campRally', i: t.prop, x: q.x, z: q.z });
+        ui.sel = null;
+        this.fx.ring(q.x, q.z, 1, 0xfff59d, 0.5);
+        return true;
+      }
       if (t.kind === 'hmove') {
         // héros sélectionné puis appui sur un ennemi (tactile surtout) : il l'attaque
         const ei = this.slotAt(p.x, p.z, slotRad) < 0 ? this.enemyAt(sx, sy, p, true) : -1;
@@ -989,9 +1014,10 @@ export class GameClient {
       this.aimRing.position.set(q.x, 0.1, q.z);
       this.aimRing.scale.setScalar(r);
     }
-    if (p && t && t.kind === 'rally') {
+    if (p && t && (t.kind === 'rally' || t.kind === 'campRally')) {
+      const q = t.kind === 'campRally' ? this.clampCamp(t.prop, p) : p;
       this.aimRing.visible = true;
-      this.aimRing.position.set(p.x, 0.1, p.z);
+      this.aimRing.position.set(q.x, 0.1, q.z);
       this.aimRing.scale.setScalar(1);
     }
     if (this.aimRing.visible) drape(this.aimRing, this.world.heightAt, 0.08);
@@ -1051,6 +1077,17 @@ export class GameClient {
         this.rallyFlag.visible = true;
         this.rallyFlag.position.set(snap.tRallyX[ti], 0.7, snap.tRallyZ[ti]);
       }
+    } else if ((s?.kind === 'prop' && s.prop !== undefined && this.map.props[s.prop]?.kind === PropKind.Camp) || this.targeting?.kind === 'campRally') {
+      // camp de mercenaires : zone où l'on peut les poster et drapeau à leur point actuel
+      const i = this.targeting?.kind === 'campRally' ? this.targeting.prop : s!.prop!;
+      const c = this.map.props[i];
+      this.rangeRing.visible = true;
+      this.rangeRing.position.set(c.x, 0.09, c.z);
+      this.rangeRing.scale.setScalar(CAMP_RALLY_R);
+      if (i < snap.propN) {
+        this.rallyFlag.visible = true;
+        this.rallyFlag.position.set(snap.propRX[i], 0.7, snap.propRZ[i]);
+      }
     } else if (this.targeting?.kind === 'hskill' && this.skillRange(this.targeting.i) > 0) {
       // compétence à portée limitée : cercle de portée autour du héros
       const hp = this.heroPos();
@@ -1102,8 +1139,12 @@ export class GameClient {
   private positionDom(snap: NonNullable<Interp['latest']>) {
     const s = ui.sel;
     if (dom.radial) {
-      if (s && (s.kind === 'build' || s.kind === 'tower') && s.slot !== undefined) {
-        const sl = this.map.slots[s.slot];
+      // élément de carte (camp, tonneau) : même menu radial que les emplacements, centré sur lui
+      const mp = s?.kind === 'prop' && s.prop !== undefined && this.map.props[s.prop]?.kind !== PropKind.Secret ? this.map.props[s.prop] : null;
+      if (s && (((s.kind === 'build' || s.kind === 'tower') && s.slot !== undefined) || mp)) {
+        const sl = mp ?? this.map.slots[s.slot!];
+        // clé de recentrage : emplacements 0.., éléments de carte 1000..
+        const key = mp ? 1000 + s.prop! : s.slot!;
         this.r.project(sl.x, 1.2, sl.z, this.proj);
         // le menu reste entièrement à l'écran (bords, barre du haut, barre du bas au tactile)
         const W = this.r.width, H = this.r.height;
@@ -1115,8 +1156,8 @@ export class GameClient {
         const y = clampAxis(this.proj.y, top + ext, H - bottom - ext - 14);
         // emplacement trop près d'un bord (fréquent sur téléphone) : plutôt que de décaler le menu loin de sa case,
         // la caméra glisse pour amener la case là où le menu tient (le menu suit la case pendant le glissement)
-        if (this.radialSlot !== s.slot) {
-          this.radialSlot = s.slot;
+        if (this.radialSlot !== key) {
+          this.radialSlot = key;
           if (Math.hypot(x - this.proj.x, y - this.proj.y) > 6) {
             const from = this.r.pick(this.proj.x, this.proj.y), to = this.r.pick(x, y);
             if (from && to) this.r.nudge(from.x - to.x, from.z - to.z);
@@ -1232,7 +1273,6 @@ export class GameClient {
     if (!PropsView.ready(p, st, cd)) { audio.play('deny'); return; }
     if (PROP_INFO[p.kind].cost > ui.hud.gold) { toast('Pas assez d’or pour engager les mercenaires.', 'info', 1800); audio.play('deny'); return; }
     this.send({ k: 'prop', i });
-    this.props.poke(i);
     if (p.kind !== PropKind.Camp) ui.sel = null;
   }
 
@@ -1761,7 +1801,7 @@ export class GameClient {
         const p = this.map.props[i];
         if (!p) break;
         const mine = pid === this.you;
-        this.props.poke(i);
+        if (p.kind === PropKind.Secret) this.props.poke(i);
         if (p.kind === PropKind.Poudre) {
           fx.burst(p.x, 0.6, p.z, 40, 0xffa726, 6, 0.16, 0.8, true, -3);
           fx.burst(p.x, 0.5, p.z, 24, 0x424242, 3, 0.2, 1.4, false, 1);

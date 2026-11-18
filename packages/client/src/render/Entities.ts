@@ -690,7 +690,8 @@ export class Entities {
       const ft = this.towerFire.get(id);
       // la catapulte ne secoue la tour qu'au lâcher du rocher, à la fin de sa bascule
       const rft = ft !== undefined ? time - ft - (model.machine?.arm ? ARM_THROW : 0) : -1;
-      const recoil = rft >= 0 && rft < 0.3 ? Math.max(0.001, rft / 0.3) : 0;
+      // l'artillerie ne s'écrase pas au tir : sa catapulte ou ses canons bougent déjà
+      const recoil = fam !== 3 && rft >= 0 && rft < 0.3 ? Math.max(0.001, rft / 0.3) : 0;
       if (recoil) base.setPose(b, recoil, 0, 0, 0);
       if (stunned) base.setTint(b, 0.55, 0.7, 0.55, 0.45);
       if (model.turret) {

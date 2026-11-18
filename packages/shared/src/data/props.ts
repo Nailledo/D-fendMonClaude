@@ -40,7 +40,7 @@ export const PROP_INFO: PropInfo[] = [
   },
   {
     name: 'Camp de mercenaires', act: 'Engager', cost: 90,
-    desc: 'Trois mercenaires vont barrer le chemin le plus proche pendant 30 secondes.',
+    desc: 'Trois mercenaires se postent au drapeau du camp pendant 30 secondes (par défaut, sur le chemin le plus proche).',
   },
   { name: '???', act: '', cost: 0, desc: '' },
 ];
@@ -48,6 +48,8 @@ export const PROP_INFO: PropInfo[] = [
 export const POUDRE_R = 2.8;
 export const POUDRE_DMG = 220;
 export const CAMP_CD_S = 45;
+/** rayon de la zone autour du camp où l'on peut poster les mercenaires */
+export const CAMP_RALLY_R = 8;
 export const MERC = { n: 3, hp: 150, dmg: [6, 10] as [number, number], armor: 0.25, kind: 4, dur: 30 };
 export interface SecretDef {
   id: string;

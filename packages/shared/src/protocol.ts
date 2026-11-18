@@ -183,6 +183,9 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
   for (let i = 0; i < sim.propState.length; i++) {
     w.u8(sim.propState[i]);
     w.u16(Math.min(0xffff, sim.propCd[i]));
+    // point où se postent les mercenaires d'un camp
+    w.pos(sim.campRX[i]);
+    w.pos(sim.campRZ[i]);
   }
   // joueurs
   w.u8(sim.players.length);
@@ -313,6 +316,9 @@ export class Snapshot {
   propN = 0;
   propState = new Uint8Array(32);
   propCd = new Uint16Array(32);
+  /** camps de mercenaires : point où ils se postent */
+  propRX = new Float32Array(32);
+  propRZ = new Float32Array(32);
   // joueurs
   pCount = 0;
   pId = new Uint8Array(4);
@@ -407,8 +413,8 @@ export class Snapshot {
     this.adaptShare = r.frac();
     this.propN = r.u8();
     for (let i = 0; i < this.propN; i++) {
-      const st = r.u8(), cd = r.u16();
-      if (i < 32) { this.propState[i] = st; this.propCd[i] = cd; }
+      const st = r.u8(), cd = r.u16(), rx = r.pos(), rz = r.pos();
+      if (i < 32) { this.propState[i] = st; this.propCd[i] = cd; this.propRX[i] = rx; this.propRZ[i] = rz; }
     }
     this.pCount = r.u8();
     for (let i = 0; i < this.pCount; i++) {

@@ -1,7 +1,7 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
-import { CAMP_CD_S, MERC, POUDRE_DMG, POUDRE_R, PROP_INFO, PropKind, SECRETS } from './data/props';
+import { CAMP_CD_S, CAMP_RALLY_R, MERC, POUDRE_DMG, POUDRE_R, PROP_INFO, PropKind, SECRETS } from './data/props';
 import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, RENFORT_COUNT, RENFORT_DUR_S, RENFORT_TIERS, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, sanitizeSpells, type HeroDef } from './data/heroes';
 import { AVENTURIER, SKILL_UNLOCK, buildKit, classOf, heroPassives, heroSkills, heroStatBonus, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild, type StatKind } from './data/classes';
@@ -339,6 +339,10 @@ export class Sim {
    */
   propCd: number[];
   propState: number[];
+  /** camps de mercenaires : point où ils se postent (par défaut le chemin le plus proche) et mercenaires engagés */
+  campRX: number[];
+  campRZ: number[];
+  campUnits: Unit[][];
   players: PlayerState[];
   towers: Tower[] = [];
   towerBySlot: (Tower | null)[];
@@ -380,6 +384,19 @@ export class Sim {
     this.towerBySlot = this.map.slots.map(() => null);
     this.propCd = this.map.props.map(() => 0);
     this.propState = this.map.props.map(() => 0);
+    this.campRX = this.map.props.map((p) => p.x);
+    this.campRZ = this.map.props.map((p) => p.z);
+    this.campUnits = this.map.props.map(() => []);
+    this.map.props.forEach((prop, i) => {
+      if (prop.kind !== PropKind.Camp) return;
+      // par défaut, ils vont barrer le chemin le plus proche du camp
+      let best = Infinity;
+      const o = { x: 0, z: 0 };
+      for (const path of this.map.paths) {
+        const pr = path.project(prop.x, prop.z);
+        if (pr.dist2 < best) { best = pr.dist2; path.at(pr.d, 0, o); this.campRX[i] = o.x; this.campRZ[i] = o.z; }
+      }
+    });
     const startGold = Math.round((this.level ? this.level.startGold : SURVIVAL_START_GOLD) * this.scaling.startGoldMul);
     this.players = cfg.players.map((p) => ({
       id: p.id, name: p.name, gold: startGold + this.perk(p.id).gold, active: true, connected: true, speedVote: 1 as 1 | 2,
@@ -1120,6 +1137,26 @@ export class Sim {
         this.useProp(p, i);
         break;
       }
+      case 'campRally': {
+        const i = c.i;
+        const x = clampNum(c.x, -100, 100), z = clampNum(c.z, -100, 100);
+        if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= this.map.props.length || x === null || z === null) return;
+        const prop = this.map.props[i];
+        if (prop.kind !== PropKind.Camp) return;
+        const dx = x - prop.x, dz = z - prop.z, d = Math.sqrt(dx * dx + dz * dz);
+        const k = d > CAMP_RALLY_R ? CAMP_RALLY_R / d : 1;
+        this.campRX[i] = prop.x + dx * k;
+        this.campRZ[i] = prop.z + dz * k;
+        // ceux qui sont déjà engagés rejoignent le nouveau point
+        const alive = this.campUnits[i].filter((u) => !u.dead);
+        this.campUnits[i] = alive;
+        alive.forEach((u, n) => {
+          this.release(u);
+          this.postMerc(u, i, n);
+        });
+        this.ev(Ev.Impact, Impact.Rally, this.campRX[i], this.campRZ[i], 10);
+        break;
+      }
       case 'gift': {
         const to = this.player(c.to);
         const amt = clampNum(c.amt, 0, 100000);
@@ -1309,6 +1346,14 @@ export class Sim {
   }
 
   /** Carte interactive : tonneau, camp de mercenaires ou secret. */
+  /** Mercenaire n° `n` du camp `i` : sa place en triangle autour du point du camp. */
+  private postMerc(u: Unit, i: number, n: number) {
+    const a = ((n % MERC.n) / MERC.n) * Math.PI * 2 + this.map.props[i].ang;
+    const g = this.placeOut({ x: this.campRX[i] + Math.cos(a) * 0.7, z: this.campRZ[i] + Math.sin(a) * 0.7 }, 0.3);
+    u.hx = g.x;
+    u.hz = g.z;
+  }
+
   private useProp(p: PlayerState, i: number) {
     const prop = this.map.props[i];
     if (this.propCd[i] > 0) return;
@@ -1332,21 +1377,16 @@ export class Sim {
         const cost = PROP_INFO[PropKind.Camp].cost;
         if (p.gold < cost) return;
         p.gold -= cost;
-        // ils vont barrer le chemin le plus proche du camp
-        let best = Infinity, gx = prop.x, gz = prop.z;
-        const o = { x: 0, z: 0 };
-        for (const path of this.map.paths) {
-          const pr = path.project(prop.x, prop.z);
-          if (pr.dist2 < best) { best = pr.dist2; path.at(pr.d, 0, o); gx = o.x; gz = o.z; }
-        }
+        // ils vont se poster au point choisi pour ce camp (le chemin le plus proche si personne ne l'a changé)
+        const alive = this.campUnits[i].filter((u) => !u.dead);
         for (let k = 0; k < MERC.n; k++) {
           const a = (k / MERC.n) * Math.PI * 2 + prop.ang;
           const q = this.placeOut({ x: prop.x + Math.cos(a) * 1.5, z: prop.z + Math.sin(a) * 1.5 }, 0.45);
           const u = this.newUnit(MERC.kind, p.id, q.x, q.z, MERC.hp, MERC.dmg[0], MERC.dmg[1], MERC.armor, 1, 0, null, sec(MERC.dur));
-          const g = this.placeOut({ x: gx + Math.cos(a) * 0.7, z: gz + Math.sin(a) * 0.7 }, 0.3);
-          u.hx = g.x;
-          u.hz = g.z;
+          this.postMerc(u, i, k);
+          alive.push(u);
         }
+        this.campUnits[i] = alive;
         this.propCd[i] = sec(CAMP_CD_S);
         this.ev(Ev.Prop, i, p.id, 1, MERC.n);
         break;

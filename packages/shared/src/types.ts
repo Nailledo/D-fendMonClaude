@@ -66,6 +66,8 @@ export type Command =
   | { k: 'item'; i: number; x: number; z: number }
   | { k: 'spell'; s: 0 | 1; x: number; z: number }
   | { k: 'prop'; i: number }
+  /** camp de mercenaires : où ils se postent (dans CAMP_RALLY_R autour du camp) */
+  | { k: 'campRally'; i: number; x: number; z: number }
   | { k: 'wave' }
   | { k: 'speed'; v: 1 | 2 }
   | { k: 'gift'; to: number; amt: number };

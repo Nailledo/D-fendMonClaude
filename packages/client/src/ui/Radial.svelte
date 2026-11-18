@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { FAMILIES, PRIO_NAMES, SHOOTERS, TOWERS } from '@dfend/shared';
+  import { FAMILIES, PRIO_NAMES, PROP_INFO, PropKind, SHOOTERS, TOWERS } from '@dfend/shared';
   import { app } from '../app';
   import { ui } from '../state.svelte';
   import { keyLabel, keys } from '../settings';
@@ -51,7 +51,7 @@
 
   // une autre sélection (autre emplacement, tour améliorée…) désarme
   $effect(() => {
-    void sel.kind; void sel.slot; void sel.level; void sel.sk?.[0]; void sel.sk?.[1];
+    void sel.kind; void sel.slot; void sel.prop; void sel.level; void sel.sk?.[0]; void sel.sk?.[1];
     armed = null;
     ui.radialTip = null;
     if (app.game) { app.game.hoverFam = -1; app.game.hoverLevel = -1; }
@@ -145,6 +145,33 @@
           <span class="face hex neutral"><Ico k="flag" fb={ICON.flag} /></span><span class="kbd">{keyLabel(keys.rally)}</span>
         </button>
       {/if}
+    {/if}
+  {:else if sel.kind === 'prop' && sel.prop !== undefined && g()?.map.props[sel.prop]}
+    {@const pi = sel.prop}
+    {@const mp = g()!.map.props[pi]}
+    {@const info = PROP_INFO[mp.kind]}
+    {@const pp = ui.hud.prop}
+    {@const ready = pp.cd <= 0 && pp.st === 0}
+    {#if mp.kind === PropKind.Camp}
+      {@const tp = { title: info.name, text: `${info.desc}${pp.cd > 0 ? ` Ils se reposent : encore ${pp.cd} s.` : ''}`, cost: info.cost }}
+      <button class="opt" class:poor={!ready || gold < info.cost} class:armed={armed === 'hire'} style={at(-90)}
+        onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)}
+        onclick={() => act('hire', tp, () => g()?.useProp(pi))}>
+        <span class="face hex" style="--fc:{FAMILY_COLOR[5]}"><Ico k="prop_merc" fb={ICON.helmet} /></span>
+        <span class="cost" class:plabel={pp.cd > 0}>{pp.cd > 0 ? `${pp.cd} s` : info.cost}</span>
+      </button>
+      {@const rp = { title: 'Placement', text: 'Choisissez où se postent les mercenaires, dans la zone autour du camp. Ceux déjà engagés y vont aussi.' }}
+      <button class="opt" style={at(90)} onpointerenter={(e) => e.pointerType !== 'touch' && preview(rp)} onclick={() => g()?.startCampRally()}>
+        <span class="face hex neutral"><Ico k="flag" fb={ICON.flag} /></span><span class="kbd">{keyLabel(keys.rally)}</span>
+      </button>
+    {:else}
+      {@const tp = { title: info.name, text: info.desc }}
+      <button class="opt" class:poor={!ready} class:armed={armed === 'fire'} style={at(-90)}
+        onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)}
+        onclick={() => act('fire', tp, () => g()?.useProp(pi))}>
+        <span class="face hex" style="--fc:#ff8a65"><Ico k="prop_poudre" fb={ICON.bomb} /></span>
+        <span class="cost plabel">{info.act}</span>
+      </button>
     {/if}
   {/if}
   {#if tip && !ui.touch}
