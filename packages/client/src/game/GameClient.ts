@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import {
-  AVENTURIER, CLASSES, ENEMIES, bossPhase, NIGHT_RANGE, TORCH_R, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
+  AVENTURIER, CLASSES, ENEMIES, skinIndex, bossPhase, NIGHT_RANGE, TORCH_R, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, sanitizeSpells, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_FLEEING, ET_REVEALED, PROP_FOUND, PROP_INFO, PropKind, SECRETS, SECRET_TOTAL, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
 import { forgetPools } from '../render/InstPool';
-import { Decal, Fx } from '../render/Fx';
+import { Decal, Fx, SHOT_BOULDER } from '../render/Fx';
 import { WeatherView } from '../render/Weather';
 import { PropsView } from '../render/Props';
 import type { Renderer } from '../render/Renderer';
@@ -129,6 +129,7 @@ export class GameClient {
     ui.hud.spellIds = sanitizeSpells(cfg.players.find((p) => p.id === you)?.spells);
     ui.hud.items = ITEMS.map((_, i) => cfg.players.find((p) => p.id === you)?.items?.[i] ?? 0);
     this.ents = new Entities(r.scene, this.map);
+    for (const p of cfg.players) this.ents.playerSkin[p.id] = skinIndex(p.skin);
     this.ents.tunnels = this.world.entries;
     this.ents.heightAt = this.world.heightAt;
     const cs = this.world.castle;
@@ -1333,18 +1334,14 @@ export class GameClient {
         const [, kind, srcType, srcId, target, tx, tz, flight] = ev;
         if (srcType === Src.Sky) { p.x = tx - 6; p.y = 24; p.z = tz - 7; }
         else if (!this.startPos(srcType, srcId, p)) return;
-        // gestes des tireurs : recul de la tour, bras levés de l'unité
-        if (srcType === Src.Tower) this.ents.towerFire.set(srcId, this.time);
+        // gestes des tireurs : recul de la tour (ou bascule du bras de la catapulte), bras levés de l'unité
+        let delay = 0;
+        if (srcType === Src.Tower) delay = this.ents.towerShot(srcId, tx, tz, this.time, p);
         else if (srcType === Src.Unit) {
           this.ents.uFireTime[srcId] = this.time;
           this.ents.aim(srcId, target, tx, tz, this.time);
-          if (kind === FIRE_TURRET) {
-            // le carreau sort de la bouche du canon
-            const dx = tx - p.x, dz = tz - p.z, l = Math.hypot(dx, dz) || 1;
-            const m = this.ents.turretMuzzle;
-            p.x += (dx / l) * m.fwd; p.z += (dz / l) * m.fwd;
-            p.y = m.y;
-          }
+          // le carreau sort de la bouche du canon qui tire (les deux canons tirent à tour de rôle)
+          if (kind === FIRE_TURRET) this.ents.turretShot(srcId, p.x, p.z, tx, tz, p);
         }
         else if (srcType === Src.Hero) {
           const s = this.interp.latest!;
@@ -1368,16 +1365,21 @@ export class GameClient {
           audio.play('arcane');
           return;
         }
+        // catapulte : un rocher lancé en cloche, qui part du godet une fois le bras basculé
+        const boulder = delay > 0 && kind === 4;
         let arc = 0.3;
         if (kind === 0 || kind === FIRE_HERO_ARROW || kind === FIRE_TURRET) arc = 0.12 * dist;
+        else if (boulder) arc = 0.45 * dist + 1.5;
         else if (kind === 4 || kind === 5 || kind === 12) arc = 0.35 * dist + 1;
         else if (kind === FIRE_METEOR) arc = 0;
         const ti = target !== 0xffff ? f.enemyIdx(target) : -1;
-        fx.addShot({ kind, sx: p.x, sy: p.y, sz: p.z, tx, ty: ti >= 0 ? f.eY[ti] + 0.7 : 0.2, tz, targetId: target, t0: tick, dur: Math.max(1, flight), arc, x: p.x, y: p.y, z: p.z });
+        const wait = Math.min(flight - 1, delay * TICK_RATE * Math.max(1, ui.hud.speed));
+        fx.addShot({ kind: boulder ? SHOT_BOULDER : kind, sx: p.x, sy: p.y, sz: p.z, tx, ty: ti >= 0 ? f.eY[ti] + 0.7 : 0.2, tz, targetId: target, t0: tick + Math.max(0, wait), dur: Math.max(1, flight - Math.max(0, wait)), arc, x: p.x, y: p.y, z: p.z });
         if (kind === FIRE_METEOR) fx.ring(tx, tz, 2.4, 0xff3d00, Math.max(0.3, flight / TICK_RATE / Math.max(1, ui.hud.speed)), 0.3);
         if (kind === 0 || kind === FIRE_HERO_ARROW) audio.play('arrow', 0.8);
         else if (kind === 1 || kind === FIRE_HERO_BOLT) audio.play('bolt', 0.7);
         else if (kind === 2) audio.play('frost', 0.8);
+        else if (boulder) audio.play('catapult');
         else if (kind === 4 || kind === 5) { audio.play('shell'); fx.burst(p.x, p.y, p.z, 5, 0x9e9e9e, 2, 0.18, 0.6); }
         else if (kind === FIRE_TURRET) audio.play('arrow', 0.6);
         else if (kind === FIRE_METEOR) audio.play('meteor');
@@ -1387,7 +1389,10 @@ export class GameClient {
         const t = this.ents.towerMuzzle.get(ev[1]);
         if (!t) return;
         const n = ev[2];
-        let ax = t.x, ay = t.y, az = t.z;
+        // l'éclair part de la bouche du canon qui tire (double canon : à tour de rôle) et le canon recule
+        const o = { x: t.x, y: t.y, z: t.z };
+        if (n > 0) this.ents.towerShot(ev[1], ev[3], ev[4], this.time, o);
+        let ax = o.x, ay = o.y, az = o.z;
         for (let k = 0; k < n; k++) {
           const bx = ev[3 + k * 2], bz = ev[4 + k * 2];
           fx.beams.add(ax, ay, az, bx, 0.8, bz, 0.22, 0.07, 0x80d8ff, 0.6);
@@ -1400,7 +1405,7 @@ export class GameClient {
       case Ev.Impact: {
         const [, kind, x, z, r10] = ev;
         // zones durables des compétences de route : rayon ×10 + durée (s) ×1000
-        const long = kind >= Impact.Cyclone;
+        const long = kind >= Impact.Cyclone && kind <= Impact.Blades;
         const rad = (long ? r10 % 1000 : r10) / 10;
         const dur = long ? Math.floor(r10 / 1000) : 0;
         if (dur > 0 && kind !== Impact.Net) this.zoneFx.push({ kind, x, z, r: rad, end: this.time + dur, acc: 0 });
@@ -1494,6 +1499,15 @@ export class GameClient {
             fx.ring(x, z, rad, 0xffcc80, 0.35);
             if (kind === Impact.Shell) { fx.decals.add(x, z, rad * 0.55, Decal.Scorch, 2.5, 0xff8f00); fx.smoke(x, 0.4, z, 3, 0x6b6b6b, rad * 0.5); }
             audio.play('explosion', kind === Impact.Frag ? 0.4 : 0.7);
+            break;
+          case Impact.Rock:
+            // rocher de catapulte : éclats de pierre, nuage de poussière, sol fissuré (pas de flammes)
+            fx.burst(x, 0.3, z, 12, 0x8a8178, 4.5, 0.2, 0.8);
+            fx.burst(x, 0.3, z, 10, 0x6d4c41, 3, 0.16, 0.6);
+            fx.ring(x, z, rad, 0xd7c4a1, 0.35);
+            fx.decals.add(x, z, rad * 0.5, Decal.Cracks, 3, 0x5d4c3a);
+            fx.smoke(x, 0.3, z, 4, 0xa1887f, rad * 0.55);
+            audio.play('explosion', 0.45);
             break;
           case Impact.FireShell:
             fx.burst(x, 0.3, z, 18, 0xff6f00, 5, 0.22, 0.6, true, -3);

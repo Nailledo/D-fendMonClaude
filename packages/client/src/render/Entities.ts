@@ -4,6 +4,7 @@ import {
   PLAYER_COLORS, UF_BUFF, UF_DEAD, UF_FIGHTING, UF_SHIELD, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { enemyGeometry, lootSackGeometry } from '../art/enemies';
+import { ARM_RELEASE, ARM_THROW, armAngle, machineOf, rockLoaded, seatAt, type CatapultArm, type Machine, type Muzzle } from '../art/machines';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry, soldierGeometry, turretGeometry } from '../art/units';
@@ -12,10 +13,33 @@ import type { Frame } from '../game/Interp';
 import { settings } from '../settings';
 import { drape } from './drape';
 import { GroundSpeed, stride } from './stride';
-import { InstPool } from './InstPool';
+import { GB } from '../art/builder';
+import { InstPool, skinMul } from './InstPool';
 import { hpBarMaterial } from './materials';
 
 const N = 65536;
+
+interface TowerView {
+  base: THREE.BufferGeometry;
+  map: THREE.Texture | null;
+  /** tête orientable (art en code, ou tête d'une machine importée) */
+  turret: THREE.BufferGeometry | null;
+  turretY: number;
+  muzzleY: number;
+  /** machine importée : canons qui reculent, bras de catapulte */
+  machine: Machine | null;
+  /** bas de la tête importée (elle suit l'écrasement du socle au tir) */
+  headMinY: number;
+}
+
+/** Point du repère d'un modèle (tourné de `yaw`, échelle `s`) → monde ; même convention que InstPool.push. */
+function toWorld(m: Muzzle, x: number, z: number, yaw: number, s: number, out: { x: number; y: number; z: number }) {
+  const c = Math.cos(yaw), sn = Math.sin(yaw);
+  out.x = x + (m.x * c + m.z * sn) * s;
+  out.y = m.y * s;
+  out.z = z + (-m.x * sn + m.z * c) * s;
+  return out;
+}
 
 function lerpAngle(a: number, b: number, k: number) {
   let d = b - a;
@@ -41,8 +65,14 @@ export class Entities {
   private turretHead: InstPool;
   /** sac d'or sur le dos des chapardeurs en fuite */
   private sacks: InstPool;
-  /** origine des tirs de la tourelle (hauteur, avancée depuis son centre) */
-  turretMuzzle = { y: 0.8, fwd: 0.8 };
+  /** bouches des canons de la tourelle (repère du modèle, échelle comprise) ; les deux canons tirent à tour de rôle */
+  private turretMuzzles: Muzzle[] = [{ x: 0, y: 0.8, z: 0.8 }];
+  /** canon qui a tiré en dernier (1 droit, 2 gauche) par unité et par tour */
+  private uBarrel = new Uint8Array(N);
+  private tBarrel = new Map<number, number>();
+  /** catapultes : angle du bras au début du lancer, rocher posé dans le godet */
+  private armFrom = new Map<number, number>();
+  private rocks: InstPool;
   private towerBase = new Map<number, InstPool>();
   private towerTop = new Map<number, InstPool>();
   private hp: THREE.InstancedMesh;
@@ -73,7 +103,9 @@ export class Entities {
   private aimZ = new Float32Array(N);
   private aimUntil = new Float32Array(N);
   /** corps qui tombent : rendus avec l'animation de mort après la disparition de l'entité */
-  private corpses: { pool: InstPool; weapon?: InstPool | null; style?: number; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number }[] = [];
+  private corpses: { pool: InstPool; weapon?: InstPool | null; style?: number; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number; skin?: number }[] = [];
+  /** couleur de peau de chaque joueur (index de SKIN_TONES), appliquée à son héros */
+  playerSkin = new Uint8Array(8);
   private frameNo = 0;
   /** phase de marche et vitesse au sol mesurée, par ennemi et par unité */
   private ePhase = new Float32Array(N);
@@ -160,10 +192,17 @@ export class Entities {
     this.turretBase = new InstPool(tg.base, 8, this.group, settings.shadows, tm?.map ?? null);
     this.turretHead = new InstPool(tg.head, 8, this.group, settings.shadows, tm?.map ?? null);
     this.sacks = new InstPool(lootSackGeometry(), 8, this.group, settings.shadows);
-    // bouche du canon : avant de la tête, à mi-hauteur
-    tg.head.computeBoundingBox();
-    const hb = tg.head.boundingBox!;
-    this.turretMuzzle = { y: ((hb.min.y + hb.max.y) / 2) * 1.1, fwd: hb.max.z * 1.1 };
+    // bouches des canons (modèle importé découpé), sinon avant de la tête à mi-hauteur
+    const tmach = tm ? machineOf(tm.geo) : null;
+    if (tmach?.muzzles.length) this.turretMuzzles = tmach.muzzles.map((m) => ({ x: m.x * 1.1, y: m.y * 1.1, z: m.z * 1.1 }));
+    else {
+      tg.head.computeBoundingBox();
+      const hb = tg.head.boundingBox!;
+      this.turretMuzzles = [{ x: 0, y: ((hb.min.y + hb.max.y) / 2) * 1.1, z: hb.max.z * 1.1 }];
+    }
+    const rock = new GB(17);
+    rock.rock(1, 0x8a8178, 0, 0, 0, 1, 0.85, 1);
+    this.rocks = new InstPool(rock.build(), 16, this.group, settings.shadows);
     for (const h of HERO_IDS) {
       this.heroPools.push(pool(K.hero(h), () => heroGeometry(h), 4));
       // modèle importé : on lui met son arme en main et son animation de combat
@@ -180,6 +219,14 @@ export class Entities {
     this.hp.count = 0;
     this.group.add(this.hp);
   }
+
+  /** Rocher posé dans le godet d'une catapulte (il suit le bras ; `load` < 1 : il tombe dans le godet au rechargement). */
+  private rockInBucket(arm: CatapultArm, ang: number, x: number, y: number, z: number, yaw: number, s: number, load: number, id: number) {
+    const m = toWorld(seatAt(arm, ang, this.tmpM), x, z, yaw, s, this.tmpW);
+    const drop = (1 - load) * 0.5 * s;
+    this.rocks.push(m.x, y + m.y + drop, m.z, id * 1.7 + ang, arm.rockR * s * (0.4 + 0.6 * load), 0, 0, 0, 0);
+  }
+  private tmpW = { x: 0, y: 0, z: 0 };
 
   private towerPool(map: Map<number, InstPool>, key: number, geo: THREE.BufferGeometry, tex: THREE.Texture | null = null) {
     let p = map.get(key);
@@ -212,22 +259,63 @@ export class Entities {
     return y;
   }
 
-  private towerViews = new Map<number, { base: THREE.BufferGeometry; map: THREE.Texture | null; turret: THREE.BufferGeometry | null; turretY: number; muzzleY: number }>();
-  /** Modèle d'une tour : GLB importé (statique, sans tourelle) ou art en code (socle + tourelle orientable). */
+  private towerViews = new Map<number, TowerView>();
+  /**
+   * Modèle d'une tour : GLB importé (statique, ou découpé en socle + tête orientable quand c'est une machine)
+   * ou art en code (socle + tourelle orientable).
+   */
   private towerView(fam: number, level: number) {
     const key = fam * 10 + level;
     let v = this.towerViews.get(key);
     if (!v) {
       const m = model(K.tower(fam, level));
-      if (m) v = { base: m.geo, map: m.map, turret: null, turretY: 0, muzzleY: m.meta.muzzleY ?? m.meta.height * 0.8 };
-      else {
+      if (m) {
+        const mach = machineOf(m.geo);
+        let headMinY = 0;
+        if (mach) { mach.head.computeBoundingBox(); headMinY = mach.head.boundingBox!.min.y; }
+        v = { base: mach?.base ?? m.geo, map: m.map, turret: mach?.head ?? null, turretY: 0, muzzleY: m.meta.muzzleY ?? m.meta.height * 0.8, machine: mach, headMinY };
+      } else {
         const t = towerModel(fam, level);
-        v = { base: t.base, map: null, turret: t.turret, turretY: t.turretY, muzzleY: t.muzzleY };
+        v = { base: t.base, map: null, turret: t.turret, turretY: t.turretY, muzzleY: t.muzzleY, machine: null, headMinY: 0 };
       }
       this.towerViews.set(key, v);
     }
     return v;
   }
+
+  /**
+   * Tir d'une tour (événement) : départ du lancer ou du recul, canon suivant pour un double canon.
+   * Écrit dans `out` le point de départ du projectile (bouche du canon, godet au lâcher) ;
+   * renvoie le délai (s) avant que le projectile ne parte (le temps que le bras de la catapulte bascule).
+   */
+  towerShot(id: number, tx: number, tz: number, time: number, out: { x: number; y: number; z: number }): number {
+    const t = this.towerMuzzle.get(id);
+    const prev = this.towerFire.get(id);
+    const mach = t ? this.towerView(t.fam, t.level).machine : null;
+    if (mach?.arm) this.armFrom.set(id, prev === undefined ? 0 : armAngle(time - prev, this.armFrom.get(id) ?? 0));
+    this.towerFire.set(id, time);
+    if (!t || !mach) return 0;
+    const yaw = Math.atan2(tx - t.x, tz - t.z);
+    if (mach.arm) {
+      toWorld(seatAt(mach.arm, ARM_RELEASE, this.tmpM), t.x, t.z, yaw, 1, out);
+      return ARM_THROW;
+    }
+    let k = 0;
+    if (mach.muzzles.length > 1) k = this.tBarrel.get(id) === 1 ? 2 : 1;
+    this.tBarrel.set(id, k);
+    const m = mach.muzzles[k ? k - 1 : 0];
+    if (m) toWorld(m, t.x, t.z, yaw, 1, out);
+    return 0;
+  }
+
+  /** Tir de la tourelle de l'artificier : ses deux canons tirent à tour de rôle ; `out` = bouche du canon. */
+  turretShot(id: number, x: number, z: number, tx: number, tz: number, out: { x: number; y: number; z: number }) {
+    const ms = this.turretMuzzles;
+    const k = ms.length > 1 ? (this.uBarrel[id] === 1 ? 2 : 1) : 0;
+    this.uBarrel[id] = k;
+    toWorld(ms[k ? k - 1 : 0], x, z, Math.atan2(tx - x, tz - z), 1, out);
+  }
+  private tmpM: Muzzle = { x: 0, y: 0, z: 0 };
 
   private hpBar(x: number, y: number, z: number, frac: number, width: number) {
     if (this.hpN >= 1024) return;
@@ -437,7 +525,7 @@ export class Entities {
           const wk = this.heroWeaponByUnit.get(id) ?? DEFAULT_WEAPON;
           const wp = hero ? this.weaponPool(ht, wk) : null;
           const pool = hero ? this.heroPools[ht] : this.soldierPools[kind] ?? this.soldierPools[0];
-          this.corpses.push({ pool, weapon: wp, style: wp ? WEAPON_STYLE[wk] : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
+          this.corpses.push({ pool, weapon: wp, style: wp ? WEAPON_STYLE[wk] : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9, skin: hero ? this.playerSkin[f.uOwner[i]] : 0 });
         }
         continue;
       }
@@ -489,15 +577,14 @@ export class Entities {
         // tourelle : surgit du sol, la tête pivote vers sa cible et recule à chaque tir
         const age = (time - this.uBorn[id]) / 0.35;
         const s = age < 1 ? scale * (0.6 + 0.4 * Math.sin(age * Math.PI * 0.5) + Math.sin(age * Math.PI) * 0.12) : scale;
+        // tête d'un seul bloc posée sur son pivot : seul le canon qui tire recule (les deux tirent à tour de rôle)
         const ft = time - this.uFireTime[id];
-        const recoil = ft < 0.3 ? Math.max(0.001, ft / 0.3) : 0;
+        const recoil = ft < 0.45 ? Math.max(0.001, ft / 0.45) : 0;
         const b = this.turretBase.push(f.uX[i], 0, f.uZ[i], 0, s, id, 0, flash, 0);
         this.turretBase.setTeam(b, team);
-        const kick = recoil ? Math.sin(recoil * Math.PI) * (1 - recoil) * 0.3 : 0;
-        const yw = this.uYaw[id];
-        const h = this.turretHead.push(f.uX[i] - Math.sin(yw) * kick, 0, f.uZ[i] - Math.cos(yw) * kick, yw, s, id, 0, flash, 0);
+        const h = this.turretHead.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], s, id, 0, flash, 0);
         this.turretHead.setTeam(h, team);
-        if (recoil) this.turretHead.setPose(h, recoil, 0, 0, 0);
+        if (recoil) this.turretHead.setPose(h, recoil, this.uBarrel[id], 0, 0);
         if (f.uHp[i] < 0.999) this.hpBar(f.uX[i], 1.45, f.uZ[i], f.uHp[i], 0.7);
         continue;
       }
@@ -513,9 +600,11 @@ export class Entities {
       const life = Math.min(1, Math.max(0.001, (time - this.uBorn[id]) / 0.4));
       // pas au rythme de la vitesse mesurée ; en combat, piétinement régulier
       this.uPhase[id] = stride(this.uPhase[id], fighting ? 9 : moving || uv > 0.3 ? Math.max(5, (uv * 3.6) / scale) : 0, dt);
+      const skin = kind === HERO_UNIT ? skinMul(this.playerSkin[f.uOwner[i]] ?? 0) : null;
       for (const p of weapon ? [pool, weapon] : [pool]) {
         const j = p.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, this.uPhase[id], flash, mode);
         p.setTeam(j, team);
+        if (skin) p.setSkin(j, skin);
         p.setPose(j, cast, uhit, this.uRoll[id], life);
         if (flags & UF_SHIELD) p.setTint(j, 1, 0.95, 0.6, 0.3);
         else if (flags & UF_BUFF) p.setTint(j, 1, 0.7, 0.3, 0.2);
@@ -534,6 +623,7 @@ export class Entities {
       for (const pool of c.weapon ? [c.pool, c.weapon] : [c.pool]) {
         const j = pool.push(c.x, y, c.z, c.yaw, c.s, 0, 0, p < 0.08 ? 0.6 : 0, (c.style ?? 0) * 2);
         pool.setTeam(j, c.team);
+        if (c.skin) pool.setSkin(j, skinMul(c.skin));
         pool.setPose(j, 0, 0, 0, -Math.max(0.001, p));
       }
     }
@@ -549,6 +639,7 @@ export class Entities {
     // ------------------------------------------------ tours
     for (const p of this.towerBase.values()) p.begin();
     for (const p of this.towerTop.values()) p.begin();
+    this.rocks.begin();
     this.towerMuzzle.clear();
     for (let i = 0; i < snap.tCount; i++) {
       const id = snap.tId[i];
@@ -572,23 +663,40 @@ export class Entities {
       const b = base.push(slot.x, 0, slot.z, yaw, pop, id * 0.9, 0, id === selectedTower ? 0.18 : 0, 0);
       base.setTeam(b, team);
       const ft = this.towerFire.get(id);
-      const recoil = ft !== undefined && time - ft < 0.3 ? Math.max(0.001, (time - ft) / 0.3) : 0;
+      // la catapulte ne secoue la tour qu'au lâcher du rocher, à la fin de sa bascule
+      const rft = ft !== undefined ? time - ft - (model.machine?.arm ? ARM_THROW : 0) : -1;
+      const recoil = rft >= 0 && rft < 0.3 ? Math.max(0.001, rft / 0.3) : 0;
       if (recoil) base.setPose(b, recoil, 0, 0, 0);
       if (stunned) base.setTint(b, 0.55, 0.7, 0.55, 0.45);
       if (model.turret) {
         const aim = snap.tAim[i];
         const ai = aim !== 0xffff ? f.enemyIdx(aim) : -1;
         if (ai >= 0) this.tYaw[id] = lerpAngle(this.tYaw[id], Math.atan2(f.eX[ai] - slot.x, f.eZ[ai] - slot.z), Math.min(1, dt * 8));
-        const top = this.towerPool(this.towerTop, key, model.turret);
-        const t = top.push(slot.x, model.turretY * pop, slot.z, this.tYaw[id], pop, id, 0, 0, 0);
+        const top = this.towerPool(this.towerTop, key, model.turret, model.map);
+        const mach = model.machine;
+        // tête importée : elle ne s'écrase pas (ses canons ou son bras bougent), elle suit le haut du socle qui s'écrase
+        const k = mach && recoil ? Math.sin(recoil * Math.PI) * (1 - recoil) * 0.16 : 0;
+        const ty = model.turretY * pop - model.headMinY * k * pop;
+        const t = top.push(slot.x, ty, slot.z, this.tYaw[id], pop, id, 0, 0, 0);
         top.setTeam(t, team);
-        if (recoil) top.setPose(t, recoil, 0, 0, 0);
+        if (mach) {
+          const fired = ft !== undefined ? time - ft : 99;
+          const gun = fired < 0.45 ? Math.max(0.001, fired / 0.45) : 0;
+          let ang = 0;
+          if (mach.arm) {
+            ang = ft !== undefined ? armAngle(fired, this.armFrom.get(id) ?? 0) : 0;
+            const load = ft !== undefined ? rockLoaded(fired) : 1;
+            if (load > 0) this.rockInBucket(mach.arm, ang, slot.x, ty, slot.z, this.tYaw[id], pop, load, id);
+          }
+          top.setPose(t, gun, this.tBarrel.get(id) ?? 0, ang, 0);
+        } else if (recoil) top.setPose(t, recoil, 0, 0, 0);
         if (stunned) top.setTint(t, 0.55, 0.7, 0.55, 0.45);
       }
       this.towerMuzzle.set(id, { x: slot.x, y: model.muzzleY, z: slot.z, fam, level, owner: snap.tOwner[i], slot: snap.tSlot[i] });
     }
     for (const p of this.towerBase.values()) p.end();
     for (const p of this.towerTop.values()) p.end();
+    this.rocks.end();
     if (this.tBorn.size > 200) {
       const alive = new Set<number>();
       for (let i = 0; i < snap.tCount; i++) alive.add(snap.tId[i]);

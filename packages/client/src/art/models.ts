@@ -76,6 +76,12 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
     geo.setAttribute('aWeight', weight);
     geo.deleteAttribute('_weight');
   } else geo.setAttribute('aWeight', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count).fill(1), 1));
+  // sommets de peau des héros (pnpm models:skins) : teintés par la couleur de peau choisie
+  const skin = geo.getAttribute('_skin') ?? geo.getAttribute('_SKIN');
+  if (skin) {
+    geo.setAttribute('aSkin', skin);
+    geo.deleteAttribute('_skin');
+  } else geo.setAttribute('aSkin', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count), 1));
   anchorHeld(geo);
   softenShoulders(geo);
   if (!geo.getAttribute('color')) {

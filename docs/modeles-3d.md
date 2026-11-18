@@ -21,7 +21,7 @@ Ce fichier est généré par `pnpm models:prompts` à partir de `tools/models/ca
 Un seul matériau et une seule texture par modèle (c'est ce que Meshy produit par défaut) : sinon la texture est cuite
 dans les couleurs de sommets (moins fin).
 
-Budget : 60 modèles. Priorité conseillée : héros → boss → ennemis fréquents (gobelin, loup, brute) → tours → décor.
+Budget : 81 modèles (les variantes de décor sont optionnelles). Priorité conseillée : héros → boss → ennemis fréquents (gobelin, loup, brute) → tours → décor.
 
 ## Héros (4)
 
@@ -309,7 +309,7 @@ Budget : 60 modèles. Priorité conseillée : héros → boss → ennemis fréqu
 ### Squelette
 
 - Fichier : `assets/models-src/soldier-6.glb` · clé `soldier:6`
-- Hauteur en jeu : 1.3 · budget : 1200 triangles · texture 512 px · animation : rig Meshy (jambes/bras depuis le squelette) → **rig Meshy, A-pose**
+- Hauteur en jeu : 1.3 · budget : 3200 triangles · texture 512 px · animation : rig Meshy (jambes/bras depuis le squelette) → **rig Meshy, A-pose**
 - Prompt :
 
   > skeleton warrior with rusty sword and broken shield, cracked bones, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, A-pose, facing the camera
@@ -459,7 +459,7 @@ Budget : 60 modèles. Priorité conseillée : héros → boss → ennemis fréqu
 - Hauteur en jeu : 2.8 · budget : 2500 triangles · texture 512 px · animation : statique
 - Prompt :
 
-  > dwarven bombard cannon on a reinforced stone base with sandbags, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
+  > dwarven wooden catapult throwing boulders, on a reinforced stone base, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
 
 ### Artillerie III
 
@@ -467,23 +467,23 @@ Budget : 60 modèles. Priorité conseillée : héros → boss → ennemis fréqu
 - Hauteur en jeu : 3.2 · budget : 2500 triangles · texture 512 px · animation : statique
 - Prompt :
 
-  > big dwarven mortar with brass fittings and a steam engine, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
+  > big dwarven siege catapult with iron fittings and a boulder in its bucket, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
 
-### Tesla (spé. A)
+### Brasier (spé. A)
 
 - Fichier : `assets/models-src/tower-3-3.glb` · clé `tower:3-3`
 - Hauteur en jeu : 3.8 · budget : 2500 triangles · texture 512 px · animation : statique
 - Prompt :
 
-  > steampunk tesla cannon with copper coils and glowing tubes, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
+  > dwarven flame mortar with a furnace, glowing lava core and chimney, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
 
-### Brasier (spé. B)
+### Tesla (spé. B)
 
 - Fichier : `assets/models-src/tower-3-4.glb` · clé `tower:3-4`
 - Hauteur en jeu : 3.8 · budget : 2500 triangles · texture 512 px · animation : statique
 - Prompt :
 
-  > dwarven flame mortar with a furnace, glowing lava core and chimney, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
+  > steampunk tesla cannon with copper coils and glowing tubes, stylized low-poly game asset, hand-painted look, bold readable silhouette, slightly cartoon proportions, clean flat colors, no background, full body, medieval fantasy tower defense building on a round stone base, isometric game asset
 
 
 ## Décor (19)

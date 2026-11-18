@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, weatherFor, PropKind, PROP_FOUND, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, weatherFor, PropKind, PROP_FOUND, ITEMS, Item, TREE, GameState, MAPS, Sim, Ev, Impact, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 /** arbre : vocation, la voie gauche (0) ou droite (1) jusqu'au rang `upto`, l'ultime si demandé */
 /** rangs : la racine et les `n` premiers nœuds de la route `j` (au maximum) */
@@ -63,6 +63,31 @@ describe('simulation', () => {
     expect(sim.state).toBe(GameState.Running);
     for (let i = 0; i < 20 * 60; i++) sim.step();
     expect(sim.players[0].kills).toBeGreaterThan(0);
+  });
+
+  it('les catapultes lancent des rochers, le mortier à flammes garde ses obus incendiaires', () => {
+    const impacts = (level: number) => {
+      const sim = new Sim(cfg({ seed: 7 }));
+      sim.players[0].gold = 5000;
+      const free = sim.map.slots.findIndex((s) => !s.locked);
+      sim.apply(0, { k: 'build', slot: free, fam: 3 });
+      const t = sim.towers[0];
+      t.level = level;
+      sim.apply(0, { k: 'wave' });
+      const seen = new Set<number>();
+      for (let i = 0; i < 20 * 90; i++) {
+        sim.step();
+        for (const e of sim.events) if (e[0] === Ev.Impact) seen.add(e[1]);
+        sim.events.length = 0;
+      }
+      return seen;
+    };
+    const cata = impacts(0);
+    expect(cata.has(Impact.Rock)).toBe(true);
+    expect(cata.has(Impact.Shell)).toBe(false);
+    const mortar = impacts(3);
+    expect(mortar.has(Impact.FireShell)).toBe(true);
+    expect(mortar.has(Impact.Rock)).toBe(false);
   });
 
   it('rembourse intégralement pendant la préparation, partiellement ensuite', () => {
