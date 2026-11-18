@@ -1,12 +1,13 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
+  import SpellPicker from './SpellPicker.svelte';
   import { ITEMS, ITEM_MAX, RANK_COST, TREE, TREE_RANKS, treeCost } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { availableStars, buyItem, buyRank, canBuyItem, earnedStars, rank, resetTree, stock } from '../meta';
   import { progress, toast, ui } from '../state.svelte';
   import { BRANCH_ICON, ICON, ITEM_ICON } from './icons';
 
-  let tab = $state<'tree' | 'shop'>('tree');
+  let tab = $state<'tree' | 'shop' | 'spells'>('tree');
   // nœud affiché dans le panneau de détail (branche, rang)
   let sel = $state<[number, number]>([0, Math.min(rank(0), TREE_RANKS - 1)]);
   const stars = $derived(availableStars());
@@ -53,6 +54,7 @@
     <div class="seg">
       <button class:on={tab === 'tree'} onclick={() => (tab = 'tree')}>Compétences</button>
       <button class:on={tab === 'shop'} onclick={() => (tab = 'shop')}>Boutique</button>
+      <button class:on={tab === 'spells'} onclick={() => (tab = 'spells')}>Sorts</button>
     </div>
 
     <div class="body scroll">
@@ -79,6 +81,9 @@
             </section>
           {/each}
         </div>
+      {:else if tab === 'spells'}
+        <SpellPicker />
+        <p class="note">Choisissez deux sorts à emporter : ils prennent les touches des sorts, dans l’ordre. Chaque nouveau sort s’obtient définitivement en terminant un niveau de l’histoire.</p>
       {:else}
         <div class="shop">
           {#each ITEMS as it, i}

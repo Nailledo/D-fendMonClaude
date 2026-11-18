@@ -35,6 +35,8 @@ export interface PlayerInfo {
   items?: number[];
   /** arbre du héros : classe et nœuds (voir data/classes) */
   build?: HeroBuild;
+  /** les deux sorts généraux emportés (index de SPELLS, distincts) ; défaut : météores et renforts */
+  spells?: [number, number];
 }
 
 export interface GameConfig {

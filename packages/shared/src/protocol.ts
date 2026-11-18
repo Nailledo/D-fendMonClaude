@@ -12,6 +12,8 @@ export interface LobbyPlayer {
   hero: HeroId;
   /** classe du héros (CLASSES) */
   cls?: number;
+  /** sorts généraux emportés (index de SPELLS) */
+  spells: [number, number];
   ready: boolean;
   host: boolean;
   connected: boolean;
@@ -40,7 +42,7 @@ export type ClientMsg =
   | { t: 'leave' }
   | { t: 'hero'; hero: HeroId }
   /** arbre de compétences et objets emportés (bornés par le serveur) */
-  | { t: 'meta'; tree: number[]; items: number[]; build?: HeroBuild }
+  | { t: 'meta'; tree: number[]; items: number[]; build?: HeroBuild; spells?: number[] }
   | { t: 'ready'; ready: boolean }
   | { t: 'settings'; settings: RoomSettings }
   | { t: 'start' }
@@ -116,7 +118,7 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.Build]: 'wb',
   [Ev.Sell]: 'bb',
   [Ev.Upgrade]: 'wbb',
-  [Ev.Spell]: 'bbpp',
+  [Ev.Spell]: 'bbppb',
   [Ev.HeroSkill]: 'bbpppp',
   [Ev.Dmg]: 'wwb',
   [Ev.WaveStart]: 'wbb',

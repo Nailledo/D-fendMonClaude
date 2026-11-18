@@ -33,7 +33,7 @@
     </ul>
     <h3>Sorts et vagues</h3>
     <ul>
-      <li><span class="kbd">{keyLabel(keys.spell1)}</span> Pluie de météores et <span class="kbd">{keyLabel(keys.spell2)}</span> Renforts : choisissez ensuite un point sur la carte.</li>
+      <li><span class="kbd">{keyLabel(keys.spell1)}</span> et <span class="kbd">{keyLabel(keys.spell2)}</span> Vos deux sorts généraux (météores et renforts au départ) : les sorts de zone demandent de choisir ensuite un point sur la carte. Les autres s’obtiennent en terminant des niveaux de l’histoire ; choisissez-les à l’Atelier ou dans le salon.</li>
       <li>Le bouton rouge au début du chemin appelle la vague suivante ; survolez-le (ou touchez-le une fois) pour voir les ennemis qui arrivent. L’appeler en avance rapporte de l’or à chaque joueur et recharge les sorts.</li>
     </ul>
     <h3>Atelier : compétences et boutique</h3>

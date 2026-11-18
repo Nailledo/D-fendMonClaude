@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { HERO_IDS, REPLAY_MAX_TICKS, sanitizeBuild, sanitizeMeta, SURVIVAL_MAPS, TICK_RATE, type ClientMsg, type GameConfig, type HeroId, type LoggedCmd } from '@dfend/shared';
+import { HERO_IDS, REPLAY_MAX_TICKS, sanitizeBuild, sanitizeMeta, sanitizeSpells, SURVIVAL_MAPS, TICK_RATE, type ClientMsg, type GameConfig, type HeroId, type LoggedCmd } from '@dfend/shared';
 import { Scores } from './db';
 import { RoomManager } from './rooms';
 import { RateLimiter, Tickets, clientIp, originAllowed, sanitizeName } from './security';
@@ -149,7 +149,7 @@ async function handleScore(req: IncomingMessage, res: ServerResponse) {
   const clean: GameConfig = {
     mode: 'survival', mapId: cfg.mapId, difficulty: difficultyOf(cfg.difficulty), seed: Number(cfg.seed) >>> 0,
     // l'arbre de compétences et les objets changent la partie : le rejeu doit les connaître (bornés)
-    players: [{ id: 0, name: sanitizeName(cfg.players[0].name), hero: cfg.players[0].hero, ...sanitizeMeta(cfg.players[0].tree, cfg.players[0].items), build: sanitizeBuild(cfg.players[0].build) }],
+    players: [{ id: 0, name: sanitizeName(cfg.players[0].name), hero: cfg.players[0].hero, ...sanitizeMeta(cfg.players[0].tree, cfg.players[0].items), build: sanitizeBuild(cfg.players[0].build), spells: sanitizeSpells(cfg.players[0].spells) }],
   };
   const log: LoggedCmd[] = [];
   let lastTick = 0;
