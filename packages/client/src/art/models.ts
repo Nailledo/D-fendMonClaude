@@ -67,6 +67,7 @@ function adopt(gltf: { scene: THREE.Object3D }, meta: ModelMeta): LoadedModel | 
     geo.setAttribute('aAnim', anim);
     geo.deleteAttribute('_anim');
   } else geo.setAttribute('aAnim', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 4), 4));
+  if (meta.file.startsWith('enemy-')) rightHanded(geo);
   const weight = geo.getAttribute('_weight') ?? geo.getAttribute('_WEIGHT');
   if (weight) {
     geo.setAttribute('aWeight', weight);
@@ -108,6 +109,42 @@ function anchorHeld(geo: THREE.BufferGeometry) {
     for (let i = 0; i < a.count; i++) if (Math.round(a.getX(i)) === part) a.setXYZW(i, part, sx, by, sz);
   }
   a.needsUpdate = true;
+}
+
+/**
+ * Monstres armés de la main gauche (brute, Grôlbak, démon cornu, Kessin…) : l'animation de frappe lève
+ * le bras droit, qui tapait donc à vide pendant que l'arme restait en bas. Le bras qui porte l'arme
+ * (nettement plus de sommets) est repéré ; s'il est à gauche, le modèle est retourné en miroir
+ * (x → -x, faces et normales comprises) et les parties gauche/droite échangées : l'arme passe dans la
+ * main qui frappe, la marche reste naturelle (bras opposé à la jambe).
+ */
+function rightHanded(geo: THREE.BufferGeometry) {
+  const a = geo.getAttribute('aAnim') as THREE.BufferAttribute;
+  let nl = 0, nr = 0;
+  for (let i = 0; i < a.count; i++) {
+    const part = Math.round(a.getX(i));
+    if (part === 3) nl++;
+    else if (part === 4) nr++;
+  }
+  if (!geo.index || !nr || nl < nr * 1.4) return;
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) pos.setX(i, -pos.getX(i));
+  const nor = geo.getAttribute('normal') as THREE.BufferAttribute | undefined;
+  if (nor) for (let i = 0; i < nor.count; i++) nor.setX(i, -nor.getX(i));
+  const swap: Record<number, number> = { 1: 2, 2: 1, 3: 4, 4: 3, 5: 6, 6: 5 };
+  for (let i = 0; i < a.count; i++) {
+    const part = Math.round(a.getX(i));
+    a.setXYZW(i, swap[part] ?? part, -a.getY(i), a.getZ(i), a.getW(i));
+  }
+  // miroir : l'ordre des sommets de chaque triangle s'inverse, sinon les faces seraient retournées
+  const idx = geo.index;
+  for (let t = 0; t + 2 < idx.count; t += 3) {
+    const b = idx.getX(t + 1);
+    idx.setX(t + 1, idx.getX(t + 2));
+    idx.setX(t + 2, b);
+  }
+  pos.needsUpdate = a.needsUpdate = idx.needsUpdate = true;
+  if (nor) nor.needsUpdate = true;
 }
 
 /**

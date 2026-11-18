@@ -92,6 +92,12 @@ export class Entities {
   /** monstres entrés depuis la dernière lecture */
   castleEntered = 0;
   private eIn = new Uint8Array(N);
+  /** adversaire de chaque ennemi au corps à corps (image où il a été trouvé, position, héros ?, distance²) */
+  private foeStamp = new Uint32Array(N);
+  private foeX = new Float32Array(N);
+  private foeZ = new Float32Array(N);
+  private foeHero = new Uint8Array(N);
+  private foeD2 = new Float32Array(N);
   /** champ de la caméra : les entités hors de l'écran (et de la portée de leur ombre) ne sont pas dessinées */
   readonly frustum = new THREE.Frustum();
   cullOn = false;
@@ -272,6 +278,23 @@ export class Entities {
     this.frameNo++;
     const k = Math.min(1, dt * 10);
     this.hpN = 0;
+    // ------------------------------------------------ adversaires au corps à corps
+    // la simulation n'envoie pas la cible d'un ennemi ; mais ses bloqueurs (soldats, héros) le visent :
+    // chaque ennemi au combat se tourne vers celui qui le vise (un héros en priorité, sinon le plus proche)
+    for (let i = 0; i < f.uN; i++) {
+      const tg = f.uTarget[i];
+      if (tg === 0xffff || f.uFlags[i] & UF_DEAD) continue;
+      const ei = f.enemyIdx(tg);
+      if (ei < 0) continue;
+      const d2 = (f.uX[i] - f.eX[ei]) ** 2 + (f.uZ[i] - f.eZ[ei]) ** 2;
+      const hero = f.uKind[i] === HERO_UNIT ? 1 : 0;
+      if (this.foeStamp[tg] === this.frameNo && (this.foeHero[tg] > hero || (this.foeHero[tg] === hero && this.foeD2[tg] <= d2))) continue;
+      this.foeStamp[tg] = this.frameNo;
+      this.foeHero[tg] = hero;
+      this.foeD2[tg] = d2;
+      this.foeX[tg] = f.uX[i];
+      this.foeZ[tg] = f.uZ[i];
+    }
     // ------------------------------------------------ ennemis
     for (const p of this.enemyPools) p.begin();
     this.castleNear = false;
@@ -282,12 +305,27 @@ export class Entities {
       const flags = f.eFlags[i];
       // mort déjà jouée par un corps : on ne redessine pas l'ennemi pendant le retard d'interpolation
       if (time - this.eDeadAt[id] < 1.2) continue;
-      const target = Math.atan2(f.eDx[i], f.eDz[i]);
+      let target = Math.atan2(f.eDx[i], f.eDz[i]);
+      let turn = k;
+      if (flags & EF_FIGHTING) {
+        // face à l'adversaire : celui qui le vise, sinon l'unité au combat la plus proche
+        let fx = 0, fz = 0, ok = this.foeStamp[id] === this.frameNo;
+        if (ok) { fx = this.foeX[id]; fz = this.foeZ[id]; }
+        else {
+          let best = (1.6 + def.size * 0.4) ** 2;
+          for (let u = 0; u < f.uN; u++) {
+            if (f.uFlags[u] & UF_DEAD) continue;
+            const d2 = (f.uX[u] - f.eX[i]) ** 2 + (f.uZ[u] - f.eZ[i]) ** 2;
+            if (d2 < best) { best = d2; fx = f.uX[u]; fz = f.uZ[u]; ok = true; }
+          }
+        }
+        if (ok && (fx - f.eX[i]) ** 2 + (fz - f.eZ[i]) ** 2 > 0.01) { target = Math.atan2(fx - f.eX[i], fz - f.eZ[i]); turn = Math.min(1, dt * 12); }
+      }
       const fresh = this.eSeen[id] !== this.frameNo - 1;
       this.eSeen[id] = this.frameNo;
       if (!this.eKnown[id]) { this.eKnown[id] = 1; this.eBorn[id] = time; }
       const prevYaw = this.eYaw[id];
-      this.eYaw[id] = fresh ? target : lerpAngle(this.eYaw[id], target, k);
+      this.eYaw[id] = fresh ? target : lerpAngle(this.eYaw[id], target, turn);
       // roulis : on se penche dans les virages (fort pour les volants)
       let dy = this.eYaw[id] - prevYaw;
       if (dy > Math.PI) dy -= Math.PI * 2; else if (dy < -Math.PI) dy += Math.PI * 2;
