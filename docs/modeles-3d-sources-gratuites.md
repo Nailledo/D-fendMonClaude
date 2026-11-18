@@ -20,7 +20,17 @@ Correspondance entre les 81 entrées de `tools/models/catalog.ts` et des modèle
 > (groupes : hero, soldier, enemy, tower, decor, gate, spawn).
 >
 > Pour refaire l'import : extraire les packs dans `assets/models-src/_packs/`, puis
-> `pnpm tsx tools/models/import-free.ts` et `pnpm models:bake`.
+> `pnpm tsx tools/models/import-free.ts`, `pnpm models:bake` et `pnpm models:machines`.
+>
+> **Machines de guerre** (`pnpm models:machines`, à relancer après chaque cuisson) : les tours d'artillerie et la
+> tourelle de l'artificier sont découpées en pièces animées : tête qui pivote vers la cible, canons qui reculent
+> chacun leur tour, bras de catapulte qui bascule. Les trois niveaux de base de l'artillerie sont des catapultes
+> (celle du niveau 1 est reposée à l'échelle sur les tours des niveaux 2 et 3). Contrôle visuel :
+> `http://localhost:5173/preview-machines.html?k=tower:3-0,tower:3-4,soldier:7`.
+>
+> **Couleur de peau** (`pnpm models:skins`, à relancer après `models:bake` ou `models:kitbash`) : marque les sommets
+> de peau des personnages jouables (attribut `_SKIN`), teintés en jeu par la couleur de peau choisie
+> (`SKIN_TONES`, six teintes). Contrôle visuel : `http://localhost:5173/preview-models.html?g=hero&skin=553323`.
 
 ## Ce qui a été vérifié
 

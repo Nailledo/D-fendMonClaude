@@ -151,6 +151,12 @@ class AudioEngine {
         this.tone('sine', 140 * r, 45, t, 0.25, 0.3 * vol, o);
         this.noise(t, 0.12, 0.12 * vol, 'lowpass', 1800, 300, o);
         break;
+      case 'catapult':
+        // grincement du bras, sifflement du rocher, choc sourd contre la butée
+        this.noise(t, 0.22, 0.12 * vol, 'bandpass', 700 * r, 2400, o, 3);
+        this.tone('triangle', 95 * r, 55, t + 0.14, 0.18, 0.22 * vol, o);
+        this.noise(t + 0.14, 0.08, 0.1 * vol, 'lowpass', 900, 200, o);
+        break;
       case 'explosion':
         this.noise(t, 0.55, 0.32 * vol, 'lowpass', 2200 * r, 120, o);
         this.tone('sine', 90 * r, 30, t, 0.45, 0.35 * vol, o, true);

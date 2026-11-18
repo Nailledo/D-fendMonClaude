@@ -51,10 +51,15 @@ function rand() {
   return seed / 2147483647;
 }
 
+/** couleur de peau des personnages construits en code */
+export const SKIN_COLOR = 0xf2c9a0;
+
 export class GB {
   private pos: number[] = [];
   private col: number[] = [];
   private anim: number[] = [];
+  /** sommets de peau (couleur SKIN_COLOR) : teintés par la couleur de peau choisie */
+  private skin: number[] = [];
   private part = 0;
   private pivot: [number, number, number] = [0, 0, 0];
   /** variation aléatoire de luminosité par face (aspect peint à la main) */
@@ -82,6 +87,7 @@ export class GB {
     const src = geo.attributes.position as THREE.BufferAttribute;
     const v = new THREE.Vector3();
     _c.set(color);
+    const skin = _c.getHex() === SKIN_COLOR ? 1 : 0;
     const n = src.count;
     let faceShade = 1;
     for (let i = 0; i < n; i++) {
@@ -92,6 +98,7 @@ export class GB {
       if (this.ao) k *= 0.72 + 0.28 * Math.min(1, Math.max(0, v.y / this.aoHeight));
       this.col.push(_c.r * k, _c.g * k, _c.b * k);
       this.anim.push(this.part, this.pivot[0], this.pivot[1], this.pivot[2]);
+      this.skin.push(skin);
     }
     return this;
   }
@@ -166,6 +173,7 @@ export class GB {
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.setAttribute('aAnim', new THREE.Float32BufferAttribute(this.anim, 4));
     g.setAttribute('aWeight', new THREE.Float32BufferAttribute(new Float32Array(this.pos.length / 3).fill(1), 1));
+    g.setAttribute('aSkin', new THREE.Float32BufferAttribute(this.skin, 1));
     g.computeVertexNormals();
     g.computeBoundingSphere();
     g.computeBoundingBox();

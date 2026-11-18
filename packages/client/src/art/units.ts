@@ -1,8 +1,9 @@
 import type * as THREE from 'three';
 import { BufferGeometry, Float32BufferAttribute } from 'three';
-import { GB, Part } from './builder';
+import { GB, Part, SKIN_COLOR } from './builder';
+import { machineOf } from './machines';
 
-const SKIN = 0xf2c9a0;
+const SKIN = SKIN_COLOR;
 
 function body(g: GB, o: { legs: number; torso: number; arms: number; head?: number; w?: number; h?: number; scale?: number }) {
   const w = o.w ?? 0.4;
@@ -266,10 +267,14 @@ function turretHead(g: GB, y = TURRET_HEAD_Y) {
 
 /**
  * Tourelle en deux pièces : socle fixe et tête qui pivote autour de l'axe vertical (origine).
- * Modèle importé : la cuisson l'avait découpé comme un personnage (jambes, bras), d'où une tourelle qui
- * « marchait ». On le sépare ici : triangles des « jambes » → socle, le reste → tête, sans partie animée.
+ * Modèle importé : découpé par `pnpm models:machines` (socle, tête, deux canons qui reculent chacun à leur tour).
+ * Repli pour un modèle non découpé : la cuisson l'avait rangé comme un personnage (jambes, bras) ;
+ * triangles des « jambes » → socle, le reste → tête, sans partie animée.
  */
 export function turretGeometry(glb?: THREE.BufferGeometry): { base: THREE.BufferGeometry; head: THREE.BufferGeometry } {
+  // modèle découpé par `pnpm models:machines` : tête entière (carter, canons, culasse) d'un seul bloc
+  const mach = glb ? machineOf(glb) : null;
+  if (mach) return { base: mach.base, head: mach.head };
   if (glb?.index) {
     const anim = glb.getAttribute('aAnim');
     const idx = glb.index.array;

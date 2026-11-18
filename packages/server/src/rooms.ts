@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
-  GameState, HERO_IDS, classOf, sanitizeBuild, sanitizeSpells, type HeroBuild, LEVELS, sanitizeMeta, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
+  skinIndex, GameState, HERO_IDS, classOf, sanitizeBuild, sanitizeSpells, type HeroBuild, LEVELS, sanitizeMeta, MAPS, MAX_PLAYERS, RECONNECT_GRACE_S, ROOM_CODE_LEN, SURVIVAL_MAPS, Sim, encodeSnapshot,
   type ClientMsg, type Command, type EndInfo, type GameConfig, type HeroId, type LobbyPlayer, type RoomSettings, type ServerMsg,
 } from '@dfend/shared';
 import type { Scores } from './db';
@@ -36,6 +36,8 @@ interface RoomPlayer {
   token: string;
   name: string;
   hero: HeroId;
+  /** couleur de peau (SKIN_TONES), simple apparence */
+  skin: number;
   /** arbre de compétences et objets emportés, déjà bornés */
   tree: number[];
   items: number[];
@@ -73,7 +75,7 @@ export class Room {
   }
 
   lobbyState(): LobbyPlayer[] {
-    return this.players.map((p) => ({ id: p.pid, name: p.name, hero: p.hero, cls: classOf(p.build) ? p.build.cls : -1, spells: p.spells, ready: p.ready, host: p.pid === this.hostPid, connected: !!p.client }));
+    return this.players.map((p) => ({ id: p.pid, name: p.name, hero: p.hero, skin: p.skin, cls: classOf(p.build) ? p.build.cls : -1, spells: p.spells, ready: p.ready, host: p.pid === this.hostPid, connected: !!p.client }));
   }
 
   broadcastRoom() {
@@ -90,7 +92,7 @@ export class Room {
     if (this.inGame) return false;
     let pid = 0;
     while (this.players.some((p) => p.pid === pid)) pid++;
-    this.players.push({ pid, token: c.token, name: c.name, hero: 'samuel', ...sanitizeMeta(null, null), build: sanitizeBuild(null), spells: sanitizeSpells(null), ready: false, client: c, leftAt: 0 });
+    this.players.push({ pid, token: c.token, name: c.name, hero: 'samuel', skin: 0, ...sanitizeMeta(null, null), build: sanitizeBuild(null), spells: sanitizeSpells(null), ready: false, client: c, leftAt: 0 });
     if (this.players.length === 1) this.hostPid = pid;
     c.room = this;
     c.pid = pid;
@@ -166,7 +168,7 @@ export class Room {
     if (!p) return;
     switch (m.t) {
       case 'hero':
-        if (HERO_IDS.includes(m.hero) && !this.inGame) { p.hero = m.hero; this.broadcastRoom(); }
+        if (HERO_IDS.includes(m.hero) && !this.inGame) { p.hero = m.hero; if (m.skin !== undefined) p.skin = skinIndex(m.skin); this.broadcastRoom(); }
         break;
       case 'meta':
         if (!this.inGame) { Object.assign(p, sanitizeMeta(m.tree, m.items)); p.build = sanitizeBuild(m.build); p.spells = sanitizeSpells(m.spells); this.broadcastRoom(); }
@@ -221,7 +223,7 @@ export class Room {
       mapId: this.settings.mapId,
       difficulty: this.settings.difficulty,
       seed: randomBytes(4).readUInt32LE(0),
-      players: this.players.filter((p) => p.client).map((p) => ({ id: p.pid, name: p.name, hero: p.hero, tree: p.tree, items: p.items, build: p.build, spells: p.spells })),
+      players: this.players.filter((p) => p.client).map((p) => ({ id: p.pid, name: p.name, hero: p.hero, skin: p.skin, tree: p.tree, items: p.items, build: p.build, spells: p.spells })),
     };
     // les absents sont retirés du salon
     this.players = this.players.filter((p) => p.client);

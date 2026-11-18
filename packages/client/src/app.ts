@@ -13,7 +13,7 @@ import { applyLods } from './render/InstPool';
 import { Renderer } from './render/Renderer';
 import { TitleScene } from './render/TitleScene';
 import { autoDetect, settings, tuning } from './settings';
-import { toast, ui } from './state.svelte';
+import { onSkinChange, toast, ui } from './state.svelte';
 import { loadout } from './meta';
 
 class App {
@@ -68,7 +68,9 @@ class App {
       await buildLods(keys, span(0.6, 0.7, 'Optimisation des modèles…'));
       setLoading(0.7, 'Portraits des héros…');
       await nextFrame();
-      ui.portraits = renderPortraits();
+      ui.portraits = renderPortraits(ui.skin);
+      // couleur de peau changée : portraits des héros refaits
+      onSkinChange((k) => (ui.portraits = { ...ui.portraits, ...renderPortraits(k, true) }));
       await renderIcons3DProgressive((chunk) => (ui.icons = { ...ui.icons, ...chunk }), 160, 6, span(0.72, 0.9, 'Icônes…'));
     } catch (e) {
       console.warn('Chargement incomplet :', e);
@@ -144,7 +146,7 @@ class App {
     }
     this.leaveGame(false);
     // arbre de compétences et objets de la boutique emportés dans la partie
-    const cfg: GameConfig = { mode, mapId, difficulty, seed, players: [{ id: 0, name: ui.name || 'Samuel', hero, ...loadout() }] };
+    const cfg: GameConfig = { mode, mapId, difficulty, seed, players: [{ id: 0, name: ui.name || 'Samuel', hero, skin: ui.skin, ...loadout() }] };
     ui.game = { mode, mapId, difficulty, you: 0, multi: false, level };
     this.launch(cfg, 0, new LocalHost(cfg));
   }

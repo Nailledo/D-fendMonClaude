@@ -574,8 +574,15 @@ function projGeometries() {
   rock.ao = false;
   rock.rock(0.6, 0x5d4037, 0, 0, 0);
   rock.ball(0.45, 0xff6f00, 0, 0, -0.2);
-  return { arrow: arrow.build(), shell: shell.build(), rock: rock.build() };
+  // rocher de catapulte : pierre grise taillée grossièrement
+  const boulder = new GB(4);
+  boulder.ao = false;
+  boulder.rock(0.26, 0x8a8178, 0, 0, 0, 1, 0.85, 1);
+  return { arrow: arrow.build(), shell: shell.build(), rock: rock.build(), boulder: boulder.build() };
 }
+
+/** Type de tir propre à l'affichage : rocher de catapulte (le serveur envoie un obus, kind 4). */
+export const SHOT_BOULDER = 20;
 
 const GLOW: Record<number, number> = { 1: 0xd500f9, 2: 0x80deea, 3: 0xea80fc, 9: 0x76ff03, 13: 0x76ff03 };
 
@@ -594,6 +601,7 @@ export class Fx {
   private arrows: InstPool;
   private shells: InstPool;
   private rocks: InstPool;
+  private boulders: InstPool;
   shots: Shot[] = [];
   private ground = flatGround();
   /** Relief du terrain (texture de hauteurs du monde) : les traces au sol le suivent. */
@@ -617,6 +625,7 @@ export class Fx {
     this.arrows = new InstPool(g.arrow, 128, this.group, false);
     this.shells = new InstPool(g.shell, 64, this.group, false);
     this.rocks = new InstPool(g.rock, 16, this.group, false);
+    this.boulders = new InstPool(g.boulder, 32, this.group, false);
   }
 
   burst(x: number, y: number, z: number, n: number, color: number, speed = 3, size = 0.12, life = 0.6, additive = false, grav = -9) {
@@ -646,6 +655,7 @@ export class Fx {
     this.arrows.begin();
     this.shells.begin();
     this.rocks.begin();
+    this.boulders.begin();
     let w = 0;
     for (const s of this.shots) {
       const t = (tick - s.t0) / s.dur;
@@ -687,6 +697,10 @@ export class Fx {
         this.shells.push(x, y, z, 0, k === 12 ? 0.6 : 1);
         if (k === 5) this.glow.spawn(x, y, z, 0, 0.5, 0, 0.35, 0.2, 0xff8f00, 0);
         else if (Math.random() < 0.4) this.sparks.spawn(x, y, z, 0, 0.3, 0, 0.5, 0.1, 0x9e9e9e, 0);
+      } else if (k === SHOT_BOULDER) {
+        // rocher qui tournoie lentement, petite poussière de pierre derrière lui
+        this.boulders.push(x, y, z, tick * 0.35 + s.t0, 1);
+        if (Math.random() < 0.3) this.sparks.spawn(x, y, z, 0, 0.2, 0, 0.45, 0.07, 0xa1887f, 0);
       } else if (k === 11) {
         // météore : rocher qui tournoie, traînée de feu et de fumée
         this.rocks.push(x, y, z, tick * 0.45, 1.5);
@@ -711,6 +725,7 @@ export class Fx {
     this.arrows.end();
     this.shells.end();
     this.rocks.end();
+    this.boulders.end();
     this.sparks.update(dt);
     this.glow.update(dt);
     this.beams.update(dt);

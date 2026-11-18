@@ -8,7 +8,7 @@ import { WEAPON_STYLE, heroWeapon } from '../art/weapons';
 import { settings } from '../settings';
 import { progress, ui } from '../state.svelte';
 import { Decal, Fx } from './Fx';
-import { InstPool, forgetPools } from './InstPool';
+import { InstPool, forgetPools, skinMul } from './InstPool';
 import type { Renderer } from './Renderer';
 import { stride } from './stride';
 import { buildWorld } from './World';
@@ -256,6 +256,7 @@ export class TitleScene {
       p.begin();
       const hj = p.push(hp.x, 0, hp.z, hp.yaw, 1.5, phase0, this.heroPhase, 0, mode);
       p.setTeam(hj, 0x3b82f6);
+      p.setSkin(hj, skinMul(ui.skin));
       p.setPose(hj, 0, 0, 0, 1);
       p.end();
     }

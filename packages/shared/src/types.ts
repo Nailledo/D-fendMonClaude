@@ -29,6 +29,8 @@ export interface PlayerInfo {
   id: number; // 0..3
   name: string;
   hero: HeroId;
+  /** couleur de peau (index de SKIN_TONES, 0 par défaut) */
+  skin?: number;
   /** rangs achetés dans chaque branche de l'arbre de compétences (voir data/meta) */
   tree?: number[];
   /** objets de boutique emportés (stock par objet) */

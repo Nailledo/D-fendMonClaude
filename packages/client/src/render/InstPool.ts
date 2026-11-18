@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SKIN_BASE, SKIN_TONES } from '@dfend/shared';
 import { animDepthMaterial, animMaterial } from './materials';
 
 let sharedDepth: THREE.MeshDepthMaterial | null = null;
@@ -14,6 +15,33 @@ export function sharedAnimMaterial(map: THREE.Texture | null = null) {
 }
 function sharedDepthMat() {
   return (sharedDepth ??= animDepthMaterial());
+}
+
+/** Modèles sans peau marquée (décor, tours, ennemis) : attribut aSkin nul, partagé par modèle. */
+const noSkins = new WeakMap<THREE.BufferGeometry, THREE.BufferAttribute>();
+function noSkin(src: THREE.BufferGeometry) {
+  let a = src.getAttribute('aSkin') as THREE.BufferAttribute | undefined;
+  if (a) return a;
+  a = noSkins.get(src);
+  if (!a) noSkins.set(src, (a = new THREE.Float32BufferAttribute(new Float32Array(src.attributes.position.count), 1)));
+  return a;
+}
+
+const SKIN_ONE: readonly [number, number, number] = [1, 1, 1];
+const skinMuls = new Map<number, readonly [number, number, number]>();
+/**
+ * Multiplicateur de couleur des sommets de peau pour une couleur de peau (index de SKIN_TONES) :
+ * rapport, en espace linéaire, entre la couleur voulue et la peau des modèles (l'ombrage peint est conservé).
+ */
+export function skinMul(skin: number): readonly [number, number, number] {
+  if (!skin) return SKIN_ONE;
+  let m = skinMuls.get(skin);
+  if (!m) {
+    const to = new THREE.Color(SKIN_TONES[skin]?.color ?? SKIN_BASE), base = new THREE.Color(SKIN_BASE);
+    m = [to.r / base.r, to.g / base.g, to.b / base.b];
+    skinMuls.set(skin, m);
+  }
+  return m;
 }
 
 /** Lots dont le modèle a des niveaux de détail (voir `applyLods`). */
@@ -53,11 +81,13 @@ export class InstPool {
   private tint!: Float32Array;
   private team!: Float32Array;
   private pose!: Float32Array;
+  private skin!: Float32Array;
   private mat!: Float32Array;
   private aPose!: THREE.InstancedBufferAttribute;
   private aAnim!: THREE.InstancedBufferAttribute;
   private aTint!: THREE.InstancedBufferAttribute;
   private aTeam!: THREE.InstancedBufferAttribute;
+  private aSkin!: THREE.InstancedBufferAttribute;
   count = 0;
   cap = 0;
   private lods: THREE.BufferAttribute[] | null;
@@ -84,16 +114,18 @@ export class InstPool {
   private alloc(cap: number) {
     const old = this.mesh;
     // agrandissement en cours d'image : on garde les instances déjà posées (sinon elles disparaissent une image)
-    const keep = old ? { mat: this.mat, anim: this.anim, tint: this.tint, team: this.team, pose: this.pose } : null;
+    const keep = old ? { mat: this.mat, anim: this.anim, tint: this.tint, team: this.team, pose: this.pose, skin: this.skin } : null;
     this.cap = cap;
     this.geo = new THREE.BufferGeometry();
     for (const k of Object.keys(this.src.attributes)) this.geo.setAttribute(k, this.src.attributes[k]);
+    if (!this.geo.getAttribute('aSkin')) this.geo.setAttribute('aSkin', noSkin(this.src));
     if (this.src.index) this.geo.setIndex(this.lods?.[this.lod] ?? this.src.index);
     this.geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
     this.anim = new Float32Array(cap * 4);
     this.tint = new Float32Array(cap * 4);
     this.team = new Float32Array(cap * 3);
     this.pose = new Float32Array(cap * 4);
+    this.skin = new Float32Array(cap * 3).fill(1);
     this.aAnim = new THREE.InstancedBufferAttribute(this.anim, 4).setUsage(THREE.DynamicDrawUsage);
     this.aTint = new THREE.InstancedBufferAttribute(this.tint, 4).setUsage(THREE.DynamicDrawUsage);
     this.aTeam = new THREE.InstancedBufferAttribute(this.team, 3).setUsage(THREE.DynamicDrawUsage);
@@ -102,6 +134,8 @@ export class InstPool {
     this.aPose = new THREE.InstancedBufferAttribute(this.pose, 4).setUsage(THREE.DynamicDrawUsage);
     this.geo.setAttribute('iTeam', this.aTeam);
     this.geo.setAttribute('iPose', this.aPose);
+    this.aSkin = new THREE.InstancedBufferAttribute(this.skin, 3).setUsage(THREE.DynamicDrawUsage);
+    this.geo.setAttribute('iSkin', this.aSkin);
     this.mesh = new THREE.InstancedMesh(this.geo, sharedAnimMaterial(this.map), cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
@@ -112,7 +146,7 @@ export class InstPool {
     this.mat = this.mesh.instanceMatrix.array as Float32Array;
     if (keep) {
       this.mat.set(keep.mat.subarray(0, Math.min(keep.mat.length, this.mat.length)));
-      this.anim.set(keep.anim); this.tint.set(keep.tint); this.team.set(keep.team); this.pose.set(keep.pose);
+      this.anim.set(keep.anim); this.tint.set(keep.tint); this.team.set(keep.team); this.pose.set(keep.pose); this.skin.set(keep.skin);
     }
     if (old) {
       this.parent.remove(old);
@@ -140,6 +174,8 @@ export class InstPool {
     this.anim[a] = phase; this.anim[a + 1] = speed; this.anim[a + 2] = flash; this.anim[a + 3] = mode;
     this.tint[a + 3] = 0;
     this.pose[a] = 0; this.pose[a + 1] = 0; this.pose[a + 2] = 0; this.pose[a + 3] = 0;
+    const k = i * 3;
+    this.skin[k] = 1; this.skin[k + 1] = 1; this.skin[k + 2] = 1;
     return i;
   }
 
@@ -183,6 +219,12 @@ export class InstPool {
     return this.tint[o + 3];
   }
 
+  /** Couleur de peau (multiplicateur linéaire des sommets de peau, voir skinMul). */
+  setSkin(i: number, m: readonly [number, number, number]) {
+    const o = i * 3;
+    this.skin[o] = m[0]; this.skin[o + 1] = m[1]; this.skin[o + 2] = m[2];
+  }
+
   setTeam(i: number, hex: number) {
     const o = i * 3;
     this.team[o] = ((hex >> 16) & 255) / 255;
@@ -197,7 +239,7 @@ export class InstPool {
     this.mesh.instanceMatrix.clearUpdateRanges();
     this.mesh.instanceMatrix.addUpdateRange(0, this.count * 16);
     this.mesh.instanceMatrix.needsUpdate = true;
-    for (const [attr, n] of [[this.aAnim, 4], [this.aTint, 4], [this.aTeam, 3], [this.aPose, 4]] as const) {
+    for (const [attr, n] of [[this.aAnim, 4], [this.aTint, 4], [this.aTeam, 3], [this.aPose, 4], [this.aSkin, 3]] as const) {
       attr.clearUpdateRanges();
       attr.addUpdateRange(0, this.count * n);
       attr.needsUpdate = true;
