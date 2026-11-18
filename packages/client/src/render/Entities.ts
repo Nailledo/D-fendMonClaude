@@ -192,7 +192,7 @@ export class Entities {
 
   /** orientation de chaque emplacement : la façade (+z du modèle) regarde le point de chemin le plus proche */
   private slotYaw = new Map<number, number>();
-  private yawOfSlot(si: number) {
+  yawOfSlot(si: number) {
     let y = this.slotYaw.get(si);
     if (y === undefined) {
       const s = this.map.slots[si];

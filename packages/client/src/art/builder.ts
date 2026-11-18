@@ -17,6 +17,13 @@ export const enum Part {
   Team = 7,
   Sway = 8,
   Spin = 9,
+  /** 10, 11 : armes tenues (héros) */
+  /** roue, ailes de moulin (rotation autour de z) */
+  Wheel = 12,
+  /** wagonnet qui entre et sort (le long de z) */
+  Cart = 13,
+  /** flamme qui vacille */
+  Flame = 14,
 }
 
 const _m = new THREE.Matrix4();

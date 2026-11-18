@@ -851,6 +851,7 @@ export class GameClient {
     r.setWeather(snap.rain, snap.night);
     this.weather.update(dt, this.time, r.wx.rain, r.wx.night, r.cam.x, r.cam.z);
     this.props.update(dt, this.time, snap, this.hoverProp);
+    this.ambientTowers(dt);
     // un secret pas encore trouvé scintille de temps en temps : de quoi intriguer l'œil attentif
     if ((this.sparkleT -= dt) <= 0) {
       this.sparkleT = 4 + Math.random() * 5;
@@ -1163,6 +1164,42 @@ export class GameClient {
     audio.play('boss');
     ui.hud.bossFx++;
     this.fx.ring(x, z, 5, 0xff3d00, 1.2, 2);
+  }
+
+  private ambientT = 0;
+  /**
+   * Vie autour des bâtiments : fumée des feux de camp, étincelles des tours de mage, poussière d'or
+   * de la mine. Quelques particules seulement, pour les bâtiments visibles.
+   */
+  private ambientTowers(dt: number) {
+    if ((this.ambientT -= dt) > 0) return;
+    this.ambientT = 0.12;
+    const fx = this.fx;
+    for (const m of this.ents.towerMuzzle.values()) {
+      if (Math.random() > 0.35) continue;
+      const yaw = this.ents.yawOfSlot(m.slot);
+      const c = Math.cos(yaw), sn = Math.sin(yaw);
+      const at = (lx: number, lz: number) => ({ x: m.x + lx * c + lz * sn, z: m.z - lx * sn + lz * c });
+      if (m.fam === 5) {
+        // fumée du feu de camp (tour de guet : feu au pied ; tente de commandement : pas de feu)
+        if (m.level === 4) continue;
+        const p = m.level === 3 ? at(-0.65, 0.65) : at(0.35, 0.45);
+        fx.sparks.spawn(p.x + (Math.random() - 0.5) * 0.1, 0.6, p.z + (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.12, 0.55 + Math.random() * 0.25, (Math.random() - 0.5) * 0.12, 1.6, 0.07 + Math.random() * 0.05, 0x8f8a84, 0.12);
+        if (Math.random() < 0.3) fx.sparks.spawn(p.x, 0.5, p.z, (Math.random() - 0.5) * 0.4, 1 + Math.random(), (Math.random() - 0.5) * 0.4, 0.6, 0.03, 0xffb74d, -0.5);
+      } else if (m.fam === 2) {
+        // étincelles arcaniques qui montent autour du sommet
+        const a = Math.random() * Math.PI * 2, r = 0.5 + Math.random() * 0.4;
+        fx.glow.spawn(m.x + Math.cos(a) * r, m.y - 0.6 + Math.random() * 0.6, m.z + Math.sin(a) * r, -Math.sin(a) * 0.4, 0.5 + Math.random() * 0.4, Math.cos(a) * 0.4, 1.1, 0.07, Math.random() < 0.5 ? 0xb388ff : 0x80d8ff, 0);
+      } else if (m.fam === 4 && Math.random() < 0.4) {
+        // paillettes de minerai devant la galerie
+        const p = m.level === 4 ? at(0.65, -0.45) : at(-0.15, 0.85);
+        fx.sparks.spawn(p.x + (Math.random() - 0.5) * 0.3, 0.6, p.z + (Math.random() - 0.5) * 0.3, 0, 0.6, 0, 0.5, 0.035, 0xffe082, 0);
+      } else if (m.fam === 1 && Math.random() < 0.15) {
+        // poussière de la cour d'entraînement
+        const p = at((Math.random() - 0.5) * 1.2, 0.8 + Math.random() * 0.3);
+        fx.sparks.spawn(p.x, 0.2, p.z, (Math.random() - 0.5) * 0.4, 0.25, (Math.random() - 0.5) * 0.4, 0.8, 0.06, 0xb8a58a, 0);
+      }
+    }
   }
 
   /** Bouton du panneau d'un élément de carte : allumer la mèche, engager les mercenaires. */

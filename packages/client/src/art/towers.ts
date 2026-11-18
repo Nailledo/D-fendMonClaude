@@ -210,7 +210,8 @@ const CANVAS = 0xf1e3c4;
 function lantern(g: GB, x: number, y: number, z: number) {
   g.cyl(0.03, 0.03, 0.7, 4, WOOD_D, x, y + 0.35, z);
   g.box(0.14, 0.16, 0.14, 0x3e2723, x, y + 0.78, z);
-  g.ball(0.06, 0xffd54f, x, y + 0.78, z);
+  g.setPart(Part.Flame, x, y + 0.72, z).ball(0.06, 0xffd54f, x, y + 0.78, z);
+  g.setPart(Part.Body);
 }
 
 function mine(level: number): TowerModel {
@@ -226,7 +227,10 @@ function mine(level: number): TowerModel {
     g.cyl(0.24, 0.3, 0.45, 7, 0xd9b24a, 0.65, 0.5, -0.45);
     g.cone(0.3, 0.3, 7, 0xc49a35, 0.65, 0.88, -0.45);
     g.cyl(0.12, 0.18, 1.4, 6, STONE, 0.8, 0.98, 0.55);
+    // ailes du moulin : elles tournent
+    g.setPart(Part.Wheel, 0.8, 1.75, 0.68);
     for (let k = 0; k < 4; k++) g.box(0.08, 0.85, 0.04, 0xf1e3c4, 0.8, 1.75, 0.68, 0, 0, (k * Math.PI) / 4 + 0.3);
+    g.setPart(Part.Body);
     banner(g, -0.9, 0.5, 0.5, 0.45);
     return { base: g.build(), turret: null, turretY: 0, muzzleY: 1.5 };
   }
@@ -237,16 +241,23 @@ function mine(level: number): TowerModel {
   g.box(0.1, 0.8, 0.1, WOOD, -0.48, 0.68, 0.52);
   g.box(0.1, 0.8, 0.1, WOOD, 0.18, 0.68, 0.52);
   g.box(0.82, 0.1, 0.12, WOOD_D, -0.15, 1.1, 0.52);
-  // rails et wagonnet
-  for (const x of [0.28, 0.5]) g.box(0.04, 0.03, 1.0, 0x5b4636, x, 0.3, 0.55);
-  g.box(0.4, 0.22, 0.32, 0x5d4037, 0.39, 0.45, 0.75);
+  // rails qui sortent de la galerie, wagonnet de minerai qui va et vient
+  for (const x of [-0.26, -0.04]) g.box(0.04, 0.03, 1.1, 0x5b4636, x, 0.3, 0.75);
+  g.setPart(Part.Cart, -0.15, 0.42, 0.3);
+  g.box(0.36, 0.2, 0.3, 0x5d4037, -0.15, 0.44, 0.78);
+  for (const x of [-0.31, 0.01]) for (const z of [0.68, 0.88]) g.cyl(0.055, 0.055, 0.04, 8, 0x333333, x, 0.36, z, 0, 0, Math.PI / 2);
   const ore = level === 0 ? 0xb87333 : level === 1 ? 0x8d99a6 : level === 2 ? 0xdfe6ea : GOLD;
-  for (let k = 0; k < 4; k++) g.rock(0.09, ore, 0.3 + (k % 2) * 0.17, 0.6, 0.68 + Math.floor(k / 2) * 0.14, 1, 0.8, 1, k);
+  for (let k = 0; k < 4; k++) g.rock(0.085, ore, -0.23 + (k % 2) * 0.16, 0.58, 0.72 + Math.floor(k / 2) * 0.13, 1, 0.8, 1, k);
+  g.setPart(Part.Body);
   if (level >= 1) {
-    // chevalement : la grande roue du puits
+    // chevalement : la grande roue du puits tourne
     g.box(0.08, 1.5, 0.08, WOOD_D, 0.55, 1.0, -0.55, 0, 0, 0.15);
     g.box(0.08, 1.5, 0.08, WOOD_D, 0.95, 1.0, -0.55, 0, 0, -0.15);
+    g.setPart(Part.Wheel, 0.75, 1.75, -0.55);
     g.torus(0.28, 0x6d4c41, 0.75, 1.75, -0.55);
+    for (let k = 0; k < 3; k++) g.box(0.5, 0.04, 0.04, WOOD_D, 0.75, 1.75, -0.55, 0, 0, (k * Math.PI) / 3);
+    g.setPart(Part.Body);
+    g.cyl(0.012, 0.012, 1.1, 3, 0x3e2723, 0.47, 1.2, -0.55);
   }
   if (level >= 2) lantern(g, -0.75, 0.25, 0.65);
   if (level === 3) {
@@ -273,8 +284,10 @@ function campfire(g: GB, x: number, z: number) {
   }
   g.box(0.32, 0.05, 0.05, WOOD_D, x, 0.33, z, 0, 0.5, 0);
   g.box(0.32, 0.05, 0.05, WOOD_D, x, 0.34, z, 0, -0.6, 0);
+  g.setPart(Part.Flame, x, 0.34, z);
   g.cone(0.1, 0.24, 5, 0xff8f00, x, 0.45, z);
   g.cone(0.05, 0.16, 5, 0xffeb3b, x, 0.45, z);
+  g.setPart(Part.Body);
 }
 
 function camp(level: number): TowerModel {
