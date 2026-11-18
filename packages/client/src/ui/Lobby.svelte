@@ -1,12 +1,15 @@
 <script lang="ts">
   import { loadout } from '../meta';
-  import { CLASSES, DIFFICULTY_NAMES, HEROES, LEVELS, MAPS, PLAYER_COLORS, SURVIVAL_MAPS, type Difficulty, type HeroId, type Mode } from '@dfend/shared';
+  import { CLASSES, DIFFICULTY_NAMES, SPELLS, HEROES, LEVELS, MAPS, PLAYER_COLORS, SURVIVAL_MAPS, type Difficulty, type HeroId, type Mode } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { net } from '../net/Net';
   import { progress, setHero, toast, ui } from '../state.svelte';
   import Chat from './Chat.svelte';
   import HeroPicker from './HeroPicker.svelte';
   import HeroBadge from './HeroBadge.svelte';
+  import SpellPicker from './SpellPicker.svelte';
+  import Ico from './Ico.svelte';
+  import { spellFb, spellKey } from './spellIcon';
 
   const room = $derived(ui.room);
   const me = $derived(room?.players.find((p) => p.id === room.you));
@@ -53,6 +56,7 @@
               <b>{p.name}</b>
               <div class="small">{HEROES[p.hero].title} · {CLASSES[p.cls ?? -1]?.name ?? 'Aventurier'}{#if !p.connected} · <i>déconnecté</i>{/if}</div>
             </div>
+            <span class="sps" title="{SPELLS[p.spells[0]].name} · {SPELLS[p.spells[1]].name}">{#each p.spells as sp}<Ico k={spellKey(sp)} fb={spellFb(sp)} />{/each}</span>
             <span class="rdy" class:ok={p.ready || p.host}>{p.host ? 'Hôte' : p.ready ? 'Prêt' : 'Pas prêt'}</span>
           </div>
         {/each}
@@ -100,6 +104,7 @@
     </div>
     <div class="side">
       <div class="panel"><h3>Votre héros</h3><HeroPicker value={me?.hero ?? ui.hero} onpick={pickHero} compact /><div class="hb"><HeroBadge /></div></div>
+      <div class="panel"><h3>Vos sorts</h3><SpellPicker compact onchange={() => net.send({ t: 'meta', ...loadout() })} /></div>
       <div class="chatbox"><Chat inline /></div>
     </div>
   </div>
@@ -128,4 +133,7 @@
   .chatbox { min-height: 240px; display: flex; }
   @media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } .players { grid-template-columns: 1fr; } }
   .hb { margin-top: 10px; }
+  .sps { display: flex; gap: 2px; flex: none; }
+  .sps :global(.ico3d) { width: 28px; height: 28px; margin: 0; vertical-align: 0; }
+  .sps :global(.icon) { width: 20px; height: 20px; }
 </style>

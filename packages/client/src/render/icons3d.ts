@@ -509,6 +509,117 @@ export const ICONS3D: Record<string, Icon3D> = {
       helm(0.3, -0.12, 0.2, 1, RED);
     },
   },
+  // sorts généraux du catalogue (clé : spell_<id>, voir SPELLS)
+  spell_sables: {
+    medal: 0x9a7b3c,
+    rot: [0.5, -0.25, 0],
+    build(g) {
+      // fosse de sable : anneaux concentriques de plus en plus sombres, une lame brisée qui s'enfonce
+      g.cyl(1.05, 1.1, 0.2, 16, 0xd9b45a, 0, -0.3, 0);
+      g.cyl(0.8, 0.85, 0.22, 16, 0xc29a45, 0, -0.26, 0);
+      g.cyl(0.55, 0.6, 0.24, 16, 0xa17c33, 0, -0.22, 0);
+      g.cyl(0.3, 0.35, 0.26, 16, 0x6e5320, 0, -0.18, 0);
+      g.box(0.14, 0.9, 0.06, STEEL, 0.05, 0.25, 0, 0, 0, -0.25);
+      g.box(0.5, 0.1, 0.1, GOLD, 0.0, -0.05, 0, 0, 0, -0.25);
+      for (const [x, z] of [[-0.8, 0.5], [0.85, 0.35], [0.1, 0.95]] as const) g.rock(0.14, 0xe6c874, x, -0.15, z);
+    },
+  },
+  spell_poison: {
+    medal: 0x4d7c0f,
+    rot: [0.12, -0.3, 0],
+    build(g) {
+      // nuage toxique vert au-dessus d'un petit crâne
+      skull(g, 0, -0.25, 0.8, 0x33691e);
+      for (const [x, y, r] of [[-0.55, 0.45, 0.5], [0.1, 0.7, 0.62], [0.65, 0.4, 0.48], [0.05, 0.25, 0.5]] as const) g.ball(r, 0x8bc34a, x, y, 0.15, 1, 0.85, 0.9, 1);
+      for (const [x, y] of [[-0.3, 0.85], [0.5, 0.9]] as const) g.ball(0.1, 0xdcedc8, x, y, 0.6);
+    },
+  },
+  spell_soin: {
+    medal: 0xc2185b,
+    rot: [0.2, -0.4, 0],
+    build(g) {
+      const pts: [number, number][] = [];
+      for (let k = 0; k <= 16; k++) {
+        const t = (k / 16) * Math.PI * 2;
+        pts.push([Math.pow(Math.sin(t), 3) * 0.95, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 17 * 0.95]);
+      }
+      g.shape(pts, 0.5, 0xf06292, 0, 0.1, 0);
+      // croix de soin blanche sur le cœur
+      g.box(0.22, 0.75, 0.12, 0xffffff, 0, 0.1, 0.32);
+      g.box(0.75, 0.22, 0.12, 0xffffff, 0, 0.1, 0.32);
+      for (const [x, y] of [[-0.85, 0.75], [0.85, 0.8], [0.7, -0.5]] as const) g.shape([[0, 0.2], [0.06, 0.06], [0.2, 0], [0.06, -0.06], [0, -0.2], [-0.06, -0.06], [-0.2, 0], [-0.06, 0.06]], 0.06, 0xfff59d, x, y, 0.2);
+    },
+  },
+  spell_blizzard: {
+    medal: 0x1e6fb0,
+    rot: [0.1, -0.2, 0],
+    build(g) {
+      // flocon : trois branches croisées, chacune ornée de petites dents
+      for (let k = 0; k < 3; k++) {
+        const a = (k * Math.PI) / 3;
+        g.box(0.13, 2.1, 0.12, 0xe3f7ff, 0, 0, 0, 0, 0, a);
+        for (const side of [-1, 1]) for (const d of [0.55, 0.9]) {
+          const bx = -Math.sin(a) * d * side, by = Math.cos(a) * d * side;
+          g.box(0.09, 0.45, 0.1, 0xbfefff, bx + Math.cos(a) * 0.12, by + Math.sin(a) * 0.12, 0, 0, 0, a + 0.8 * side);
+          g.box(0.09, 0.45, 0.1, 0xbfefff, bx - Math.cos(a) * 0.12, by - Math.sin(a) * 0.12, 0, 0, 0, a - 0.8 * side);
+        }
+      }
+      g.ball(0.2, 0xffffff, 0, 0, 0.1);
+    },
+  },
+  spell_malediction: {
+    medal: 0x6a1b9a,
+    rot: [0.1, -0.3, 0],
+    build(g) {
+      skull(g, 0, -0.05, 1.25, 0xce93d8);
+      // volutes violettes qui montent autour du crâne
+      for (const [x, y, r] of [[-0.85, 0.55, 0.22], [0.85, 0.7, 0.25], [-0.7, -0.5, 0.18], [0.75, -0.35, 0.16]] as const) g.ball(r, 0xab47bc, x, y, 0.1, 1, 1.4, 1);
+      g.cone(0.13, 0.5, 6, 0x7b1fa2, -0.95, 0.2, 0, 0, 0, 0.3);
+      g.cone(0.13, 0.5, 6, 0x7b1fa2, 0.98, 0.3, 0, 0, 0, -0.3);
+    },
+  },
+  spell_benediction: {
+    medal: 0xb8860b,
+    rot: [0.2, -0.3, 0],
+    build(g) {
+      // étoile à quatre branches dorée, auréole et rayons
+      rays(g, 0, 0, 12, 0.95, 1.35, 0xfff3c0, 0, Math.PI * 2, 0.12);
+      g.shape([[0, 1], [0.2, 0.2], [1, 0], [0.2, -0.2], [0, -1], [-0.2, -0.2], [-1, 0], [-0.2, 0.2]], 0.3, 0xffe082, 0, 0, 0);
+      g.shape([[0, 0.7], [0.14, 0.14], [0.7, 0], [0.14, -0.14], [0, -0.7], [-0.14, -0.14], [-0.7, 0], [-0.14, 0.14]], 0.34, 0xfffde7, 0, 0, 0.02, 0, 0, 0.78);
+      g.torus(0.6, 0xfff59d, 0, 0, 0, 0, 0, 0);
+    },
+  },
+  spell_foudre: {
+    medal: 0x3949ab,
+    rot: [0.1, -0.25, 0],
+    build(g) {
+      bolt(g, -0.1, 0.1, 1.15, 0xffee58);
+      bolt(g, 0.78, -0.35, 0.55, 0xfff9c4);
+      g.ball(0.16, 0xfff9c4, 0.2, -0.95, 0.2);
+      for (const [x, y] of [[-0.8, -0.7], [0.7, 0.8], [-0.85, 0.7]] as const) g.ball(0.09, 0xb3e5fc, x, y, 0.2);
+    },
+  },
+  spell_flammes: {
+    medal: 0xb91c1c,
+    rot: [0.12, -0.2, 0],
+    build(g) {
+      // mur de flammes : trois langues de feu alignées
+      flame(g, -0.85, -0.65, 0.9);
+      flame(g, 0.85, -0.65, 0.9);
+      flame(g, 0, -0.6, 1.25);
+      g.box(2.4, 0.2, 0.4, 0x4e342e, 0, -0.85, 0);
+    },
+  },
+  spell_seisme: {
+    medal: 0x6d4c41,
+    rot: [0.4, -0.25, 0],
+    build(g) {
+      // sol fissuré : dalle sombre, faille zigzag orangée, blocs qui jaillissent
+      g.cyl(1.1, 1.15, 0.3, 12, 0x8d6e63, 0, -0.45, 0);
+      g.shape([[-0.12, 0.9], [0.12, 0.7], [-0.05, 0.3], [0.18, 0], [-0.05, -0.4], [0.1, -0.8], [-0.12, -0.9], [-0.2, -0.5], [0, -0.1], [-0.22, 0.2], [-0.05, 0.55]], 0.12, 0xffa040, 0, -0.28, 0, 0.5 * Math.PI, 0.2, 0, 1.1);
+      for (const [x, y, z, r] of [[-0.55, 0.05, 0.15, 0.3], [0.55, 0.25, -0.1, 0.25], [0.1, 0.5, 0.35, 0.22], [-0.2, -0.05, -0.55, 0.2]] as const) g.rock(r, 0x5d4037, x, y, z);
+    },
+  },
   // ------------------------------------------------ compétences
   sk_samuel_0: {
     medal: 0x334155,

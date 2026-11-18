@@ -74,6 +74,8 @@ export const ui = $state({
     players: [] as HudPlayer[],
     hero: { type: 0, cls: -1, kit: 0, level: 1, xp: 0, hp: 1, cds: [0, 0, 0], respawn: 0, dead: false },
     spells: [0, 0],
+    /** sorts généraux emportés (index de SPELLS) : emplacement 0 et 1 */
+    spellIds: [0, 1] as [number, number],
     /** objets de boutique restants dans la partie */
     items: [] as number[],
     targeting: '' as string,

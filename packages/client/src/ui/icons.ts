@@ -114,3 +114,18 @@ export const SKILL_ICON: Record<string, string> = {
   drop: line('<path d="M12 3c3.5 4.5 6 8 6 11a6 6 0 0 1-12 0c0-3 2.5-6.5 6-11z"/>'),
   passive: line('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),
 };
+
+/** Icônes de secours des sorts généraux (index de SPELLS), affichées tant que l'icône 3D n'est pas générée. */
+export const SPELL_ICON: string[] = [
+  ICON.meteor,
+  ICON.helmet,
+  line('<ellipse cx="12" cy="15" rx="8" ry="4"/><ellipse cx="12" cy="15" rx="4" ry="2"/><path d="M12 4v9M10 6l2-2 2 2"/>'),
+  line('<path d="M7 15a3.5 3.5 0 0 1 .5-7 4.5 4.5 0 0 1 8.5 1 3 3 0 0 1 .5 6z"/><path d="M9 19.5v.5M12 19.5v1M15 19.5v.5"/>'),
+  line('<path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/><path d="M12 10v6M9 13h6"/>'),
+  line('<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9M9.5 4.5L12 6.5l2.5-2M9.5 19.5L12 17.5l2.5 2"/>'),
+  line('<path d="M5 16a7 7 0 0 1 14 0v3H5z"/><circle cx="9.5" cy="14" r="1.2"/><circle cx="14.5" cy="14" r="1.2"/><path d="M8 4.5c1 1 1 2.5 0 3.5M16 4.5c-1 1-1 2.5 0 3.5"/>'),
+  line('<path d="M12 3l2.2 6.3 6.3.2-5 3.9 1.8 6.1L12 15.8 6.7 19.5l1.8-6.1-5-3.9 6.3-.2z"/>'),
+  line('<path d="M13 3L6 13.5h5L9.5 21 18 10h-5.5z"/>'),
+  line('<path d="M12 21c-4 0-6.5-2.8-6.5-6 0-3 2.5-4.5 3.5-8 1.5 1.5 2 3 2 4 1-1 2-2.5 1.5-5 3 2 5.5 5 5.5 9 0 3.2-2.5 6-6 6z"/>'),
+  line('<path d="M3 13l4-1 2.5 3.5 2.5-6 3 5 2-3 4 1.5M5 18h14"/>'),
+];

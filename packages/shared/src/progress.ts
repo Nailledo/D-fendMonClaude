@@ -1,4 +1,5 @@
 import { TREE, TREE_RETIRED, TREE_VERSION, sanitizeMeta, treeCost } from './data/meta';
+import { DEFAULT_SPELLS, sanitizeSpells, spellsUnlocked } from './data/heroes';
 import { EMPTY_BUILD, buildCost, heroPoints, sanitizeBuild, type HeroBuild } from './data/classes';
 
 /**
@@ -24,10 +25,12 @@ export interface Progress {
   bonusStars: number;
   /** arbre du héros (classe, nœuds, entraînement), payé en points de héros */
   hero: HeroBuild;
+  /** les deux sorts généraux choisis (index de SPELLS) ; les sorts s'obtiennent en terminant des niveaux */
+  spells: [number, number];
 }
 
 export function emptyProgress(): Progress {
-  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], treeV: TREE_VERSION, items: [], shopSpent: 0, bonusStars: 0, hero: sanitizeBuild(EMPTY_BUILD) };
+  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], treeV: TREE_VERSION, items: [], shopSpent: 0, bonusStars: 0, hero: sanitizeBuild(EMPTY_BUILD), spells: [...DEFAULT_SPELLS] };
 }
 
 const MAX_LEVELS = 64;
@@ -56,6 +59,7 @@ export function sanitizeProgress(raw: unknown): Progress {
     shopSpent: int(p.shopSpent, 1e6),
     bonusStars: int(p.bonusStars, 1e6),
     hero: sanitizeBuild(p.hero),
+    spells: sanitizeSpells(p.spells),
   };
 }
 
@@ -111,10 +115,12 @@ export function mergeProgress(local: Progress, remote: Progress, localAt: number
     shopSpent: spend.shopSpent,
     bonusStars: Math.max(a.bonusStars, b.bonusStars),
     hero: sanitizeBuild(spend.hero),
+    spells: [...spend.spells],
   };
   // garde-fou : jamais de solde négatif (l'arbre se rembourse, la boutique non)
   if (progressEarned(out) - out.shopSpent - treeCost(out.tree) < 0) out.tree = TREE.map(() => 0);
   if (buildCost(out.hero) > heroPoints(out.stars)) out.hero = sanitizeBuild(EMPTY_BUILD);
+  out.spells = usableSpells(out.spells, out.stars);
   return out;
 }
 
@@ -123,3 +129,13 @@ export function sameProgress(a: Progress, b: Progress): boolean {
   return JSON.stringify(sanitizeProgress(a)) === JSON.stringify(sanitizeProgress(b));
 }
 
+
+/** Le choix de sorts, ramené aux sorts obtenus : un sort pas encore gagné est remplacé par un sort par défaut libre. */
+export function usableSpells(spells: readonly number[], stars: readonly (readonly number[] | undefined)[]): [number, number] {
+  const open = spellsUnlocked(stars);
+  const [a, b] = sanitizeSpells(spells);
+  if (open[a] && open[b]) return [a, b];
+  const keep = open[a] ? a : open[b] ? b : -1;
+  const pool = open.map((o, i) => (o ? i : -1)).filter((i) => i >= 0 && i !== keep);
+  return keep >= 0 ? [keep, pool[0]] : [pool[0], pool[1]];
+}
