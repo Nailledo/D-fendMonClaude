@@ -1425,7 +1425,9 @@ export class GameClient {
         // catapulte : un rocher lancé en cloche, qui part du godet une fois le bras basculé
         const boulder = delay > 0 && kind === 4;
         let arc = 0.3;
-        if (kind === 0 || kind === FIRE_HERO_ARROW || kind === FIRE_TURRET) arc = 0.12 * dist;
+        if (kind === 0 || kind === FIRE_HERO_ARROW) arc = 0.12 * dist;
+        // obus de la tourelle de forge : tir tendu
+        else if (kind === FIRE_TURRET) arc = 0.04 * dist;
         else if (boulder) arc = 0.45 * dist + 1.5;
         else if (kind === 4 || kind === 5 || kind === 12) arc = 0.35 * dist + 1;
         else if (kind === FIRE_METEOR) arc = 0;
@@ -1438,7 +1440,7 @@ export class GameClient {
         else if (kind === 2) audio.play('frost', 0.8);
         else if (boulder) audio.play('catapult');
         else if (kind === 4 || kind === 5) { audio.play('shell'); fx.burst(p.x, p.y, p.z, 5, 0x9e9e9e, 2, 0.18, 0.6); }
-        else if (kind === FIRE_TURRET) audio.play('arrow', 0.6);
+        else if (kind === FIRE_TURRET) { audio.play('turret'); fx.muzzleBlast(p.x, p.y, p.z, tx - p.x, tz - p.z); }
         else if (kind === FIRE_METEOR) audio.play('meteor');
         break;
       }

@@ -578,7 +578,15 @@ function projGeometries() {
   const boulder = new GB(4);
   boulder.ao = false;
   boulder.rock(0.26, 0x8a8178, 0, 0, 0, 1, 0.85, 1);
-  return { arrow: arrow.build(), shell: shell.build(), rock: rock.build(), boulder: boulder.build() };
+  // obus de la tourelle de forge : balle de fer cerclée de laiton, pointe chauffée au rouge (le long de +z)
+  const slug = new GB(5);
+  slug.ao = false;
+  slug.jitter = 0;
+  slug.cyl(0.085, 0.085, 0.24, 8, 0x37474f, 0, 0, -0.02, Math.PI / 2);
+  slug.cyl(0.095, 0.095, 0.05, 8, 0xc9a227, 0, 0, -0.09, Math.PI / 2);
+  slug.cone(0.085, 0.14, 8, 0xff8f00, 0, 0, 0.17, Math.PI / 2);
+  slug.ball(0.05, 0xffe082, 0, 0, 0.2);
+  return { arrow: arrow.build(), shell: shell.build(), rock: rock.build(), boulder: boulder.build(), slug: slug.build() };
 }
 
 /** Type de tir propre à l'affichage : rocher de catapulte (le serveur envoie un obus, kind 4). */
@@ -602,6 +610,7 @@ export class Fx {
   private shells: InstPool;
   private rocks: InstPool;
   private boulders: InstPool;
+  private slugs: InstPool;
   shots: Shot[] = [];
   private ground = flatGround();
   /** Relief du terrain (texture de hauteurs du monde) : les traces au sol le suivent. */
@@ -626,6 +635,22 @@ export class Fx {
     this.shells = new InstPool(g.shell, 64, this.group, false);
     this.rocks = new InstPool(g.rock, 16, this.group, false);
     this.boulders = new InstPool(g.boulder, 32, this.group, false);
+    this.slugs = new InstPool(g.slug, 64, this.group, false);
+  }
+
+  /** Coup de canon de la tourelle de forge : flamme de bouche, éclair, fumée qui part vers l'avant. */
+  muzzleBlast(x: number, y: number, z: number, dx: number, dz: number) {
+    const l = Math.hypot(dx, dz) || 1, fx = dx / l, fz = dz / l;
+    this.flashes.flash(x, y, z, 0xffb74d, 3, 0.12, 5);
+    this.glow.spawn(x, y, z, fx * 0.5, 0, fz * 0.5, 0.1, 0.42, 0xffe0b2, 0);
+    for (let k = 0; k < 4; k++) {
+      const v = 2.5 + Math.random() * 2.5, sx = (Math.random() - 0.5) * 1.6;
+      this.glow.spawn(x, y, z, fx * v - fz * sx, (Math.random() - 0.3) * 1.2, fz * v + fx * sx, 0.12 + Math.random() * 0.08, 0.16, k < 2 ? 0xffd54f : 0xff6f00, 0);
+    }
+    for (let k = 0; k < dens(3); k++) {
+      const v = 0.8 + Math.random() * 0.8;
+      this.sparks.spawn(x + fx * 0.15, y, z + fz * 0.15, fx * v, 0.5 + Math.random() * 0.4, fz * v, 0.6 + Math.random() * 0.4, 0.18 + Math.random() * 0.1, 0x9e9e9e, 0.6);
+    }
   }
 
   burst(x: number, y: number, z: number, n: number, color: number, speed = 3, size = 0.12, life = 0.6, additive = false, grav = -9) {
@@ -656,6 +681,7 @@ export class Fx {
     this.shells.begin();
     this.rocks.begin();
     this.boulders.begin();
+    this.slugs.begin();
     let w = 0;
     for (const s of this.shots) {
       const t = (tick - s.t0) / s.dur;
@@ -680,9 +706,22 @@ export class Fx {
       const dx = s.tx - s.sx, dz = s.tz - s.sz, dy = s.ty - s.sy + s.arc * 4 * (1 - 2 * t);
       const yaw = Math.atan2(dx, dz);
       const k = s.kind;
-      if (k === 0 || k === 8 || k === 10) {
+      if (k === 10) {
+        // obus de forge : orienté selon sa trajectoire, traînée de braises et filet de fumée
+        if (dx * dx + dy * dy + dz * dz > 1e-6) this.slugs.pushDir(x, y, z, dx, dy, dz, 1.4);
+        else this.slugs.push(x, y, z, yaw, 1.4);
+        const seg = Math.hypot(x - px, y - py, z - pz);
+        if (seg > 0.02 && seg < 3) {
+          const n = Math.min(3, Math.ceil(seg / 0.3));
+          for (let q = 0; q < n; q++) {
+            const u = q / n;
+            this.glow.spawn(px + (x - px) * u, py + (y - py) * u, pz + (z - pz) * u, 0, 0, 0, 0.14, 0.09, q % 2 ? 0xff6f00 : 0xffb74d, 0);
+          }
+          if (Math.random() < 0.35) this.sparks.spawn(px, py, pz, 0, 0.3, 0, 0.45, 0.1, 0x8d8d8d, 0.4);
+        }
+      } else if (k === 0 || k === 8) {
         // la flèche suit sa trajectoire (montée puis plongée)
-        if (dx * dx + dy * dy + dz * dz > 1e-6) this.arrows.pushDir(x, y, z, dx, dy, dz, k === 10 ? 0.8 : 1);
+        if (dx * dx + dy * dy + dz * dz > 1e-6) this.arrows.pushDir(x, y, z, dx, dy, dz, 1);
         else this.arrows.push(x, y, z, yaw, 1);
         // sillage d'air : fins traits clairs le long du chemin parcouru depuis l'image précédente
         const seg = Math.hypot(x - px, y - py, z - pz);
@@ -726,6 +765,7 @@ export class Fx {
     this.shells.end();
     this.rocks.end();
     this.boulders.end();
+    this.slugs.end();
     this.sparks.update(dt);
     this.glow.update(dt);
     this.beams.update(dt);
@@ -742,7 +782,12 @@ export class Fx {
   /** Impact d'un projectile direct à son arrivée. */
   private hit(s: Shot) {
     const k = s.kind;
-    if (k === 0 || k === 8 || k === 10) {
+    if (k === 10) {
+      // obus de forge : gerbe d'étincelles de métal chauffé, éclat bref et petite bouffée de fumée
+      this.burst(s.x, s.y, s.z, 7, 0xffa726, 3, 0.07, 0.3, true, -6);
+      this.glow.spawn(s.x, s.y, s.z, 0, 0, 0, 0.12, 0.38, 0xffe0b2, 0);
+      this.sparks.spawn(s.x, s.y, s.z, 0, 0.6, 0, 0.5, 0.22, 0x757575, 0.5);
+    } else if (k === 0 || k === 8) {
       this.sparks.spawn(s.x, s.y, s.z, 0, 0.8, 0, 0.25, 0.09, 0xd7ccc8, -6);
       this.burst(s.x, s.y, s.z, 3, 0xfff3e0, 1.5, 0.06, 0.18, true, 0);
     } else if (k === 1 || k === 2 || k === 9 || k === 13) {
