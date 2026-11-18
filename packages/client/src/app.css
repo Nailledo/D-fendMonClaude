@@ -339,6 +339,7 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--blue); width:
 .dn.crit { color: var(--gold-fill); font-size: 22px; }
 .dn.lead { color: #cfd8dc; font-size: 14px; }
 .dn.gold { color: var(--gold-fill); font-size: 20px; }
+.dn.name { color: #fff; font-family: var(--font-display); font-size: 22px; white-space: nowrap; }
 .dn.go { animation: dn 0.8s ease-out forwards; }
 @keyframes dn {
   0% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { LEVELS, SPELLS } from '@dfend/shared';
   import { audio } from '../audio/Audio';
-  import { chosenSpells, pickSpell, unlockedSpells } from '../meta';
+  import { chosenSpells, pickSpell, spellText, unlockedSpells } from '../meta';
   import { progress } from '../state.svelte';
   import Ico from './Ico.svelte';
   import { spellFb, spellKey } from './spellIcon';
@@ -36,10 +36,11 @@
   </div>
   <div class="grid">
     {#each SPELLS as sp, i}
-      <button class="card" class:locked={!open[i]} class:in={chosen.includes(i)} disabled={!open[i]} onclick={() => pick(i)} title="{sp.name} — {sp.desc} (recharge {sp.cd} s)">
+      {@const st = spellText(i)}
+      <button class="card" class:locked={!open[i]} class:in={chosen.includes(i)} disabled={!open[i]} onclick={() => pick(i)} title="{st.name} — {st.desc} (recharge {sp.cd} s)">
         <span class="ic"><Ico k={spellKey(i)} fb={spellFb(i)} /></span>
-        <b>{sp.name}</b>
-        {#if !compact}<span class="d">{sp.desc}</span>{/if}
+        <b>{st.name}</b>
+        {#if !compact}<span class="d">{st.desc}</span>{/if}
         <span class="m">{open[i] ? `Recharge ${sp.cd} s` : `🔒 ${cond(i)}`}</span>
       </button>
     {/each}

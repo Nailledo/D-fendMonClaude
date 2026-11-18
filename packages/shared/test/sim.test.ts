@@ -312,7 +312,7 @@ describe('arbre de compétences et boutique', () => {
 
   it('un client ne peut pas gonfler son arbre ni son stock', () => {
     const m = sanitizeMeta([99, -3, 'x', 2.7, 5, 5, 5, 5], [1e9, -1, null]);
-    expect(m.tree).toEqual([5, 0, 0, 2, 5, 5]);
+    expect(m.tree).toEqual([5, 0, 0, 2, 5, 5, 5]);
     expect(m.items).toEqual([9, 0, 0, 0]);
     expect(sanitizeMeta('bad', {}).tree.every((v) => v === 0)).toBe(true);
   });
@@ -448,7 +448,7 @@ describe('priorité de ciblage, propriétés d’ennemis, mine et campement', ()
 
   it('une ancienne sauvegarde rend les étoiles de l’ancienne branche Héros', () => {
     const p = sanitizeProgress({ tree: [1, 0, 0, 0, 5, 2] });
-    expect(p.tree).toEqual([1, 0, 0, 0, 0, 2]);
+    expect(p.tree).toEqual([1, 0, 0, 0, 0, 2, 0]);
     expect(p.treeV).toBe(TREE_VERSION);
     expect(sanitizeProgress({ tree: [0, 0, 0, 0, 3, 0], treeV: TREE_VERSION }).tree[4]).toBe(3);
   });
@@ -659,5 +659,26 @@ describe('Kessin s’adapte', () => {
     (sim as any).adaptWave();
     expect(sim.adapt[0]).toBeCloseTo(0);
     expect(new Sim(cfg()).adaptive).toBe(false);
+  });
+});
+
+describe('renforts nommés', () => {
+  const units = (tree: number[]) => {
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', tree }] }));
+    const before = new Set(sim.units);
+    (sim as any).castSpell(0, 1, 1, 0, 0);
+    return sim.units.filter((u) => !before.has(u));
+  };
+  it('miliciens, puis chevaliers, puis paladins selon l’atelier', () => {
+    const m = units([0, 0, 0, 0, 0, 0, 0]);
+    expect(m.length).toBe(2);
+    expect(m[0].maxHp).toBe(90);
+    const c = units([0, 0, 0, 0, 0, 0, 1]);
+    expect(c[0].maxHp).toBe(170);
+    expect(c[0].armor).toBeCloseTo(0.35);
+    const p = units([0, 0, 0, 0, 0, 0, 5]);
+    expect(p.length).toBe(3);
+    expect(p[0].maxHp).toBe(280);
+    expect(p[0].regen).toBeGreaterThan(0);
   });
 });

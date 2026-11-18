@@ -1,11 +1,11 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
-import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, perksOf, type Perks } from './data/meta';
+import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, RENFORT_COUNT, RENFORT_DUR_S, RENFORT_TIERS, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, sanitizeSpells, type HeroDef } from './data/heroes';
 import { AVENTURIER, SKILL_UNLOCK, buildKit, classOf, heroPassives, heroSkills, heroStatBonus, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild, type StatKind } from './data/classes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
-import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, campAura, mineIncome, type SoldierDef, type TowerLevel } from './data/towers';
+import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, campAura, mineIncome, type TowerLevel } from './data/towers';
 import { buildRuntimeMap, type RuntimeMap } from './mapgen';
 import { activePathsFor, scaledCount } from './preview';
 import { Rng } from './rng';
@@ -289,7 +289,6 @@ export const ADAPT_WEAK = 0.5;
 const SOLDIER_SPEED = 2.6;
 const FORMATION: [number, number][] = [[0, -0.75], [0.7, 0.45], [-0.7, 0.45], [0, 1.1], [1.2, -0.4], [-1.2, -0.4]];
 
-const RENFORT: SoldierDef = { hp: 90, dmg: [3, 6], armor: 0.1, cooldown: 1, respawn: 0, regen: 0, kind: SoldierKind.Renfort, count: 2 };
 
 const tmp = { x: 0, z: 0 };
 
@@ -1161,8 +1160,14 @@ export class Sim {
     this.ev(Ev.Spell, slot, pid, x, z, spell);
     const id = SPELLS[spell].id;
     const near: Enemy[] = [];
+    // branche Renforts & sorts de l'atelier : dégâts, rayon et durée des zones
+    const pk = this.perk(pid);
+    const dm = 1 + pk.spellDmg, am = 1 + pk.spellArea;
     /** zone durable + son effet visuel (rayon ×10 + durée ×1000 transmis au client) */
     const zone = (kind: Impact, r: number, dur: number, dps: number, dtype: DmgType, air: boolean, slow: number) => {
+      r *= am;
+      dur *= am;
+      dps *= dm;
       this.zones.push({ kind, x, z, r, t: sec(dur), dps, dtype, owner: pid, air, slow });
       this.ev(Ev.Impact, kind, x, z, Math.round(r * 10) + Math.round(dur) * 1000);
     };
@@ -1172,20 +1177,25 @@ export class Sim {
         offs.forEach(([ox, oz], i) => {
           const tx = x + ox, tz = z + oz;
           const flight = sec(1.0 + i * 0.25);
-          this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * (1 + this.perk(pid).meteorDmg), DmgType.True, 1.9, false, null));
+          this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * (1 + pk.meteorDmg + pk.spellDmg), DmgType.True, 1.9, false, null));
           this.ev(Ev.Fire, FIRE_METEOR, Src.Sky, pid, 0xffff, tx, tz, flight);
         });
         break;
       }
-      case 'renfort':
-        for (let i = 0; i < 2; i++) {
-          const hp = Math.round(RENFORT.hp * (1 + this.perk(pid).renfortHp));
-          const q = this.placeOut({ x: x + (i ? 0.6 : -0.6), z }, 0.45);
-          const u = this.newUnit(RENFORT.kind, pid, q.x, q.z, hp, RENFORT.dmg[0], RENFORT.dmg[1], RENFORT.armor, RENFORT.cooldown, 0, null, sec(20));
+      case 'renfort': {
+        // miliciens, chevaliers ou paladins selon la branche Renforts & sorts de l'atelier
+        const tier = RENFORT_TIERS[Math.min(RENFORT_TIERS.length - 1, pk.renfortTier)];
+        const n = RENFORT_COUNT + pk.renfortCount;
+        for (let i = 0; i < n; i++) {
+          const hp = Math.round(tier.hp * (1 + pk.renfortHp));
+          const a = n === 2 ? (i ? 0 : Math.PI) : (i / n) * Math.PI * 2;
+          const q = this.placeOut({ x: x + Math.cos(a) * 0.6, z: z + Math.sin(a) * 0.6 }, 0.45);
+          const u = this.newUnit(tier.kind, pid, q.x, q.z, hp, tier.dmg[0], tier.dmg[1], tier.armor, 1, tier.regen, null, sec(RENFORT_DUR_S + pk.renfortDur));
           u.hx = u.x;
           u.hz = u.z;
         }
         break;
+      }
       case 'sables':
         zone(Impact.Trap, 3, 8, 12, DmgType.Phys, false, 0.75);
         break;
@@ -1210,13 +1220,13 @@ export class Sim {
         break;
       }
       case 'malediction':
-        for (const e of this.enemiesIn(x, z, 3, true, near)) {
+        for (const e of this.enemiesIn(x, z, 3 * am, true, near)) {
           e.curse = Math.max(e.curseT > 0 ? e.curse : 0, 0.35);
           e.curseT = Math.max(e.curseT, sec(9));
           e.slowMul = Math.min(e.slowMul, 0.7);
           e.slowT = Math.max(e.slowT, sec(9));
         }
-        this.ev(Ev.Impact, Impact.Curse, x, z, 30 + 9000);
+        this.ev(Ev.Impact, Impact.Curse, x, z, Math.round(30 * am) + 9000);
         break;
       case 'benediction':
         this.blessings.push({ x, z, r: 4.5, t: sec(12), rate: 0.4, dmg: 0.2 });
@@ -1231,7 +1241,7 @@ export class Sim {
           if (d2 < best) { best = d2; cur = e; }
         }
         const hit = new Set<Enemy>();
-        let dmg = 220;
+        let dmg = 220 * dm;
         while (cur && hit.size < 6) {
           hit.add(cur);
           this.ev(Ev.Impact, Impact.Bolt, cur.x, cur.z, 0);
@@ -1249,11 +1259,11 @@ export class Sim {
         break;
       }
       case 'seisme':
-        for (const e of [...this.enemiesIn(x, z, 3.4, false, near)]) {
-          this.damage(e, 160, DmgType.Phys, pid, null);
+        for (const e of [...this.enemiesIn(x, z, 3.4 * am, false, near)]) {
+          this.damage(e, 160 * dm, DmgType.Phys, pid, null);
           if (!e.dead) e.stunT = Math.max(e.stunT, sec(e.def.boss ? 0.8 : 2));
         }
-        this.ev(Ev.Impact, Impact.Quake, x, z, 34);
+        this.ev(Ev.Impact, Impact.Quake, x, z, Math.round(34 * am));
         break;
     }
   }

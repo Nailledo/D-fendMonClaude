@@ -13,7 +13,7 @@ import { buildWorld, type WorldInfo } from '../render/World';
 import type { Host } from '../net/host';
 import { ACTION_LABELS, keys, settings, type Action } from '../settings';
 import { banner, progress, saveProgress, toast, ui } from '../state.svelte';
-import { addBonusStars, consumeItem } from '../meta';
+import { addBonusStars, consumeItem, spellText } from '../meta';
 import { PROLOGUE, STORY } from '../story/dialogs';
 import { Prologue } from './Prologue';
 import { drape } from '../render/drape';
@@ -1223,6 +1223,21 @@ export class GameClient {
   }
 
   private leadNumT = 0;
+  /** Texte flottant au-dessus d'un point de la carte (même calque que les nombres de dégâts). */
+  private floatText(x: number, y: number, z: number, text: string, kind: string) {
+    const layer = dom.dmg;
+    if (!layer) return;
+    const el = layer.children[this.dmgIdx++ % layer.children.length] as HTMLElement;
+    if (!el) return;
+    this.r.project(x, y, z, this.proj);
+    el.textContent = text;
+    el.className = 'dn ' + kind;
+    el.style.left = `${this.proj.x | 0}px`;
+    el.style.top = `${this.proj.y | 0}px`;
+    void el.offsetWidth;
+    el.classList.add('go');
+  }
+
   private damageNumber(x: number, y: number, z: number, amount: number, kind: '' | 'crit' | 'lead' | 'gold') {
     const layer = dom.dmg;
     if (!layer || !settings.damageNumbers) return;
@@ -1665,6 +1680,8 @@ export class GameClient {
             fx.shockwave(x, z, 2.4, 0xfff3c0, 0x9e8a70, 0.5);
             for (let k = 0; k < 24; k++) fx.glow.spawn(x + (Math.random() - 0.5) * 2.4, 5 + Math.random() * 3, z + (Math.random() - 0.5) * 2.4, (Math.random() - 0.5) * 0.6, -2.5, (Math.random() - 0.5) * 0.6, 1.4, 0.07, 0xfff59d, 0.6);
             fx.flashes.flash(x, 3, z, 0xfff1b0, 10, 0.6, 10);
+            // renforts nommés : leur grade s'affiche au-dessus d'eux
+            if (owner === this.you) this.floatText(x, 2.4, z, spellText(spell).name.replace('Renforts : ', '') + ' !', 'name');
             break;
           case 'meteor':
             // pluie de météores : zone d'impact marquée au sol

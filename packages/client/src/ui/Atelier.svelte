@@ -138,28 +138,28 @@
   .body { flex: 1; min-height: 0; padding: 2px 6px 8px 2px; }
 
   /* ---- arbre : une colonne par branche, rangs reliés de haut en bas ---- */
-  .tree { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px; }
-  .branch { display: flex; flex-direction: column; gap: 8px; padding: 10px 8px 12px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); border-top: 8px solid var(--bc); }
+  .tree { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 8px; }
+  .branch { min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 6px 12px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); border-top: 8px solid var(--bc); }
   .branch header { display: flex; align-items: center; gap: 6px; }
-  .branch header i { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--bc); border: 2px solid var(--ink); color: #fff; }
+  .branch header i { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--bc); border: 2px solid var(--ink); color: #fff; }
   .branch header i :global(.icon) { width: 18px; height: 18px; }
-  .branch header b { flex: 1; font-family: var(--font-display); font-weight: 400; font-size: 1.15em; }
-  .rk { font-weight: 900; font-size: 0.82em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .branch header b { flex: 1; min-width: 0; font-family: var(--font-display); font-weight: 400; font-size: 1em; line-height: 1.05; hyphens: auto; }
+  .rk { flex: none; font-weight: 900; font-size: 0.82em; color: var(--muted); font-variant-numeric: tabular-nums; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; position: relative; }
   /* trait qui relie les rangs */
   ol::before { content: ''; position: absolute; left: 15px; top: 14px; bottom: 14px; width: 4px; background: var(--ink-soft); border-radius: 2px; }
-  .node { position: relative; width: 100%; display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 6px; padding: 4px 6px 4px 1px; text-align: left; cursor: pointer;
+  .node { position: relative; width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; column-gap: 4px; padding: 4px 4px 4px 1px; text-align: left; cursor: pointer;
     background: none; border: 2px solid transparent; border-radius: 10px; color: var(--text); font: inherit; }
   .node:hover { background: rgba(255, 255, 255, 0.7); }
   .node.on { border-color: var(--ink); background: #fff; }
-  .dot { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 2.5px solid var(--ink); background: #e8d9b8; font-weight: 900; font-size: 0.85em; color: var(--muted); position: relative; z-index: 1; }
+  .dot { grid-row: span 2; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 2.5px solid var(--ink); background: #e8d9b8; font-weight: 900; font-size: 0.85em; color: var(--muted); position: relative; z-index: 1; }
   .owned .dot { background: var(--bc); color: #fff; }
   .next .dot { background: #fff; color: var(--ink); }
   .next.afford .dot { box-shadow: 0 0 0 3px var(--gold-fill); animation: glow 1.8s ease-in-out infinite; }
   @keyframes glow { 50% { box-shadow: 0 0 0 5px rgba(255, 197, 58, 0.45); } }
-  .nm { font-weight: 800; font-size: 0.86em; line-height: 1.2; }
+  .nm { font-weight: 800; font-size: 0.86em; line-height: 1.2; hyphens: auto; }
   .node:not(.owned):not(.next) .nm { color: var(--faint); }
-  .cost { display: inline-flex; align-items: center; gap: 1px; font-weight: 900; font-size: 0.85em; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .cost { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 1px; font-weight: 900; font-size: 0.85em; color: var(--gold); font-variant-numeric: tabular-nums; }
   .cost :global(.icon) { width: 15px; height: 15px; }
 
   .detail { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-left: 10px solid var(--bc); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); }

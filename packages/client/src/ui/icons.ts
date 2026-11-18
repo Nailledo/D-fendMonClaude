@@ -58,7 +58,7 @@ export const ICON = {
 /** Icône de chaque objet de boutique (même ordre que ITEMS). */
 export const ITEM_ICON = [ICON.coin, ICON.potion, ICON.snow, ICON.bomb];
 /** Icône de chaque branche de l'arbre de compétences (même ordre que TREE). */
-export const BRANCH_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon, ICON.pick, ICON.crown];
+export const BRANCH_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon, ICON.pick, ICON.crown, ICON.users];
 
 /** Ancien nom conservé : même jeu d'icônes. */
 export const LINE = ICON;

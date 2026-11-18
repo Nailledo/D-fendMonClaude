@@ -31,6 +31,15 @@ export interface Perks {
   spellCd: number;
   meteorDmg: number;
   renfortHp: number;
+  /** rang des renforts : 0 miliciens, 1 chevaliers, 2 paladins (voir RENFORT_TIERS) */
+  renfortTier: number;
+  /** renforts en plus à chaque sort, secondes de présence en plus */
+  renfortCount: number;
+  renfortDur: number;
+  /** dégâts des sorts en plus (fraction) */
+  spellDmg: number;
+  /** rayon et durée des zones des sorts en plus (fraction) */
+  spellArea: number;
   /** or de départ en plus */
   gold: number;
   /** vies en plus (hors mode à vie unique) */
@@ -43,7 +52,7 @@ export function emptyPerks(): Perks {
     dmg: [0, 0, 0, 0, 0, 0], range: [0, 0, 0, 0, 0, 0], rate: [0, 0, 0, 0, 0, 0], splash: 0,
     soldierHp: 0, soldierDmg: 0, soldierArmor: 0, soldierRespawn: 0,
     mineGold: 0, campAura: 0, campRange: 0,
-    spellCd: 0, meteorDmg: 0, renfortHp: 0, gold: 0, lives: 0,
+    spellCd: 0, meteorDmg: 0, renfortHp: 0, renfortTier: 0, renfortCount: 0, renfortDur: 0, spellDmg: 0, spellArea: 0, gold: 0, lives: 0,
   };
 }
 
@@ -133,7 +142,27 @@ export const TREE: TreeBranch[] = [
       { name: 'Âge d’or', desc: '+60 or au départ et sorts rechargés 12 % plus vite.', fx: (p) => { p.gold += 60; p.spellCd += 0.12; } },
     ],
   },
+  {
+    id: 'renforts', name: 'Renforts & sorts', color: '#5c6bc0', icon: 'army',
+    ranks: [
+      { name: 'Chevaliers', desc: 'Vos renforts deviennent des chevaliers : près de deux fois plus de PV, de meilleures armes et une armure.', fx: (p) => { p.renfortTier = Math.max(p.renfortTier, 1); } },
+      { name: 'Magie de guerre', desc: 'Dégâts des sorts +15 % (météores, zones, foudre, séisme).', fx: (p) => { p.spellDmg += 0.15; } },
+      { name: 'Troisième lame', desc: 'Un renfort de plus à chaque appel, et ils restent 5 s de plus.', fx: (p) => { p.renfortCount += 1; p.renfortDur += 5; } },
+      { name: 'Grimoire étendu', desc: 'Zones des sorts : rayon et durée +15 %.', fx: (p) => { p.spellArea += 0.15; } },
+      { name: 'Paladins', desc: 'Vos renforts deviennent des paladins : très résistants, ils frappent fort et se soignent. Dégâts des sorts +10 %.', fx: (p) => { p.renfortTier = Math.max(p.renfortTier, 2); p.spellDmg += 0.1; } },
+    ],
+  },
 ];
+
+/** Renforts appelés par le sort, selon le rang de la branche Renforts & sorts. `kind` : apparence (SoldierKind). */
+export interface RenfortTier { name: string; unit: string; hp: number; dmg: [number, number]; armor: number; regen: number; kind: number }
+export const RENFORT_TIERS: RenfortTier[] = [
+  { name: 'Miliciens', unit: 'milicien', hp: 90, dmg: [3, 6], armor: 0.1, regen: 0, kind: 5 },
+  { name: 'Chevaliers', unit: 'chevalier', hp: 170, dmg: [7, 11], armor: 0.35, regen: 0, kind: 2 },
+  { name: 'Paladins', unit: 'paladin', hp: 280, dmg: [12, 18], armor: 0.5, regen: 6, kind: 3 },
+];
+export const RENFORT_COUNT = 2;
+export const RENFORT_DUR_S = 20;
 
 export const TREE_RANKS = 5;
 /**

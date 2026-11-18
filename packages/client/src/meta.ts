@@ -1,4 +1,4 @@
-import { SPELLS, spellsUnlocked, usableSpells, CLASSES, CORE_COST, EMPTY_BUILD, coreOpen, ITEMS, ITEM_MAX, RANK_COST, classNodes, nodeOpen, TREE, TREE_RANKS, buildCost, heroPoints, sanitizeBuild, treeCost, type HeroBuild } from '@dfend/shared';
+import { RENFORT_COUNT, RENFORT_DUR_S, RENFORT_TIERS, perksOf, SPELLS, spellsUnlocked, usableSpells, CLASSES, CORE_COST, EMPTY_BUILD, coreOpen, ITEMS, ITEM_MAX, RANK_COST, classNodes, nodeOpen, TREE, TREE_RANKS, buildCost, heroPoints, sanitizeBuild, treeCost, type HeroBuild } from '@dfend/shared';
 import { progress, saveProgress } from './state.svelte';
 
 /**
@@ -6,6 +6,20 @@ import { progress, saveProgress } from './state.svelte';
  * Étoiles gagnées = meilleur résultat de chaque niveau dans chaque difficulté + étoiles bonus
  * (survie, victoires sur un niveau déjà parfait). L'arbre se rembourse ; la boutique non.
  */
+
+/** Nom et description d'un sort, selon vos rangs de l'atelier (renforts nommés : miliciens, chevaliers, paladins). */
+export function spellText(id: number): { name: string; desc: string } {
+  const sp = SPELLS[id];
+  if (!sp) return { name: '?', desc: '' };
+  const pk = perksOf(progress.tree);
+  if (sp.id === 'renfort') {
+    const t = RENFORT_TIERS[Math.min(RENFORT_TIERS.length - 1, pk.renfortTier)];
+    const n = RENFORT_COUNT + pk.renfortCount;
+    return { name: `Renforts : ${t.name}`, desc: `${n} ${t.name.toLowerCase()} viennent bloquer les ennemis pendant ${RENFORT_DUR_S + pk.renfortDur} s.` };
+  }
+  const more = [pk.spellDmg ? `dégâts +${Math.round(pk.spellDmg * 100)} %` : '', pk.spellArea ? `zones +${Math.round(pk.spellArea * 100)} %` : ''].filter(Boolean).join(', ');
+  return { name: sp.name, desc: more ? `${sp.desc} (Atelier : ${more}.)` : sp.desc };
+}
 
 export function earnedStars(): number {
   let n = progress.bonusStars;

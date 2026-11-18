@@ -16,6 +16,7 @@
   import { skillIcon } from './classIcons';
   import { spellFb, spellKey } from './spellIcon';
   import { fit } from './fit';
+  import { spellText } from '../meta';
 
   const h = $derived(ui.hud);
   const hero = $derived(HEROES[HERO_IDS[h.hero.type]]);
@@ -250,7 +251,8 @@
   <div class="spells ui">
     {#each h.spellIds as id, i}
       {@const sp = SPELLS[id]}
-      <button class="spell" class:ready={h.spells[i] <= 0} aria-label={sp.name} onclick={() => g()?.castSpell(i as 0 | 1)} title="{sp.name} — {sp.desc} (recharge {sp.cd} s)">
+      {@const st = spellText(id)}
+      <button class="spell" class:ready={h.spells[i] <= 0} aria-label={st.name} onclick={() => g()?.castSpell(i as 0 | 1)} title="{st.name} — {st.desc} (recharge {sp.cd} s)">
         <Ico k={spellKey(id)} fb={spellFb(id)} />
         {#if h.spells[i] > 0}<span class="cd" style="--p:{frac(h.spells[i], sp.cd)}">{h.spells[i]}</span>{/if}
         <span class="kbd">{keyLabel(i === 0 ? keys.spell1 : keys.spell2)}</span>
