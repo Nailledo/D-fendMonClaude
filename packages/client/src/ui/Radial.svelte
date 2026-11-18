@@ -8,6 +8,7 @@
   import { ownCampAura, ownMineIncome, sellValue as sellOf } from './towerStats';
   import { UPGRADE_ICON } from './skillIcons';
   import { fit } from './fit';
+  import { radialRadius } from './radialLayout';
 
   type Tip = { title: string; text: string; cost?: number };
   const sel = $derived(ui.sel!);
@@ -19,7 +20,7 @@
   let flip = $state(false);
   const place = (e: PointerEvent) => (flip = (e.currentTarget as HTMLElement).getBoundingClientRect().left > window.innerWidth * 0.6);
   const g = () => app.game;
-  const R = $derived((ui.touch ? (ui.short ? 70 : 82) : 74) + (sel.kind === 'build' ? (ui.short ? 12 : 18) : 0));
+  const R = $derived(radialRadius(sel, ui.touch, ui.touch && ui.short));
   const at = (angleDeg: number, r = R) => {
     const a = (angleDeg * Math.PI) / 180;
     return `left:${Math.cos(a) * r}px;top:${Math.sin(a) * r}px`;
@@ -106,7 +107,7 @@
       {#each [1, 2] as s}
         {@const spec = TOWERS[fam][2 + s]}
         {@const tp = { title: spec.name, text: spec.desc + ' ' + statLine(fam, 2 + s), cost: spec.cost }}
-        <button class="opt spec" class:poor={gold < spec.cost} class:armed={armed === 's' + s} style={at(s === 1 ? -130 : -50)}
+        <button class="opt spec" class:poor={gold < spec.cost} class:armed={armed === 's' + s} style={at(s === 1 ? -125 : -55)}
           onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp, -1, 2 + s)}
           onclick={() => act('s' + s, tp, () => g()?.upgrade(s as 1 | 2), -1, 2 + s)}>
           <span class="face hex" style="--fc:{FAMILY_COLOR[sel.fam ?? 0]}">{#if ui.portraits[`t_${sel.fam}_${2 + s}`]}<img src={ui.portraits[`t_${sel.fam}_${2 + s}`]} alt="" />{:else}<Ico k={'fam_' + (sel.fam ?? 0)} fb={FAMILY_ICON[sel.fam ?? 0]} />{/if}</span>
@@ -118,7 +119,7 @@
         {@const rank = sk[i]}
         {@const cost = rank < 3 ? s.costs[rank] : 0}
         {@const tp = { title: `${s.name} (rang ${rank}/3)`, text: s.desc, cost: rank < 3 ? cost : undefined }}
-        <button class="opt skill" class:poor={rank < 3 && gold < cost} class:max={rank >= 3} class:armed={armed === 'k' + i} style={at(i === 0 ? -130 : -50)}
+        <button class="opt skill" class:poor={rank < 3 && gold < cost} class:max={rank >= 3} class:armed={armed === 'k' + i} style={at(i === 0 ? -125 : -55)}
           onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)}
           onclick={() => rank < 3 && act('k' + i, tp, () => g()?.skill(i as 0 | 1))}>
           {#if UPGRADE_ICON[s.id]}<span class="sicon"><Ico k={'up_' + s.id} fb={UPGRADE_ICON[s.id]} /></span>{:else}<span class="sname">{s.name}</span>{/if}
@@ -140,14 +141,14 @@
         </button>
       {/if}
       {#if fam === 'barracks'}
-        <button class="opt" style={at(lvl >= 2 ? 160 : 180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview({ title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
+        <button class="opt" style={at(180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview({ title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
           <span class="face hex neutral"><Ico k="flag" fb={ICON.flag} /></span><span class="kbd">{keyLabel(keys.rally)}</span>
         </button>
       {/if}
     {/if}
   {/if}
   {#if tip && !ui.touch}
-    <div class="tip panel" class:flip use:fit>
+    <div class="tip panel" class:flip style="--tx:{R + 40}px" use:fit>
       <b>{tip.title}</b>{#if tip.cost !== undefined} <span class="tc" class:poor={gold < tip.cost}><Ico k="coin" fb={ICON.coin} />{tip.cost}</span>{/if}
       <div>{tip.text}</div>
     </div>
@@ -188,8 +189,8 @@
   .opt.poor .cost { background: #d9c5a0; color: var(--bad); }
   .opt .cost.plabel { background: var(--toon-cream); font-size: 13px; white-space: nowrap; }
   .opt .kbd { position: absolute; top: -8px; right: -6px; font-size: 11px; }
-  .tip { position: absolute; left: 108px; top: -50px; width: min(270px, calc(100vw - 24px)); padding: 10px 14px 12px; font-size: 0.88em; z-index: 5; display: flex; flex-direction: column; gap: 4px; animation: pop 0.12s ease; }
-  .tip.flip { left: auto; right: 108px; }
+  .tip { position: absolute; left: var(--tx, 108px); top: -50px; width: min(270px, calc(100vw - 24px)); padding: 10px 14px 12px; font-size: 0.88em; z-index: 5; display: flex; flex-direction: column; gap: 4px; animation: pop 0.12s ease; }
+  .tip.flip { left: auto; right: var(--tx, 108px); }
   .tip b { font-family: var(--font-display); font-weight: 400; font-size: 1.4em; line-height: 1.05; }
   .tip div { color: var(--muted); font-weight: 700; }
   .tc { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-display); font-size: 1.15em; color: #a05f00; font-variant-numeric: tabular-nums; }

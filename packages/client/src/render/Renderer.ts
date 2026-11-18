@@ -26,6 +26,7 @@ export class Renderer {
   private exit = { x: 1, z: 0 };
   private raycaster = new THREE.Raycaster();
   private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  private lifted = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private v = new THREE.Vector3();
   private ndc = new THREE.Vector2();
   /** point du monde à garder sous un point de l'écran pendant un zoom lissé */
@@ -346,11 +347,12 @@ export class Renderer {
     this.gl.render(this.scene, this.camera);
   }
 
-  /** Point au sol sous le curseur. */
-  pick(sx: number, sy: number): { x: number; z: number } | null {
+  /** Point au sol sous le curseur ; `y` : plan horizontal à cette hauteur (ennemis volants). */
+  pick(sx: number, sy: number, y = 0): { x: number; z: number } | null {
     this.ndc.set((sx / this.width) * 2 - 1, -(sy / this.height) * 2 + 1);
     this.raycaster.setFromCamera(this.ndc, this.camera);
-    const hit = this.raycaster.ray.intersectPlane(this.ground, this.v);
+    const plane = y ? this.lifted.set(this.ground.normal, this.ground.constant - y) : this.ground;
+    const hit = this.raycaster.ray.intersectPlane(plane, this.v);
     return hit ? { x: hit.x, z: hit.z } : null;
   }
 

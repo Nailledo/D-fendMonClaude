@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
+  AVENTURIER, CLASSES, ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
@@ -18,6 +18,7 @@ import { PROLOGUE, STORY } from '../story/dialogs';
 import { Prologue } from './Prologue';
 import { drape } from '../render/drape';
 import { Interp } from './Interp';
+import { radialRadius } from '../ui/radialLayout';
 
 /** Éléments DOM positionnés à chaque frame (sans passer par la réactivité). */
 export const dom: { radial: HTMLElement | null; waves: (HTMLElement | null)[]; dmg: HTMLElement | null; pings: HTMLElement | null } = {
@@ -648,7 +649,7 @@ export class GameClient {
       if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; this.fx.ring(p.x, p.z, 1, 0xfff59d, 0.5); return true; }
       if (t.kind === 'hmove') {
         // héros sélectionné puis appui sur un ennemi (tactile surtout) : il l'attaque
-        const ei = this.slotAt(p.x, p.z, slotRad) < 0 ? this.enemyAt(p.x, p.z, true) : -1;
+        const ei = this.slotAt(p.x, p.z, slotRad) < 0 ? this.enemyAt(sx, sy, p, true) : -1;
         if (ei >= 0) { this.attackEnemy(ei); ui.sel = null; return true; }
         // un clic sur un emplacement reste prioritaire
         if (this.slotAt(p.x, p.z, slotRad) < 0) {
@@ -675,7 +676,7 @@ export class GameClient {
     }
     // ennemi
     const f = this.interp.frame;
-    const best = this.enemyAt(p.x, p.z);
+    const best = this.enemyAt(sx, sy, p);
     if (best >= 0) {
       ui.sel = { kind: 'enemy', enemyType: f.eType[best], hp: f.eHp[best], traits: f.eTraits[best] };
       return true;
@@ -684,15 +685,27 @@ export class GameClient {
     return false;
   }
 
-  /** Ennemi sous le point visé (indice dans l'image interpolée), ou -1. */
-  /** Ennemi sous le point ; `attack` : seulement ceux que le héros peut prendre pour cible (camouflé repéré). */
-  private enemyAt(x: number, z: number, attack = false): number {
+  /**
+   * Ennemi sous le curseur (indice dans l'image interpolée), ou -1 ; `attack` : seulement ceux que
+   * le héros peut prendre pour cible (camouflé repéré). Un volant se vise sur son corps, en l'air
+   * (le rayon du clic est coupé à sa hauteur), ou sur son ombre au sol.
+   */
+  private enemyAt(sx: number, sy: number, p: { x: number; z: number }, attack = false): number {
     const f = this.interp.frame;
     const er = this.tapRadius(1.26);
     let best = -1, bd = er * er;
+    const air = new Map<number, { x: number; z: number } | null>();
     for (let i = 0; i < f.eN; i++) {
       if (attack && f.eTraits[i] & Trait.Camo && !(f.eTraits[i] & ET_REVEALED)) continue;
-      const d = (f.eX[i] - x) ** 2 + (f.eZ[i] - z) ** 2;
+      let d = (f.eX[i] - p.x) ** 2 + (f.eZ[i] - p.z) ** 2;
+      const y = f.eY[i];
+      if (y > 0) {
+        // centre du corps : un peu au-dessus de la hauteur de vol
+        const h = y + 0.6;
+        if (!air.has(h)) air.set(h, this.r.pick(sx, sy, h));
+        const q = air.get(h);
+        if (q) d = Math.min(d, (f.eX[i] - q.x) ** 2 + (f.eZ[i] - q.z) ** 2);
+      }
       if (d < bd) { bd = d; best = i; }
     }
     return best;
@@ -704,6 +717,8 @@ export class GameClient {
     this.targeting = null;
     ui.hud.targeting = '';
     this.send({ k: 'hattack', e: f.eId[i] });
+    const cls = ui.hud.hero.cls;
+    if (f.eY[i] > 0 && (cls >= 0 ? CLASSES[cls].range : AVENTURIER.range) <= 0) toast('Un héros de mêlée ne peut pas frapper un volant : il se place dessous.', 'info', 2400);
     this.focusPulse = this.time;
     this.fx.ring(f.eX[i], f.eZ[i], 1, 0xef4444, 0.4);
     audio.play('click');
@@ -718,7 +733,7 @@ export class GameClient {
     if (!p) return;
     if (this.targeting && this.targeting.kind !== 'hmove') { this.cancel(); return; }
     const hp = this.heroPos();
-    const ei = hp ? this.enemyAt(p.x, p.z, true) : -1;
+    const ei = hp ? this.enemyAt(sx, sy, p, true) : -1;
     if (ei >= 0) { this.attackEnemy(ei); return; }
     this.targeting = null;
     ui.hud.targeting = '';
@@ -1017,7 +1032,7 @@ export class GameClient {
         this.r.project(sl.x, 1.2, sl.z, this.proj);
         // le menu reste entièrement à l'écran (bords, barre du haut, barre du bas au tactile)
         const W = this.r.width, H = this.r.height;
-        const R = ui.touch ? (ui.short ? 70 : 82) : 74, face = ui.touch ? (ui.short ? 58 : 66) : 62;
+        const R = radialRadius(s, ui.touch, ui.touch && ui.short), face = ui.touch ? (ui.short ? 58 : 76) : 76;
         const ext = R + face / 2 + 4;
         const top = ui.touch ? (ui.short ? 52 : 60) : 64, bottom = ui.touch ? (ui.short ? 76 : 84) : 16;
         const clampAxis = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
