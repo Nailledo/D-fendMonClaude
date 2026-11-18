@@ -586,7 +586,8 @@ export class Entities {
       if (dyw > Math.PI) dyw -= Math.PI * 2; else if (dyw < -Math.PI) dyw += Math.PI * 2;
       const rollT = Math.max(-0.18, Math.min(0.18, (-dyw / Math.max(dt, 1e-3)) * 0.08));
       this.uRoll[id] += (rollT - this.uRoll[id]) * Math.min(1, dt * 6);
-      if (id === this.hideUnit) continue;
+      // vue du héros : son corps n'est pas dessiné (la caméra est dans sa tête), mais son arme reste en main à l'écran
+      const self = id === this.hideUnit;
       const moving = walking;
       const uv = this.uGround.measure(id, f.uX[i], f.uZ[i], dt, this.frameNo, 12);
       const fighting = (flags & UF_FIGHTING) !== 0;
@@ -603,7 +604,7 @@ export class Entities {
         weapon = this.weaponPool(ht, wk);
         style = weapon ? WEAPON_STYLE[wk] : 0;
         scale = 1.25;
-        if (f.uOwner[i] === this.you) this.placeGlow(f.uX[i], f.uZ[i], team, time);
+        if (f.uOwner[i] === this.you && !self) this.placeGlow(f.uX[i], f.uZ[i], team, time);
       } else {
         pool = this.soldierPools[kind] ?? this.soldierPools[0];
         if (kind === 7) scale = 1.1;
@@ -647,6 +648,7 @@ export class Entities {
         if (hop > 0 && style) cast = 1 + Math.min(0.999, Math.max(0.001, sl));
       }
       for (const p of weapon ? [pool, weapon] : [pool]) {
+        if (self && p === pool) continue;
         const j = p.push(f.uX[i], hop, f.uZ[i], this.uYaw[id] + yawX, scale, id * 0.71, this.uPhase[id], flash, mode);
         p.setTeam(j, team);
         if (skin) p.setSkin(j, skin);
@@ -654,7 +656,7 @@ export class Entities {
         if (flags & UF_SHIELD) p.setTint(j, 1, 0.95, 0.6, 0.3);
         else if (flags & UF_BUFF) p.setTint(j, 1, 0.7, 0.3, 0.2);
       }
-      if (kind === HERO_UNIT || f.uHp[i] < 0.999) this.hpBar(f.uX[i], 1.75 * scale, f.uZ[i], f.uHp[i], kind === HERO_UNIT ? 1.1 : 0.7);
+      if (!self && (kind === HERO_UNIT || f.uHp[i] < 0.999)) this.hpBar(f.uX[i], 1.75 * scale, f.uZ[i], f.uHp[i], kind === HERO_UNIT ? 1.1 : 0.7);
     }
     // ------------------------------------------------ corps (animation de mort)
     let w = 0;

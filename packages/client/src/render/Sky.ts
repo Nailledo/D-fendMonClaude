@@ -116,8 +116,11 @@ export class FirstPersonSky {
         }`,
     });
     this.group.add(range(100, 92, 16, 34, 11, mtMat(0.55)), range(84, 72, 10, 22, 37, mtMat(0.32)));
+    this.birds = new Birds(this.low);
+    this.group.add(this.birds.mesh);
     this.group.visible = false;
   }
+  private birds: Birds;
 
   /**
    * `amount` : part de la vue du héros dans la transition (0 : rien d'affiché).
@@ -138,6 +141,105 @@ export class FirstPersonSky {
     this.sunCol.copy(sun.color).multiplyScalar(Math.min(1.2, sun.intensity / 2.4) * (1 - 0.4 * night) + 0.25 * night);
     this.night.value = night;
     this.rain.value = rain;
+    // les oiseaux se posent la nuit et sous la pluie
+    this.birds.update(uniforms.uTime.value, 1 - Math.max(night, rain));
+  }
+}
+
+/** Formation en V d'une volée (rang 0 en tête, puis une aile de chaque côté). */
+const V = [[0, 0], [-1, -1], [1, -1], [-2, -2], [2, -2], [-3, -3], [3, -3]];
+
+/**
+ * Volées d'oiseaux qui tournent au-dessus de la carte, en V : battements d'ailes dans le vertex shader
+ * (avec des moments de vol plané), positions posées sur le processeur (quelques dizaines d'instances).
+ */
+class Birds {
+  readonly mesh: THREE.InstancedMesh;
+  private flocks: { r: number; rz: number; y: number; w: number; a0: number; n: number; size: number }[] = [];
+  private m = new THREE.Matrix4();
+  private q = new THREE.Quaternion();
+  private p = new THREE.Vector3();
+  private s = new THREE.Vector3();
+  private e = new THREE.Euler();
+  private alpha = { value: 1 };
+
+  constructor(low: THREE.Color) {
+    let seed = 91;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 5; k++) {
+      this.flocks.push({
+        // assez bas pour passer dans le champ de la vue du héros, au-dessus des arbres et des collines du bord
+        r: 20 + rnd() * 36, rz: 0.7 + rnd() * 0.3, y: 7.5 + rnd() * 6,
+        // sens et vitesse de rotation variés : certaines volées se croisent
+        w: (0.035 + rnd() * 0.04) * (rnd() < 0.5 ? -1 : 1), a0: rnd() * Math.PI * 2,
+        n: 3 + Math.floor(rnd() * 5), size: 1 + rnd() * 0.5,
+      });
+    }
+    const total = this.flocks.reduce((t, f) => t + f.n, 0);
+    // corps fin et deux ailes, l'avant vers +z ; aX = distance au corps (amplitude du battement)
+    const pos = [0, 0, 0.35, -0.06, 0, -0.25, 0.06, 0, -0.25,
+      0, 0, 0.12, 0, 0, -0.12, -0.75, 0.05, -0.12,
+      0, 0, 0.12, 0, 0, -0.12, 0.75, 0.05, -0.12];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const phase = new Float32Array(total);
+    for (let i = 0; i < total; i++) phase[i] = rnd() * 40;
+    g.setAttribute('iPhase', new THREE.InstancedBufferAttribute(phase, 1));
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false,
+      uniforms: { uTime: uniforms.uTime, uLow: { value: low }, uAlpha: this.alpha },
+      vertexShader: /* glsl */ `
+        attribute float iPhase;
+        uniform float uTime;
+        void main() {
+          vec3 p = position;
+          // battement rapide, coupé par moments pour planer
+          float glide = smoothstep(-0.2, 0.4, sin(uTime * 0.6 + iPhase));
+          p.y += sin(uTime * 11.0 + iPhase) * abs(p.x) * 0.75 * glide + abs(p.x) * 0.12 * (1.0 - glide);
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(p, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uLow;
+        uniform float uAlpha;
+        void main() {
+          // silhouette sombre, un peu voilée par la brume
+          gl_FragColor = vec4(mix(vec3(0.1, 0.1, 0.12), uLow, 0.3), uAlpha);
+          #include <colorspace_fragment>
+        }`,
+    });
+    this.mesh = new THREE.InstancedMesh(g, mat, total);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = -500;
+  }
+
+  /** `t` : temps ; `amount` : 0 = aucun oiseau (nuit, pluie), 1 = toutes les volées. */
+  update(t: number, amount: number) {
+    this.mesh.visible = amount > 0.02;
+    if (!this.mesh.visible) return;
+    this.alpha.value = Math.min(1, amount * 1.5);
+    let i = 0;
+    for (const f of this.flocks) {
+      const a = f.a0 + t * f.w;
+      const cx = Math.cos(a) * f.r, cz = Math.sin(a) * f.r * f.rz;
+      // cap : tangente au cercle (sens de rotation compris), légère inclinaison dans le virage
+      const dir = Math.sign(f.w);
+      const tx = -Math.sin(a) * dir, tz = Math.cos(a) * f.rz * dir;
+      const yaw = Math.atan2(tx, tz);
+      this.e.set(0, yaw, -0.25 * dir);
+      this.q.setFromEuler(this.e);
+      const rx = Math.cos(yaw), rz = -Math.sin(yaw), fx = Math.sin(yaw), fz = Math.cos(yaw);
+      for (let k = 0; k < f.n; k++) {
+        const [side, back] = V[k % V.length];
+        const sp = 1.6 * f.size;
+        const bob = Math.sin(t * 1.3 + k * 1.7 + f.a0) * 0.25;
+        this.p.set(cx + (rx * side + fx * back) * sp, f.y + bob + Math.abs(side) * 0.2, cz + (rz * side + fz * back) * sp);
+        this.s.setScalar(f.size);
+        this.m.compose(this.p, this.q, this.s);
+        this.mesh.setMatrixAt(i++, this.m);
+      }
+    }
+    this.mesh.count = i;
+    this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
 

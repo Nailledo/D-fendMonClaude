@@ -10,8 +10,11 @@ const PITCH_NEAR = 0.8; // ~46°
 /** Champ vertical de la vue d'ensemble (les calculs de cadrage s'y rapportent, même pendant la vue du héros). */
 const BASE_FOV = 38;
 
-/** Vue du héros : champ plus large, plans proche et lointain resserrés, brouillard qui fond les collines au loin. */
-const FP = { fov: 66, near: 0.12, far: 170, fogNear: 22, fogFar: 85, pitch: -0.1, blendTime: 0.7, turn: 3.5 };
+/**
+ * Vue du héros : champ plus large, plans proche et lointain resserrés, brouillard qui fond les collines au loin.
+ * Regard un peu baissé et yeux en retrait de la tête : on voit ses mains, son arme et les petits ennemis à ses pieds.
+ */
+const FP = { fov: 74, near: 0.08, far: 170, fogNear: 22, fogFar: 85, pitch: -0.27, back: 0.32, blendTime: 0.7, turn: 3.5 };
 
 const lerpAngle = (a: number, b: number, t: number) => {
   let d = b - a;
@@ -425,9 +428,10 @@ export class Renderer {
     // pose de la vue d'ensemble (posée par update) → yeux du héros
     this.pa.copy(cam.position);
     this.qa.copy(cam.quaternion);
-    this.eyeV.set(f.x, f.y, f.z);
+    const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw);
+    this.eyeV.set(f.x - fx * FP.back, f.y, f.z - fz * FP.back);
     const cp = Math.cos(FP.pitch);
-    this.lookV.set(f.x + Math.sin(f.yaw) * cp, f.y + Math.sin(FP.pitch), f.z + Math.cos(f.yaw) * cp);
+    this.lookV.set(this.eyeV.x + fx * cp, f.y + Math.sin(FP.pitch), this.eyeV.z + fz * cp);
     this.m4.lookAt(this.eyeV, this.lookV, cam.up);
     this.qb.setFromRotationMatrix(this.m4);
     cam.position.lerpVectors(this.pa, this.eyeV, e);

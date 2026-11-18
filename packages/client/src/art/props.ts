@@ -70,9 +70,12 @@ export function secretGeometry(id: string): THREE.BufferGeometry {
       case 'mouton':
         b.ball(0.3, 0xf5f5f0, 0, 0.45, 0, 1.35, 0.95, 1, 1);
         for (const [x, y, z] of [[-0.2, 0.62, 0.1], [0.12, 0.66, -0.08], [-0.05, 0.6, 0.18], [0.22, 0.55, 0.12]]) b.ball(0.16, 0xffffff, x, y, z);
-        b.box(0.2, 0.22, 0.22, 0x2b2b2b, 0.44, 0.52, 0);
-        for (const z of [-0.1, 0.1]) b.box(0.05, 0.13, 0.1, 0x2b2b2b, 0.42, 0.6, z * 1.6, 0.6 * Math.sign(z), 0, 0);
-        for (const z of [-0.1, 0.1]) b.ball(0.03, 0xffffff, 0.55, 0.57, z * 0.7);
+        // tête arrondie : crâne, museau allongé, touffe de laine sur le front, oreilles tombantes
+        b.ball(0.13, 0x2b2b2b, 0.44, 0.56, 0, 1.1, 1, 0.92, 1);
+        b.ball(0.095, 0x2b2b2b, 0.56, 0.5, 0, 1.15, 0.85, 0.82, 1);
+        b.ball(0.085, 0xffffff, 0.42, 0.68, 0, 1.1, 0.7, 1.1, 1);
+        for (const z of [-1, 1]) b.ball(0.075, 0x2b2b2b, 0.41, 0.6, z * 0.15, 0.55, 0.3, 1, 1);
+        for (const z of [-0.1, 0.1]) b.ball(0.028, 0xffffff, 0.53, 0.59, z * 0.85);
         for (const [x, z] of [[0.22, 0.13], [0.22, -0.13], [-0.22, 0.13], [-0.22, -0.13]]) b.cyl(0.045, 0.04, 0.26, 5, 0x2b2b2b, x, 0.13, z);
         break;
       case 'epee':
