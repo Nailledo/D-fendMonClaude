@@ -726,36 +726,21 @@ describe('carte interactive', () => {
       expect(m.props.filter((p) => p.kind === PropKind.Secret).length).toBe(2);
       for (const p of m.props) {
         for (const s of m.slots) expect(Math.hypot(s.x - p.x, s.z - p.z)).toBeGreaterThan(1.4);
-        if (p.kind !== PropKind.Pont) for (const o of m.obstacles) expect(Math.hypot(o.x - p.x, o.z - p.z)).toBeGreaterThan(o.r);
+        for (const o of m.obstacles) expect(Math.hypot(o.x - p.x, o.z - p.z)).toBeGreaterThan(o.r);
       }
       expect(buildRuntimeMap(id, 3).props).toEqual(m.props);
     }
   });
-  it('le pont tombe sous les ennemis, puis il est rebâti', () => {
-    const sim = new Sim(cfg());
-    const i = prop(sim, PropKind.Pont);
-    const b = sim.map.props[i];
-    const pr = sim.map.paths[0].project(b.x, b.z);
-    const e = (sim as any).spawnEnemy(ENEMY_INDEX.gobelin, 0, 1, 0, pr.d) as Sim['enemies'][number];
-    e.hp = e.maxHp = 1000;
-    e.x = b.x; e.z = b.z;
-    sim.apply(0, { k: 'prop', i });
-    expect(e.hp).toBe(700);
-    expect(e.stunT).toBeGreaterThan(0);
-    expect(sim.propState[i]).toBe(1);
-    sim.apply(0, { k: 'prop', i });
-    expect(e.hp).toBe(700);
-    for (let t = 0; t < 18 * 30 + 2; t++) (sim as any).stepProps();
-    expect(sim.propState[i]).toBe(0);
-    expect(sim.propCd[i]).toBeGreaterThan(0);
-  });
-  it('le tonneau explose une fois par vague ; le camp coûte de l’or et envoie des mercenaires', () => {
+  it('le tonneau n’explose qu’une fois par partie ; le camp coûte de l’or et envoie des mercenaires', () => {
     const sim = new Sim(cfg());
     const i = prop(sim, PropKind.Poudre);
     sim.apply(0, { k: 'prop', i });
     expect(sim.propState[i]).toBe(1);
     sim.apply(0, { k: 'wave' });
-    expect(sim.propState[i]).toBe(0);
+    expect(sim.propState[i]).toBe(1);
+    const gold0 = sim.players[0].gold;
+    sim.apply(0, { k: 'prop', i });
+    expect(sim.players[0].gold).toBe(gold0);
     const c = prop(sim, PropKind.Camp);
     const gold = sim.players[0].gold, units = sim.units.length;
     sim.apply(0, { k: 'prop', i: c });

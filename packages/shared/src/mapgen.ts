@@ -1,6 +1,6 @@
 import { PATH_HALF_WIDTH } from './constants';
 import { MAPS, type MapDef } from './data/maps';
-import { PropKind, SECRETS, STREAM_HALF, type MapProp } from './data/props';
+import { PropKind, SECRETS, type MapProp } from './data/props';
 import { SampledPath } from './path';
 import { Rng, hashString } from './rng';
 import type { Biome } from './types';
@@ -147,9 +147,8 @@ const cache = new Map<string, { paths: SampledPath[]; slots: { x: number; z: num
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /**
- * Éléments interactifs, placés de façon déterministe : un pont sur le premier chemin (là où rien ne gêne
- * le ruisseau qui passe dessous), deux tonneaux de poudre au bord du chemin, un camp de mercenaires
- * près du milieu du parcours, deux secrets cachés vers les bords. Les obstacles qui les gênent sont retirés.
+ * Éléments interactifs, placés de façon déterministe : deux tonneaux de poudre au bord du chemin, un camp
+ * de mercenaires près du milieu du parcours, deux secrets cachés vers les bords.
  */
 function generateProps(def: MapDef, paths: SampledPath[], slots: { x: number; z: number }[], obstacles: Obstacle[], torches: { x: number; z: number }[]): MapProp[] {
   const rng = new Rng(hashString('props:' + def.id));
@@ -166,42 +165,7 @@ function generateProps(def: MapDef, paths: SampledPath[], slots: { x: number; z:
     ends.push([a.x, a.z], [b.x, b.z]);
   }
   const distEnd = (x: number, z: number) => Math.min(...ends.map(([ex, ez]) => Math.hypot(ex - x, ez - z)));
-
-  // pont : sur le chemin 0, entre 30 et 62 % du parcours ; le ruisseau (perpendiculaire) ne croise ni un
-  // autre tronçon de chemin, ni un emplacement, ni une mare
   const p0 = paths[0];
-  let best: { d: number; score: number } | null = null;
-  for (let d = p0.length * 0.2; d < p0.length * 0.78; d += 0.4) {
-    const i = Math.min(p0.count - 1, Math.floor(d / 0.25));
-    const x = p0.xs[i], z = p0.zs[i];
-    if (!inBounds(def, x, z, 3)) continue;
-    let ok = true;
-    // le lit du ruisseau, de part et d'autre du chemin
-    for (let s = -STREAM_HALF; s <= STREAM_HALF && ok; s += 0.7) {
-      const sx = x + p0.nx[i] * s, sz = z + p0.nz[i] * s;
-      if (distSlot(sx, sz) < 2.5 || distPool(sx, sz) < 1.6) ok = false;
-      if (Math.abs(s) > 2.2) {
-        for (let k = 0; k < paths.length && ok; k++) if (paths[k].minDist2(sx, sz, 2) < 1.6 ** 2) ok = false;
-      }
-    }
-    if (!ok) continue;
-    // pas un autre tronçon (ni un autre chemin) qui frôle le pont
-    for (let k = 0; k < paths.length && ok; k++) {
-      const q = paths[k];
-      for (let j = 0; j < q.count; j += 2) {
-        if (k === 0 && Math.abs(j - i) * 0.25 < 5) continue;
-        if ((q.xs[j] - x) ** 2 + (q.zs[j] - z) ** 2 < 4.5 ** 2) { ok = false; break; }
-      }
-    }
-    if (!ok) continue;
-    const score = Math.min(3.5, distSlot(x, z)) - Math.abs(d / p0.length - 0.45) * 4;
-    if (!best || score > best.score) best = { d, score };
-  }
-  if (best) {
-    const i = Math.min(p0.count - 1, Math.floor(best.d / 0.25));
-    const j = Math.min(p0.count - 1, i + 1), h = Math.max(0, j - 1);
-    out.push({ kind: PropKind.Pont, x: r2(p0.xs[i]), z: r2(p0.zs[i]), ang: r2(Math.atan2(p0.zs[j] - p0.zs[h], p0.xs[j] - p0.xs[h])), v: 0, r: 1.6 });
-  }
 
   /** point libre (hors chemin, emplacements, obstacles, mares, autres éléments) */
   const free = (x: number, z: number, pathMin: number, slotMin: number, propMin: number, rad: number) =>
@@ -265,14 +229,6 @@ function generateProps(def: MapDef, paths: SampledPath[], slots: { x: number; z:
   return out;
 }
 
-/** Retire les obstacles qui gêneraient un élément interactif (ruisseau du pont compris). */
-function clearForProps(obstacles: Obstacle[], props: MapProp[]): Obstacle[] {
-  return obstacles.filter((o) => props.every((p) => {
-    const reach = p.kind === PropKind.Pont ? STREAM_HALF + 1 : p.kind === PropKind.Camp ? 2.2 : 1.2;
-    return Math.hypot(o.x - p.x, o.z - p.z) >= reach + o.r;
-  }));
-}
-
 /** Une torche pour un emplacement sur trois, posée juste derrière lui (à l'opposé du chemin le plus proche). */
 function generateTorches(paths: SampledPath[], slots: { x: number; z: number }[]): { x: number; z: number }[] {
   const out: { x: number; z: number }[] = [];
@@ -298,12 +254,8 @@ export function buildRuntimeMap(mapId: string, nPlayers: number): RuntimeMap {
     const paths = def.paths.map((p) => new SampledPath(p));
     const slots = generateSlots(def, paths);
     const torches = generateTorches(paths, slots);
-    let obstacles = generateObstacles(def, paths, slots);
-    // le pont est placé avant les autres : ses obstacles gênants sont retirés, puis le reste les évite
-    const props = generateProps(def, paths, slots, obstacles.filter(() => false), torches).filter((p) => p.kind === PropKind.Pont);
-    obstacles = clearForProps(obstacles, props);
-    const all = generateProps(def, paths, slots, obstacles, torches);
-    c = { paths, slots, obstacles, torches, props: all };
+    const obstacles = generateObstacles(def, paths, slots);
+    c = { paths, slots, obstacles, torches, props: generateProps(def, paths, slots, obstacles, torches) };
     cache.set(mapId, c);
   }
   const unlocked = Math.round(c.slots.length * slotPart[Math.max(0, Math.min(3, nPlayers - 1))]);

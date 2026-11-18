@@ -1,7 +1,7 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
 import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
-import { CAMP_CD_S, MERC, PONT_BROKEN_S, PONT_CD_S, PONT_DMG, PONT_R, PONT_SLOW, PONT_STUN_S, POUDRE_DMG, POUDRE_R, PROP_INFO, PropKind, SECRETS } from './data/props';
+import { CAMP_CD_S, MERC, POUDRE_DMG, POUDRE_R, PROP_INFO, PropKind, SECRETS } from './data/props';
 import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, RENFORT_COUNT, RENFORT_DUR_S, RENFORT_TIERS, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, sanitizeSpells, type HeroDef } from './data/heroes';
 import { AVENTURIER, SKILL_UNLOCK, buildKit, classOf, heroPassives, heroSkills, heroStatBonus, sanitizeBuild, type ClassDef, type ClassSkill, type HeroBuild, type StatKind } from './data/classes';
@@ -45,7 +45,7 @@ export const enum Ev {
   Recover = 27, // victime, or rendu (bonus compris), x, z (chapardeur rattrapé)
   Escape = 28, // enemyId, victime, or (chapardeur enfui avec son butin)
   Adapt = 29, // type de dégâts appris (0 physique, 1 magie), résistance (%)
-  Prop = 30, // élément de carte, joueur, état (pont : 1 ; secret : clics, 255 trouvé), valeur (touchés, or)
+  Prop = 30, // élément de carte, joueur, état (tonneau : 1 ; secret : clics, 255 trouvé), valeur (touchés, or)
 }
 
 export const enum Impact {
@@ -333,8 +333,7 @@ export class Sim {
   night = false;
   adaptDmg: [number, number] = [0, 0];
   /**
-   * Carte interactive, par élément de map.props : rechargement (ticks) et état — pont : 1 effondré ;
-   * tonneau : 1 déjà sauté ; secret : clics reçus, PROP_FOUND une fois trouvé.
+   * Carte interactive, par élément de map.props : rechargement (ticks) et état — tonneau : 1 déjà sauté ; secret : clics reçus, PROP_FOUND une fois trouvé.
    */
   propCd: number[];
   propState: number[];
@@ -418,7 +417,7 @@ export class Sim {
       const c: number[] = [];
       for (const [px, pz, r] of this.map.def.pools ?? []) c.push(px, pz, r + 0.3);
       for (const o of this.map.obstacles) c.push(o.x, o.z, o.r + 0.28);
-      for (const p of this.map.props) if (p.kind !== PropKind.Pont) c.push(p.x, p.z, (p.kind === PropKind.Camp ? 1.1 : 0.4) + 0.28);
+      for (const p of this.map.props) c.push(p.x, p.z, (p.kind === PropKind.Camp ? 1.1 : 0.4) + 0.28);
       this.solidsCache = c;
     }
     return this.solidsCache;
@@ -819,8 +818,6 @@ export class Sim {
       wave = genSurvivalWave(this.map.def.biome, this.cfg.seed, this.waveIdx, this.activePaths(this.waveIdx));
     }
     this.adaptWave();
-    // un nouveau tonneau de poudre est livré à chaque vague
-    this.map.props.forEach((p, i) => { if (p.kind === PropKind.Poudre) this.propState[i] = 0; });
     const wx = weatherFor(this.map.def.biome, this.cfg.seed, this.waveIdx);
     this.rain = wx.rain;
     this.night = wx.night;
@@ -1309,26 +1306,12 @@ export class Sim {
     }
   }
 
-  /** Carte interactive : pont, tonneau, camp de mercenaires ou secret. */
+  /** Carte interactive : tonneau, camp de mercenaires ou secret. */
   private useProp(p: PlayerState, i: number) {
     const prop = this.map.props[i];
     if (this.propCd[i] > 0) return;
     const st = this.propState[i];
     switch (prop.kind) {
-      case PropKind.Pont: {
-        if (st !== 0) return;
-        // les ennemis à pied sur le tablier tombent dans le ruisseau
-        let n = 0;
-        for (const e of [...this.enemiesIn(prop.x, prop.z, PONT_R, false)]) {
-          n++;
-          this.damage(e, PONT_DMG, DmgType.True, p.id, null, 0, false, true);
-          if (!e.dead) e.stunT = Math.max(e.stunT, sec(e.def.boss ? 0.6 : PONT_STUN_S));
-        }
-        this.propState[i] = 1;
-        this.propCd[i] = sec(PONT_CD_S);
-        this.ev(Ev.Prop, i, p.id, 1, n);
-        break;
-      }
       case PropKind.Poudre: {
         if (st !== 0) return;
         let n = 0;
@@ -1386,19 +1369,9 @@ export class Sim {
     }
   }
 
-  /** Rechargements des éléments de carte ; pont effondré : les ennemis pataugent dans le gué. */
+  /** Rechargements des éléments de carte. */
   private stepProps() {
-    const props = this.map.props;
-    for (let i = 0; i < props.length; i++) {
-      if (this.propCd[i] > 0) this.propCd[i]--;
-      const pr = props[i];
-      if (pr.kind !== PropKind.Pont || this.propState[i] !== 1) continue;
-      if (this.propCd[i] <= sec(PONT_CD_S - PONT_BROKEN_S)) { this.propState[i] = 0; continue; }
-      for (const e of this.enemiesIn(pr.x, pr.z, PONT_R + 0.4, false)) {
-        e.slowMul = Math.min(e.slowMul, PONT_SLOW);
-        e.slowT = Math.max(e.slowT, 2);
-      }
-    }
+    for (let i = 0; i < this.propCd.length; i++) if (this.propCd[i] > 0) this.propCd[i]--;
   }
 
   /** Objet de boutique : effet immédiat (or, vies) ou sur la zone visée (givre, bombe). */

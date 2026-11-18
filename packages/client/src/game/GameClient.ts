@@ -99,7 +99,7 @@ export class GameClient {
   private bossSeen = new Set<number>();
   private tmpP = { x: 0, z: 0 };
   private weather: WeatherView;
-  /** carte interactive : pont, tonneaux, camp, secrets */
+  /** carte interactive : tonneaux, camp, secrets */
   private props: PropsView;
   private hoverProp = -1;
   private sparkleT = 3;
@@ -1165,7 +1165,7 @@ export class GameClient {
     this.fx.ring(x, z, 5, 0xff3d00, 1.2, 2);
   }
 
-  /** Bouton du panneau d'un élément de carte : faire tomber le pont, allumer la mèche, engager. */
+  /** Bouton du panneau d'un élément de carte : allumer la mèche, engager les mercenaires. */
   useProp(i: number) {
     const p = this.map.props[i];
     if (!p) return;
@@ -1684,15 +1684,7 @@ export class GameClient {
         if (!p) break;
         const mine = pid === this.you;
         this.props.poke(i);
-        if (p.kind === PropKind.Pont) {
-          // le tablier s'effondre : éclaboussures, planches, secousse
-          const liquid = this.map.def.biome === 'cendre' ? 0xff8a3d : this.map.def.biome === 'marais' ? 0x7f9a5a : 0x9fd8f0;
-          fx.burst(p.x, 0.3, p.z, 50, liquid, 5, 0.14, 0.9, false, -9);
-          fx.burst(p.x, 0.4, p.z, 18, 0x8d6e47, 4, 0.12, 1, false, -9);
-          this.r.shake(0.45);
-          audio.play('explosion', 0.7);
-          this.floatText(p.x, 1.6, p.z, val > 0 ? `Plouf ! ${val} à l’eau` : 'Le pont s’effondre', 'name');
-        } else if (p.kind === PropKind.Poudre) {
+        if (p.kind === PropKind.Poudre) {
           fx.burst(p.x, 0.6, p.z, 40, 0xffa726, 6, 0.16, 0.8, true, -3);
           fx.burst(p.x, 0.5, p.z, 24, 0x424242, 3, 0.2, 1.4, false, 1);
           this.r.shake(0.5);

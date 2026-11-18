@@ -1,8 +1,7 @@
 import type * as THREE from 'three';
-import type { Biome } from '@dfend/shared';
 import { GB } from './builder';
 
-/** Carte interactive : pont, tonneau de poudre, camp de mercenaires, clins d'œil cachés (art en code). */
+/** Carte interactive : tonneau de poudre, camp de mercenaires, clins d'œil cachés (art en code). */
 
 const cache = new Map<string, THREE.BufferGeometry>();
 function cached(key: string, seed: number, f: (b: GB) => void) {
@@ -14,43 +13,6 @@ function cached(key: string, seed: number, f: (b: GB) => void) {
     cache.set(key, g);
   }
   return g;
-}
-
-const WOOD = { vallee: [0x9a6b3f, 0x87592f, 0x5d3d22], marais: [0x6f5a3e, 0x5e4a30, 0x3e3020], cendre: [0x5a463a, 0x4a3a30, 0x2c221d] } as const;
-const STONE = { vallee: 0x9e9e94, marais: 0x7d8576, cendre: 0x55504c } as const;
-
-/** Pont le long de +x (le chemin), tablier large de 2,9 en z. `broken` : effondré, seules les culées restent. */
-export function bridgeGeometry(biome: Biome, broken: boolean): THREE.BufferGeometry {
-  return cached(`pont|${biome}|${broken}`, broken ? 77 : 71, (b) => {
-    const [w1, w2, dark] = WOOD[biome];
-    const st = STONE[biome];
-    // culées de pierre
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.rock(0.36, st, sx * 2.05, 0.12, sz * 1.5, 1.2, 0.9, 1, sx * sz);
-    for (const sx of [-1, 1]) b.box(0.5, 0.22, 3.0, st, sx * 2.05, 0.02, 0);
-    let k = 0;
-    for (let x = -1.75; x <= 1.76; x += 0.32, k++) {
-      if (broken && Math.abs(x) < 1.25) continue;
-      b.box(0.28, 0.07, 2.85 + (k % 3) * 0.06, k % 2 ? w1 : w2, x, 0.16, (k % 3 - 1) * 0.03, 0, (k % 5 - 2) * 0.02, 0);
-    }
-    if (!broken) {
-      for (const z of [-1, 1]) b.box(3.8, 0.14, 0.16, dark, 0, 0.06, z * 1.0);
-      for (const z of [-1.45, 1.45]) {
-        for (const x of [-1.7, 0, 1.7]) b.box(0.12, 0.62, 0.12, dark, x, 0.45, z);
-        b.box(3.6, 0.08, 0.09, w2, 0, 0.74, z);
-        b.box(3.5, 0.05, 0.05, w1, 0, 0.47, z);
-      }
-    } else {
-      // planches arrachées qui pendent dans le ruisseau, garde-corps cassés
-      b.box(0.28, 0.07, 1.5, w1, -1.05, -0.05, 0.5, 0, 0.2, -0.65);
-      b.box(0.28, 0.07, 1.3, w2, 1.0, -0.08, -0.6, 0, -0.3, 0.7);
-      b.box(0.28, 0.07, 1.1, w1, 0.2, -0.12, 0.3, 0.3, 0.8, 0.1);
-      for (const z of [-1.45, 1.45]) {
-        for (const x of [-1.7, 1.7]) b.box(0.12, 0.62, 0.12, dark, x, 0.45, z);
-        b.box(0.7, 0.08, 0.09, w2, -1.45, 0.74, z, 0, 0, -0.25);
-        b.box(0.6, 0.08, 0.09, w2, 1.5, 0.74, z, 0, 0, 0.3);
-      }
-    }
-  });
 }
 
 /** Tonneau de poudre (croix rouge, mèche) et sa petite réserve. */

@@ -353,7 +353,7 @@
             {#if sel.t === 'node' && sel.i === 0}<circle r="90" class="halo" />{/if}
             <circle r="76" class="hubring" />
             {#if ui.portraits[ui.hero]}<image href={ui.portraits[ui.hero]} x="-70" y="-70" width="140" height="140" clip-path="url(#ht-hub)" class:ghost={!rankOf(ci, 0)} />{/if}
-            <g transform="translate(0,94)"><rect x="-70" y="-17" width="140" height="30" rx="15" class="pill hubname" /><text y="5" class="hn">{c.name}</text></g>
+            <g transform="translate(0,74)"><rect x="-66" y="-16" width="132" height="28" rx="14" class="pill hubname" /><text y="5" class="hn">{c.name}</text></g>
             {#if nodeOpen(build, ci, 0)}
               <g transform="translate(58,-58)"><circle r="14" class="cost" /><text y="5.5" class="ct">1</text></g>
             {/if}

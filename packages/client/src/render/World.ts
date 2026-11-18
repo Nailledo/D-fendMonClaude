@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PATH_HALF_WIDTH, PropKind, Rng, STREAM_HALF, STREAM_W, boundaryPoint, type RuntimeMap } from '@dfend/shared';
+import { PATH_HALF_WIDTH, PropKind, Rng, boundaryPoint, type RuntimeMap } from '@dfend/shared';
 import { DECOR, THEMES, decorGeometry, spawnGeometry, type BiomeTheme } from '../art/decor';
 import { Castle } from './Castle';
 import { K, geoFor, model } from '../art/models';
@@ -118,23 +118,8 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     }
     return h;
   };
-  // ruisseau sous le pont : un segment perpendiculaire au chemin, creusé comme une mare
-  const streams = map.props.filter((p) => p.kind === PropKind.Pont).map((p) => {
-    const nx = -Math.sin(p.ang), nz = Math.cos(p.ang);
-    return { ax: p.x - nx * STREAM_HALF, az: p.z - nz * STREAM_HALF, nx, nz, cx: p.x, cz: p.z };
-  });
-  const distStream = (x: number, z: number) => {
-    let best = Infinity;
-    for (const s of streams) {
-      const t = Math.max(0, Math.min(2 * STREAM_HALF, (x - s.ax) * s.nx + (z - s.az) * s.nz));
-      // lit un peu sinueux
-      const w = STREAM_W * (0.85 + 0.3 * noise(t * 0.8 + s.cx, s.cz));
-      best = Math.min(best, Math.hypot(x - (s.ax + s.nx * t), z - (s.az + s.nz * t)) - w);
-    }
-    return best;
-  };
   const distPool = (x: number, z: number) => {
-    let best = distStream(x, z);
+    let best = Infinity;
     for (const [px, pz, r] of pools) best = Math.min(best, Math.sqrt((x - px) ** 2 + (z - pz) ** 2) - r);
     return best;
   };
@@ -228,30 +213,6 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
     m.position.set(px, -0.12, pz);
     group.add(m);
   }
-  for (const st of streams) {
-    // bande le long du ruisseau, bouts arrondis : « edge » = distance au lit (0 au milieu, 1 sur la rive)
-    const L = STREAM_HALF + STREAM_W + 0.6, Wd = STREAM_W * 1.3 + 0.5, NL = 28, NW = 8;
-    const verts: number[] = [], edges: number[] = [], idx: number[] = [];
-    for (let a = 0; a <= NL; a++) for (let b = 0; b <= NW; b++) {
-      const u = -L + (2 * L * a) / NL, v = -Wd + (2 * Wd * b) / NW;
-      const x = st.cx + st.nx * u + st.nz * v, z = st.cz + st.nz * u - st.nx * v;
-      verts.push(x - st.cx, 0, z - st.cz);
-      edges.push(Math.max(0, Math.min(1, (distStream(x, z) + STREAM_W) / (STREAM_W + 0.4))));
-    }
-    for (let a = 0; a < NL; a++) for (let b = 0; b < NW; b++) {
-      const i0 = a * (NW + 1) + b, i1 = i0 + 1, j0 = i0 + NW + 1, j1 = j0 + 1;
-      idx.push(i0, j0, i1, i1, j0, j1);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    g.setAttribute('edge', new THREE.Float32BufferAttribute(edges, 1));
-    g.setIndex(idx);
-    g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, liq);
-    m.position.set(st.cx, -0.12, st.cz);
-    group.add(m);
-  }
-
   // ------------------------------------------------ décor
   const dens = settings.decorDensity;
   const occupied: [number, number, number][] = map.slots.map((s) => [s.x, s.z, 1.9]);
@@ -259,7 +220,7 @@ export function buildWorld(map: RuntimeMap, opts: WorldOptions = {}): WorldInfo 
   occupied.push([exit.x, exit.z, 6], [castleAt.x + castleAt.dx * 5, castleAt.z + castleAt.dz * 5, 11.5]);
   for (const e of entries) occupied.push([e.x, e.z, 4.5], [e.x + e.ox * 2, e.z + e.oz * 2, 4]);
   // éléments interactifs : rien ne pousse dessus
-  for (const p of map.props) occupied.push([p.x, p.z, p.kind === PropKind.Camp ? 2.4 : p.kind === PropKind.Pont ? 2.2 : 1.2]);
+  for (const p of map.props) occupied.push([p.x, p.z, p.kind === PropKind.Camp ? 2.4 : 1.2]);
   const items = new Map<string, { x: number; y: number; z: number; yaw: number; s: number }[]>();
   const pickWeighted = (list: [string, number][]) => {
     let tot = 0;

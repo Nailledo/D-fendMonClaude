@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, ADAPT_SHARE, ADAPT_WEAK, PROP_INFO, PONT_CD_S, PONT_BROKEN_S, PropKind, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, ADAPT_SHARE, ADAPT_WEAK, PROP_INFO, PropKind, TRAITS, SKILL_UNLOCK, classLook, kitSkills } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -333,9 +333,7 @@
       <div class="tsh"><b>{info.name}</b>{#if info.cost}<span class="tc" class:poor={h.gold < info.cost}><Ico k="coin" fb={ICON.coin} />{info.cost}</span>{/if}</div>
       <div class="small">{info.desc}</div>
       <div class="pst" class:ok={ready}>
-        {#if mp.kind === PropKind.Pont && pp.st === 1}Effondré : rebâti dans {Math.max(0, pp.cd - (PONT_CD_S - PONT_BROKEN_S))} s
-        {:else if mp.kind === PropKind.Pont && pp.cd > 0}Rebâti, mais encore trop solide : {pp.cd} s
-        {:else if mp.kind === PropKind.Poudre && pp.st === 1}Déjà sauté : un nouveau tonneau arrive à la prochaine vague.
+        {#if mp.kind === PropKind.Poudre && pp.st === 1}Déjà sauté : il n’y en avait qu’un.
         {:else if mp.kind === PropKind.Camp && pp.cd > 0}Les mercenaires se reposent : {pp.cd} s
         {:else}Prêt !{/if}
       </div>

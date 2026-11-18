@@ -5,21 +5,19 @@ import type { Biome } from '../types';
  * (mapgen, déterministe) ; leur état (prêt, rechargement, pont effondré, secret trouvé) vit dans la simulation.
  */
 export enum PropKind {
-  /** pont branlant au-dessus d'un ruisseau : on le fait tomber sous les pieds des ennemis */
-  Pont = 0,
-  /** tonneau de poudre au bord du chemin : il explose, un nouveau est livré à chaque vague */
-  Poudre = 1,
+  /** tonneau de poudre au bord du chemin : il explose, une seule fois par partie */
+  Poudre = 0,
   /** camp de mercenaires : on les loue, ils vont barrer le chemin */
-  Camp = 2,
+  Camp = 1,
   /** clin d'œil caché : on clique plusieurs fois dessus… */
-  Secret = 3,
+  Secret = 2,
 }
 
 export interface MapProp {
   kind: PropKind;
   x: number;
   z: number;
-  /** orientation (pont : direction du chemin) */
+  /** orientation */
   ang: number;
   /** variante (secret : indice dans SECRETS[biome]) */
   v: number;
@@ -37,12 +35,8 @@ export interface PropInfo {
 
 export const PROP_INFO: PropInfo[] = [
   {
-    name: 'Pont branlant', act: 'Faire tomber', cost: 0,
-    desc: 'Les ennemis à pied qui le traversent tombent dans le ruisseau (300 dégâts, étourdis). Les suivants pataugent, ralentis, jusqu’à ce qu’il soit rebâti.',
-  },
-  {
     name: 'Tonneau de poudre', act: 'Allumer la mèche', cost: 0,
-    desc: 'Explose : 220 dégâts autour de lui. Un nouveau tonneau est livré à chaque vague.',
+    desc: 'Explose : 220 dégâts autour de lui. Il n’y en a qu’un : une seule explosion par partie.',
   },
   {
     name: 'Camp de mercenaires', act: 'Engager', cost: 90,
@@ -51,22 +45,10 @@ export const PROP_INFO: PropInfo[] = [
   { name: '???', act: '', cost: 0, desc: '' },
 ];
 
-/** pont : rayon de la zone du tablier, dégâts de la chute, étourdissement, ralentissement du gué */
-export const PONT_R = 1.9;
-export const PONT_DMG = 300;
-export const PONT_STUN_S = 1.5;
-export const PONT_SLOW = 0.45;
-/** pont : temps avant qu'il soit rebâti, puis avant de pouvoir le refaire tomber */
-export const PONT_BROKEN_S = 18;
-export const PONT_CD_S = 40;
 export const POUDRE_R = 2.8;
 export const POUDRE_DMG = 220;
 export const CAMP_CD_S = 45;
 export const MERC = { n: 3, hp: 150, dmg: [6, 10] as [number, number], armor: 0.25, kind: 4, dur: 30 };
-/** demi-longueur du ruisseau sous le pont (perpendiculaire au chemin) et demi-largeur de son lit */
-export const STREAM_HALF = 3.4;
-export const STREAM_W = 0.85;
-
 export interface SecretDef {
   id: string;
   name: string;
