@@ -7,6 +7,7 @@ import '@fontsource/im-fell-english/latin-400-italic.css';
 import '@fontsource/im-fell-english-sc/latin-400.css';
 import './app.css';
 import { mount } from 'svelte';
+import { initAccount } from './account.svelte';
 import { app } from './app';
 import { detectLayout, settings } from './settings';
 import { ui } from './state.svelte';
@@ -24,6 +25,8 @@ if (new URLSearchParams(location.search).has('bench')) void booted.then(() => ap
 // reconnexion automatique à une partie en cours (jeton conservé)
 if (loadRaw('token', '')) app.connect();
 mount(App, { target: document.getElementById('app')! });
+// compte sayk.fr (connexion Discord) : progression et réglages suivent le joueur
+void initAccount();
 
 // accès de débogage / tests automatisés
 (window as unknown as { __dfend: unknown }).__dfend = { app, ui };

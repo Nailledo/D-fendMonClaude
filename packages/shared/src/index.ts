@@ -15,3 +15,4 @@ export * from './data/heroes';
 export * from './data/maps';
 export * from './data/levels';
 export * from './data/meta';
+export * from './progress';

@@ -139,6 +139,18 @@ Variables d’environnement :
 | `ALLOWED_ORIGINS` | Origines supplémentaires autorisées pour le WebSocket, séparées par des virgules |
 | `LOG_LEVEL` | `info` ou `silent` |
 | `DB_PATH`, `STATIC_DIR` | Emplacements de la base et du client construit |
+| `SAYK_API_ORIGIN` | Service de comptes ouvert dans la CSP (connexion Discord). Par défaut `https://api.sayk.fr` quand le jeu est servi sous `sayk.fr` ; `off` pour le fermer |
+
+### Comptes sayk.fr (connexion Discord)
+
+Sous `*.sayk.fr`, l’écran titre propose « Se connecter avec Discord ». Le service de comptes du hub (`api.sayk.fr`, dépôt ClaudeGame) pose un cookie partagé par les sous-domaines ; le client (`packages/client/src/account.svelte.ts`) y enregistre :
+
+- `profile` : la progression (campagne, étoiles, atelier), le nom, le héros et la difficulté ;
+- `settings` : les réglages qui ne dépendent pas de l’appareil (volumes, accessibilité) et les raccourcis clavier.
+
+À la connexion, la progression de l’appareil et celle du compte sont fusionnées (`packages/shared/src/progress.ts`) : ce qui se gagne n’est jamais perdu, ce qui se dépense vient du côté modifié le plus récemment. Hors de `sayk.fr` (développement), le jeu reste anonyme ; pour tester en local, lancer le client avec `VITE_SAYK_API=http://localhost:<port du service>`.
+
+Côté hub, `defend` doit figurer dans la variable `GAMES` du `.env` du service `auth`, sinon `/api/games/defend/*` répond 404.
 
 ## Sécurité
 
