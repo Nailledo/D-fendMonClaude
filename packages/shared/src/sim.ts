@@ -656,16 +656,16 @@ export class Sim {
 
   /** Points de vie et dégâts du héros selon son niveau et les bonus de son joueur. */
   private heroStats(h: Hero) {
-    const d = h.base, pk = this.perk(h.owner);
-    const hpMul = 1 + pk.heroHp + h.bonus.hp;
-    const dmgMul = 1 + pk.heroDmg + h.bonus.dmg;
+    const d = h.base;
+    const hpMul = 1 + h.bonus.hp;
+    const dmgMul = 1 + h.bonus.dmg;
     h.u.maxHp = Math.round((d.hp + d.hpPerLevel * (h.level - 1)) * hpMul);
     h.u.dmgMin = (d.dmg[0] + d.dmgPerLevel * (h.level - 1)) * dmgMul;
     h.u.dmgMax = (d.dmg[1] + d.dmgPerLevel * (h.level - 1)) * dmgMul;
   }
 
   private addXp(h: Hero, xp: number) {
-    h.xp += xp * (1 + this.perk(h.owner).heroXp + h.bonus.xp);
+    h.xp += xp * (1 + h.bonus.xp);
     while (h.level < HERO_MAX_LEVEL && h.xp >= HERO_XP[h.level]) {
       h.level++;
       this.heroStats(h);
@@ -742,7 +742,7 @@ export class Sim {
       if (t.fam !== 'mine') continue;
       const p = this.player(t.owner);
       if (!p || !p.active) continue;
-      let g = mineIncome(t.level, t.sk);
+      let g = mineIncome(t.level, t.sk, this.perk(t.owner).mineGold);
       const lvl = TOWERS.mine[t.level];
       let lives = 0;
       if (t.level === 3 && t.sk[1] > 0) g += Math.floor(Math.min(80, p.gold * lvl.skills![1].values[t.sk[1] - 1]));
@@ -927,7 +927,7 @@ export class Sim {
         if (!h || h.u.dead || x === null || z === null || (c.i !== 0 && c.i !== 1 && c.i !== 2)) return;
         const sk = h.skills[c.i];
         if (!sk || h.level < SKILL_UNLOCK[c.i] || h.cds[c.i] > 0) return;
-        h.cds[c.i] = sec(sk.cd * Math.max(0.4, 1 - this.perk(pid).heroCd - h.bonus.cd - (h.pas.has('focalisation') ? 0.2 : 0)));
+        h.cds[c.i] = sec(sk.cd * Math.max(0.4, 1 - h.bonus.cd - (h.pas.has('focalisation') ? 0.2 : 0)));
         this.heroSkill(h, c.i, sk, x, z);
         // Résonance : chaque compétence avance la recharge des autres
         if (h.pas.has('resonance')) for (let k = 0; k < 3; k++) if (k !== c.i) h.cds[k] = Math.max(0, h.cds[k] - sec(2));
@@ -1638,7 +1638,8 @@ export class Sim {
     for (const c of this.towers) {
       if (c.fam !== 'camp') continue;
       if (c.level === 3) watch = true;
-      const a = campAura(c.level, c.sk);
+      const cp = this.perk(c.owner);
+      const a = campAura(c.level, c.sk, cp.campAura, cp.campRange);
       const r2 = a.r * a.r;
       for (const t of this.towers) {
         if (t === c || t.fam === 'mine' || t.fam === 'camp') continue;
@@ -1654,9 +1655,10 @@ export class Sim {
     for (const t of this.towers) {
       const detect = t.fam === 'mage' || (t.fam === 'camp' && t.level === 3);
       if (!detect) continue;
-      const mark = t.fam === 'camp' ? campAura(t.level, t.sk).mark : 0;
+      const tp = this.perk(t.owner);
+      const mark = t.fam === 'camp' ? campAura(t.level, t.sk, tp.campAura).mark : 0;
       if (!mark && !camo) continue;
-      const r = t.fam === 'mage' ? TOWERS.mage[t.level].range * (1 + (this.perk(t.owner).range[2] ?? 0)) : TOWERS.camp[t.level].range;
+      const r = t.fam === 'mage' ? TOWERS.mage[t.level].range * (1 + (tp.range[2] ?? 0)) : TOWERS.camp[t.level].range * (1 + tp.campRange);
       const r2 = r * r;
       for (const e of this.enemies) {
         const dx = e.x - t.x, dz = e.z - t.z;
@@ -1880,7 +1882,7 @@ export class Sim {
     u.shield = 0;
     this.ev(Ev.UnitDeath, u.x, u.z);
     if (u.hero) {
-      u.respawnT = sec(HERO_RESPAWN_S * (1 - this.perk(u.owner).heroRespawn));
+      u.respawnT = sec(HERO_RESPAWN_S);
       this.ev(Ev.HeroDeath, u.owner);
     } else if (u.tower) {
       const sd = TOWERS[u.tower.fam][u.tower.level].soldiers!;

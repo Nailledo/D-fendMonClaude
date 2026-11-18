@@ -439,6 +439,26 @@
   "hero:narrateur": {
    "file": "hero-narrateur.glb",
    "height": 1.35
+  },
+  "hero:ombre": {
+   "file": "hero-ombre.glb",
+   "height": 1.35
+  },
+  "hero:paladin": {
+   "file": "hero-paladin.glb",
+   "height": 1.35
+  },
+  "hero:druide": {
+   "file": "hero-druide.glb",
+   "height": 1.35
+  },
+  "hero:ours": {
+   "file": "hero-ours.glb",
+   "height": 1.35
+  },
+  "hero:brasier": {
+   "file": "hero-brasier.glb",
+   "height": 1.35
   }
  }
 }

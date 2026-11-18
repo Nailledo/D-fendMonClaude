@@ -1,13 +1,17 @@
 <script lang="ts">
   import { app } from '../app';
   import { keyLabel, keys } from '../settings';
-  import { ui } from '../state.svelte';
+  import { HEROES } from '@dfend/shared';
+  import { heroName, ui } from '../state.svelte';
   import { SPEAKERS } from '../story/dialogs';
 
   const d = $derived(ui.dialog!);
   const line = $derived(d.lines[d.i]);
-  const sp = $derived(SPEAKERS[line.who]);
-  const portrait = $derived(ui.portraits[line.who]);
+  // le héros de l'histoire, c'est vous : votre pseudo, votre personnage
+  const me = $derived(line.who === 'samuel');
+  const sp = $derived(me ? { name: heroName(), color: '#' + HEROES[ui.hero].color.toString(16).padStart(6, '0') } : SPEAKERS[line.who]);
+  const portrait = $derived(ui.portraits[me ? ui.hero : line.who]);
+  const text = $derived(line.text.replace(/\bSamuel\b/g, heroName()));
 </script>
 
 <div class="dlg ui" role="button" tabindex="0" onclick={() => app.game?.nextDialog()} onkeydown={() => {}}>
@@ -17,7 +21,7 @@
     </div>
     <div class="txt">
       <b style="--c:{sp.color}">{sp.name}</b>
-      {#key d.i}<p>{line.text}</p>{/key}
+      {#key d.i}<p>{text}</p>{/key}
       <div class="foot">
         <span>{d.i + 1} / {d.lines.length}</span>
         {#if ui.touch}<span>Touchez pour tourner la page</span>

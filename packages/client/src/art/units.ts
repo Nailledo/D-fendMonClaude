@@ -311,12 +311,15 @@ export function turretGeometry(glb?: THREE.BufferGeometry): { base: THREE.Buffer
 
 const cache = new Map<string, THREE.BufferGeometry>();
 
+/** Personnages composés (modèles importés) : art en code de leur personnage d'origine, au cas où le modèle manque. */
+const FALLBACK: Record<string, string> = { ombre: 'lyra', paladin: 'samuel', druide: 'lyra', ours: 'brom', brasier: 'nox' };
+
 export function heroGeometry(id: string): THREE.BufferGeometry {
   const key = 'h' + id;
   let g = cache.get(key);
   if (!g) {
     const b = new GB(id.length * 31 + 7);
-    (HERO_MODELS[id] ?? HERO_MODELS.samuel)(b);
+    (HERO_MODELS[id] ?? HERO_MODELS[FALLBACK[id]] ?? HERO_MODELS.samuel)(b);
     g = b.build();
     cache.set(key, g);
   }

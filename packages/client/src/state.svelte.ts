@@ -1,4 +1,4 @@
-import { emptyProgress, type Difficulty, type EndInfo, type HeroId, type LobbyPlayer, type Mode, type Progress, type RoomSettings } from '@dfend/shared';
+import { TREE_VERSION, emptyProgress, migrateTree, type Difficulty, type EndInfo, type HeroId, type LobbyPlayer, type Mode, type Progress, type RoomSettings } from '@dfend/shared';
 import type { Line } from './story/dialogs';
 import { load, loadRaw, save } from './storage';
 
@@ -35,9 +35,16 @@ export interface HudPlayer {
 
 export type { Progress } from '@dfend/shared';
 
-export const progress: Progress = $state(load<Progress>('progress', emptyProgress()));
+// treeV absent d'une sauvegarde = version 1 (avant la branche Intendance)
+export const progress: Progress = $state(load<Progress>('progress', { ...emptyProgress(), treeV: 1 }));
 export function saveProgress() {
   save('progress', $state.snapshot(progress));
+}
+// ancienne sauvegarde : branches de l'atelier remplacées depuis (la branche Héros), étoiles rendues
+if ((progress.treeV ?? 1) < TREE_VERSION) {
+  migrateTree(progress.tree, progress.treeV ?? 1);
+  progress.treeV = TREE_VERSION;
+  saveProgress();
 }
 
 export const ui = $state({
@@ -139,6 +146,11 @@ export function setDifficulty(d: Difficulty) {
   ui.difficulty = d;
   save('difficulty', d);
 }
+/** Les héros n'ont pas de nom : le vôtre porte votre pseudo. */
+export function heroName(name = ui.name): string {
+  return name.trim() || 'Héros sans nom';
+}
+
 export function setHero(h: HeroId) {
   ui.hero = h;
   save('hero', h);

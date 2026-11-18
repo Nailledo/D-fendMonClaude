@@ -7,7 +7,9 @@
  *   l'occlusion cuite est conservée) ;
  * - ajoute des accessoires construits ici (couronne, diadème, cape, robe, barbe), partie « corps » de l'animation.
  *
- * Sorties : packages/client/public/models/hero-ethan.glb, hero-roi.glb et hero-narrateur.glb, référencés dans manifest.json.
+ * Sorties : packages/client/public/models/hero-*.glb (princesse, roi, narrateur et les personnages jouables
+ * ajoutés : ombre, paladin, druide, ours, brasier), référencés dans manifest.json.
+ * `pnpm tsx tools/models/kitbash.ts druide ours` ne refait que ces personnages.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -335,7 +337,10 @@ class Mesh {
   }
 }
 
+/** Personnages à refaire (arguments) ; tous si aucun. */
+const ONLY = process.argv.slice(2);
 async function make(src: string, dst: string, edit: (m: Mesh, img: Img, white: [number, number]) => void) {
+  if (ONLY.length && !ONLY.includes(dst.replace(/^hero-|\.glb$/g, ''))) return;
   const doc = await io.read(join(MODELS, src));
   const prim = doc.getRoot().listMeshes()[0].listPrimitives()[0];
   const tex = doc.getRoot().listTextures()[0];
@@ -489,8 +494,132 @@ await make('hero-nox.glb', 'hero-narrateur.glb', (m, img, white) => {
   }
 });
 
+// ================================================================== personnages jouables (sans nom)
+
+// ------------------------------------------------------------------ Lame écarlate (base : rôdeur encapuchonné)
+await make('soldier-4.glb', 'hero-ombre.glb', (m, img, white) => {
+  const RED = hex(0xc0262e), RED_D = hex(0x8a1820), DARK = hex(0x2b2230), GOLD = hex(0xf2b33d);
+  m.recolor(img, white, (tex, [h, s, v], _x, y) => {
+    if (h > 90 && h < 200 && s > 0.3) {
+      // masque (vert sombre, bas du visage) → noir ; capuche → rouge ; tunique → rouge sombre
+      if (y > 0.72 && y < 0.92 && v < 0.5) return DARK;
+      return y > 0.78 ? RED : RED_D;
+    }
+    return null;
+  });
+  // broche dorée qui ferme la capuche
+  const neck = m.slab(0.7, 0.78);
+  const d = m.ray(neck.cx, 0.74, 2, 0, 0, -1);
+  if (d > 0) m.gem(neck.cx, 0.74, 2 - d + 0.02, 0.04, GOLD, white);
+});
+
+// ------------------------------------------------------------------ Paladin de l'aube (base : chevalier)
+await make('hero-samuel.glb', 'hero-paladin.glb', (m, img, white) => {
+  const IVORY = hex(0xf1ead6), IVORY_D = hex(0xc9bfa3), GOLD = hex(0xf2b33d), GOLD_D = hex(0xc9871e), BLUE = hex(0x2f6fd0), SKY = hex(0x8fd3ff);
+  m.recolor(img, white, (tex, [h, s, v], _x, y) => {
+    // acier gris (peu saturé) → ivoire, casque doré
+    if (s < 0.22 && v > 0.25 && v < 0.9) {
+      if (y > 0.98) return v > 0.5 ? GOLD : GOLD_D;
+      return v > 0.5 ? IVORY : IVORY_D;
+    }
+    // cuir (ceinture, sangles) → bleu roi
+    if (h < 40 && s > 0.35 && v < 0.75 && y < 0.95) return BLUE;
+    return null;
+  });
+  // cimier : crête dorée sur le casque, pierre bleu ciel sur le front
+  const head = m.slab(1.0, 1.4);
+  const top = 2 - m.ray(head.cx, 2, head.cz, 0, -1, 0);
+  for (let k = -2; k <= 2; k++) m.spike(head.cx, top - 0.03, head.cz + k * 0.06, 0.035, 0.16 - Math.abs(k) * 0.03, 4, GOLD, white);
+  const fy = top - 0.12, fd = m.ray(head.cx, fy, 2, 0, 0, -1);
+  if (fd > 0) m.gem(head.cx, fy, 2 - fd + 0.02, 0.045, SKY, white);
+});
+
+// ------------------------------------------------------------------ Druide des bois (base : milicien)
+await make('soldier-0.glb', 'hero-druide.glb', (m, img, white) => {
+  const LEAF = hex(0x5fae3e), MOSS = hex(0x6d7f35), BARK = hex(0x7a5232), BARK_D = hex(0x5a3a22), GREY = hex(0xd8d4c8), BERRY = hex(0xd8344a);
+  const hip = m.hipY();
+  m.recolor(img, white, (tex, [h, s, v], _x, y) => {
+    // foulard bleu → feuillage
+    if (h > 180 && h < 250 && s > 0.3) return LEAF;
+    // cheveux bruns → gris argenté
+    if (y > 0.8 && h < 35 && s > 0.45 && v < 0.8) return GREY;
+    // chemise claire → mousse
+    if (y > hip - 0.05 && y < 0.8 && s < 0.32 && v > 0.7) return MOSS;
+    return null;
+  });
+  const head = m.slab(1.0, 1.25);
+  const hx = head.cx, hz = head.cz;
+  const topY = 2 - m.ray(hx, 2, hz, 0, -1, 0);
+  // barbe grise
+  m.beard(hx, 0.86, 0.72, 0.58, 0.15, GREY, white);
+  // couronne de feuilles et de baies posée sur les cheveux
+  const yb = topY - 0.1, rb = m.radiusAt(hx, hz, yb) * 1.0;
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    m.gem(hx + Math.cos(a) * rb, yb, hz + Math.sin(a) * rb, 0.045, k % 3 === 1 ? BERRY : LEAF, white);
+  }
+  // bois de cerf : deux merrains en deux tronçons (droit puis penché vers l'extérieur), andouillers dressés
+  for (const sg of [-1, 1]) {
+    const x0 = hx + sg * rb * 0.55, y0 = topY - 0.08, z0 = hz - 0.03, w = 0.03;
+    m.box(x0 - w, y0, z0 - w, x0 + w, y0 + 0.16, z0 + w, BARK_D, white);
+    const x1 = x0 + sg * 0.07;
+    m.box(Math.min(x0, x1) - w * 0.8, y0 + 0.13, z0 - w * 0.8, Math.max(x0, x1) + w * 0.8, y0 + 0.17, z0 + w * 0.8, BARK, white);
+    m.box(x1 - w * 0.8, y0 + 0.13, z0 - w * 0.8, x1 + w * 0.8, y0 + 0.3, z0 + w * 0.8, BARK, white);
+    m.spike(x0, y0 + 0.16, z0, 0.026, 0.11, 4, BARK, white);
+    m.spike(x1, y0 + 0.3, z0, 0.022, 0.1, 4, BARK, white);
+    m.spike(x1 + sg * 0.012, y0 + 0.2, z0 + 0.03, 0.018, 0.09, 4, BARK, white);
+  }
+});
+
+// ------------------------------------------------------------------ Barbare des glaces (base : barbare)
+await make('soldier-5.glb', 'hero-ours.glb', (m, img, white) => {
+  const SNOW = hex(0xf2f5f8), SNOW_D = hex(0xc4ccd6), BLUE = hex(0x2f5fa8), BLUE_D = hex(0x1f3f7a), BLOND = hex(0xe0b04a), ICE = hex(0x8fe3ff);
+  m.recolor(img, white, (tex, [h, s, v], _x, y, z) => {
+    // tête d'ours → ours blanc (toute la coiffe, dos compris, pour éviter les dégradés de texture ; yeux et truffe gardés)
+    if ((y > 1.0 || (z < -0.02 && y > 0.86)) && v > 0.16) return v > 0.35 ? SNOW : SNOW_D;
+    // peau d'ours qui retombe dans le dos → fourrure blanche
+    if (z < 0.05 && y > 0.64 && v > 0.16 && !(h < 40 && s > 0.25 && v > 0.72)) return SNOW_D;
+    // barbe grise (devant) → blonde
+    if (z > 0 && y > 0.65 && y <= 1.0 && s < 0.25 && v > 0.3 && v < 0.75) return BLOND;
+    // col de fourrure sur les épaules → blanc
+    if (y > 0.72 && h < 45 && s >= 0.25 && v < 0.5) return SNOW_D;
+    // pagne, ceinture et baudrier (bruns et rouges, pas la peau, plus claire) → bleu
+    if (y < 0.75 && (h < 45 || h > 340) && s > 0.3 && v < 0.75) return v > 0.4 ? BLUE : BLUE_D;
+    return null;
+  });
+  // pendentif de glace
+  const d = m.ray(0, 0.68, 2, 0, 0, -1);
+  if (d > 0) m.gem(0, 0.68, 2 - d + 0.02, 0.05, ICE, white);
+});
+
+// ------------------------------------------------------------------ Mage du brasier (base : mage)
+await make('hero-nox.glb', 'hero-brasier.glb', (m, img, white) => {
+  const RED = hex(0xc0392b), RED_D = hex(0x7d1a22), GOLD = hex(0xf2b33d), FLAME = hex(0xff5a14), EMBER = hex(0xffd04a);
+  // visage : la peau la plus en avant (les yeux, sombres eux aussi, ne deviennent pas des flammes)
+  const face = m.slab(0.75, 1.0);
+  let faceY = 0.9, faceZ = -9;
+  for (let y = 0.7; y <= 1.0; y += 0.01) { const d = m.ray(face.cx, y, 2, 0, 0, -1); if (d > 0 && 2 - d > faceZ) { faceZ = 2 - d; faceY = y; } }
+  m.recolor(img, white, (tex, [h, s, v], x, y, z) => {
+    const eye = z > faceZ - 0.07 && Math.abs(x - face.cx) < 0.16 && y > faceY - 0.02 && y < faceY + 0.14;
+    // cheveux noirs → flammes
+    if (!eye && y > 0.5 && y < 0.98 && v < 0.42 && (s < 0.45 || (h > 265 && h < 335))) return FLAME;
+    if (y >= 0.98 && v < 0.42) return RED_D;
+    // robe et chapeau violets → rouge braise
+    if (h > 200 && h < 290 && s > 0.15 && v < 0.65) return v < 0.35 ? RED_D : RED;
+    if (h > 285 && h < 350 && s > 0.2) return RED_D;
+    // bandeau orange → or
+    if (h > 15 && h < 45 && s > 0.55 && v > 0.6 && y > 0.3) return GOLD;
+    return null;
+  });
+  // flammèche au bout du chapeau
+  const head = m.slab(1.2, 2);
+  const top = 2 - m.ray(head.cx, 2, head.cz, 0, -1, 0);
+  m.spike(head.cx, top - 0.06, head.cz, 0.06, 0.16, 5, FLAME, white);
+  m.gem(head.cx, top + 0.02, head.cz, 0.04, EMBER, white);
+});
+
 // ------------------------------------------------------------------ manifeste
 const manPath = join(MODELS, 'manifest.json');
 const man = JSON.parse(readFileSync(manPath, 'utf8'));
-for (const id of ['ethan', 'roi', 'narrateur']) man.models[`hero:${id}`] = { file: `hero-${id}.glb`, height: 1.35 };
+for (const id of ['ethan', 'roi', 'narrateur', 'ombre', 'paladin', 'druide', 'ours', 'brasier']) man.models[`hero:${id}`] = { file: `hero-${id}.glb`, height: 1.35 };
 writeFileSync(manPath, JSON.stringify(man, null, 1) + '\n');

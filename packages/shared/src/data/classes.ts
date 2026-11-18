@@ -5,7 +5,7 @@ import type { HeroSkillDef } from './heroes';
  * Arbre du héros.
  *
  * Tous les héros commencent identiques : l'Aventurier (mêmes statistiques, Coup puissant, Second souffle, Élan héroïque).
- * L'apparence (Samuel, Patoche, Matéo, William) n'est qu'un « skin ».
+ * L'apparence (neuf personnages sans nom, qui portent le pseudo du joueur) n'est qu'un « skin ».
  *
  * Le joueur choisit **une seule classe** (la « vocation », racine de l'arbre) et s'y spécialise :
  * - autour de la racine, les **fondamentaux** (six nœuds de statistiques à trois rangs) ;

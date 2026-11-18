@@ -5,7 +5,7 @@
   import { ui } from '../state.svelte';
   import { keyLabel, keys } from '../settings';
   import { FAMILY_COLOR, FAMILY_ICON, ICON } from './icons';
-  import { sellValue as sellOf } from './towerStats';
+  import { ownCampAura, ownMineIncome, sellValue as sellOf } from './towerStats';
   import { UPGRADE_ICON } from './skillIcons';
   import { fit } from './fit';
 
@@ -41,8 +41,8 @@
   ];
   const statLine = (fi: string, l: number) => {
     const t = TOWERS[fi as keyof typeof TOWERS][l];
-    if (t.income !== undefined) return `+${t.income} or au début de chaque vague · ne tire pas`;
-    if (t.aura) return `tours voisines (rayon ${t.range}) : portée +${Math.round(t.aura.range * 100)} %, cadence +${Math.round(t.aura.rate * 100)} %${t.detect ? ' · repère les camouflés' : ''}`;
+    if (t.income !== undefined) return `+${ownMineIncome(l)} or au début de chaque vague · ne tire pas`;
+    if (t.aura) { const a = ownCampAura(l); return `tours voisines (rayon ${+a.r.toFixed(1)}) : portée +${Math.round(a.range * 100)} %, cadence +${Math.round(a.rate * 100)} %${t.detect ? ' · repère les camouflés' : ''}`; }
     if (t.soldiers) return `${t.soldiers.count} soldats · ${t.soldiers.hp} PV · ${t.soldiers.dmg[0]}-${t.soldiers.dmg[1]} dégâts · armure ${Math.round(t.soldiers.armor * 100)} %`;
     const dps = ((t.dmg[0] + t.dmg[1]) / 2 / t.cooldown) * (t.burst ?? 1);
     return `${t.dmg[0]}-${t.dmg[1]} ${t.dmgType === 1 ? 'magiques' : 'physiques'} · portée ${t.range} · ${dps.toFixed(0)} dégâts/s${t.hitsAir ? ' · anti-air' : ''}${t.splash ? ' · zone' : ''}`;

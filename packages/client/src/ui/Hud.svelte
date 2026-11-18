@@ -4,7 +4,7 @@
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
-  import { ui } from '../state.svelte';
+  import { heroName, ui } from '../state.svelte';
   import Chat from './Chat.svelte';
   import Dialog from './Dialog.svelte';
   import EndScreen from './EndScreen.svelte';
@@ -166,13 +166,13 @@
   <!-- héros -->
   <div class="heroCard panel ui">
     <button class="portrait" class:dead={h.hero.dead} onclick={() => { g()?.selectHero(); g()?.focusHero(); }} title="Sélectionner ({keyLabel(keys.hero)})">
-      {#if ui.portraits[hero.id]}<img src={ui.portraits[hero.id]} alt={hero.name} />{/if}
+      {#if ui.portraits[hero.id]}<img src={ui.portraits[hero.id]} alt={hero.title} />{/if}
       <span class="lvl">{h.hero.level}</span>
       <span class="phbar"><i style="width:{h.hero.hp * 100}%"></i></span>
       {#if h.hero.dead}<span class="resp">{h.hero.respawn}</span>{/if}
     </button>
     <div class="hcol">
-      <div class="hname">{hero.name}<small>{hcls.name} · niveau {h.hero.level}</small></div>
+      <div class="hname">{heroName()}<small>{hcls.name} · niveau {h.hero.level}</small></div>
       <div class="bar hp"><i style="width:{h.hero.hp * 100}%"></i></div>
       <div class="bar xp"><i style="width:{h.hero.xp * 100}%"></i></div>
       <div class="skills">

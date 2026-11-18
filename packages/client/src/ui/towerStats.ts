@@ -1,4 +1,14 @@
-import { FAMILIES, SELL_RATIO, TOWERS, investedCost, type Family } from '@dfend/shared';
+import { FAMILIES, SELL_RATIO, TOWERS, campAura, investedCost, mineIncome, perksOf, type Family } from '@dfend/shared';
+import { progress } from '../state.svelte';
+
+/** Or par vague d'une mine et bonus d'un campement, avec l'Intendance du joueur (atelier). */
+export function ownMineIncome(level: number): number {
+  return mineIncome(level, [0, 0], perksOf(progress.tree).mineGold);
+}
+export function ownCampAura(level: number) {
+  const pk = perksOf(progress.tree);
+  return campAura(level, [0, 0], pk.campAura, pk.campRange);
+}
 
 export interface StatRow {
   label: string;
@@ -26,16 +36,18 @@ export function towerStats(fam: Family, level: number): StatRow[] {
     ];
   }
   if (t.income !== undefined) {
+    const inc = ownMineIncome(level);
     return [
-      { label: 'Or par vague', value: t.income, text: `+${t.income}` },
-      { label: 'Rentabilisée en', value: Math.ceil(investedCost(fam, level) / t.income), text: `${Math.ceil(investedCost(fam, level) / t.income)} vagues`, lowerIsBetter: true },
+      { label: 'Or par vague', value: inc, text: `+${inc}` },
+      { label: 'Rentabilisée en', value: Math.ceil(investedCost(fam, level) / inc), text: `${Math.ceil(investedCost(fam, level) / inc)} vagues`, lowerIsBetter: true },
     ];
   }
   if (t.aura) {
+    const a = ownCampAura(level);
     const rows: StatRow[] = [
-      { label: 'Zone d’influence', value: t.range, text: num(t.range) },
-      { label: 'Portée des voisines', value: t.aura.range, text: '+' + pct(t.aura.range) },
-      { label: 'Cadence des voisines', value: t.aura.rate, text: '+' + pct(t.aura.rate) },
+      { label: 'Zone d’influence', value: a.r, text: num(a.r) },
+      { label: 'Portée des voisines', value: a.range, text: '+' + pct(a.range) },
+      { label: 'Cadence des voisines', value: a.rate, text: '+' + pct(a.rate) },
     ];
     if (t.detect) rows.push({ label: 'Repère les camouflés', value: 1, text: 'Oui' });
     return rows;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
+  ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
@@ -916,7 +916,8 @@ export class GameClient {
     for (let j = 0; j < snap.tCount; j++) {
       if (snap.tFam[j] !== 5) continue;
       const c = this.map.slots[snap.tSlot[j]];
-      const au = campAura(snap.tLevel[j], [snap.tSk[j] & 15, snap.tSk[j] >> 4]);
+      const cp = this.perksFor(snap.tOwner[j]);
+      const au = campAura(snap.tLevel[j], [snap.tSk[j] & 15, snap.tSk[j] >> 4], cp.campAura, cp.campRange);
       if ((a.x - c.x) ** 2 + (a.z - c.z) ** 2 > au.r * au.r) continue;
       out.range = Math.max(out.range, au.range);
       out.rate = Math.max(out.rate, au.rate);
@@ -946,10 +947,11 @@ export class GameClient {
       // bonus de portée de l'arbre de compétences du propriétaire de la tour
       // (+ bonus du meilleur campement voisin ; un campement montre sa zone d'influence)
       const aura = fam === 'camp' ? 0 : this.auraAt(snap, ti).range;
-      const rangeOf = (l: number) => TOWERS[fam][l].range * (fam === 'camp' ? 1 : 1 + this.perksFor(snap.tOwner[ti]).range[snap.tFam[ti]] + aura);
+      const opk = this.perksFor(snap.tOwner[ti]);
+      const rangeOf = (l: number) => TOWERS[fam][l].range * (fam === 'camp' ? 1 + opk.campRange : 1 + opk.range[snap.tFam[ti]] + aura);
       let range = rangeOf(snap.tLevel[ti]);
       if (fam === 'archer' && snap.tLevel[ti] === LEVEL_SPEC_A && snap.tSk[ti] >> 4) range += lvl.skills![1].values[(snap.tSk[ti] >> 4) - 1];
-      if (fam === 'camp' && snap.tLevel[ti] === 3) range = campAura(3, [snap.tSk[ti] & 15, snap.tSk[ti] >> 4]).r;
+      if (fam === 'camp' && snap.tLevel[ti] === 3) range = campAura(3, [snap.tSk[ti] & 15, snap.tSk[ti] >> 4], opk.campAura, opk.campRange).r;
       if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = rangeOf(this.hoverLevel);
       const sl = this.map.slots[snap.tSlot[ti]];
       this.rangeRing.visible = range > 0;
@@ -1643,10 +1645,9 @@ export class GameClient {
       }
       case Ev.LevelUp: {
         if (ev[1] === this.you) {
-          const def = HEROES[HERO_IDS[ui.hud.hero.type]];
           const k = SKILL_UNLOCK.indexOf(ev[2]);
           const unlocked = k >= 0 ? hudSkills()[k] : null;
-          toast(`${def.name} passe niveau ${ev[2]} !${unlocked ? ` Nouvelle compétence : ${unlocked.name}` : ''}`, 'good', 3000);
+          toast(`Votre héros passe niveau ${ev[2]} !${unlocked ? ` Nouvelle compétence : ${unlocked.name}` : ''}`, 'good', 3000);
           audio.play('levelup');
         }
         const s = this.interp.latest!;
@@ -1701,8 +1702,7 @@ export class GameClient {
         break;
       case Ev.HeroDeath:
         if (ev[1] === this.you) {
-          const tree = this.cfg.players.find((p) => p.id === this.you)?.tree;
-          toast(`Votre héros est tombé ! Retour dans ${Math.round(HERO_RESPAWN_S * (1 - perksOf(tree).heroRespawn))} secondes.`, 'danger', 3000);
+          toast(`Votre héros est tombé ! Retour dans ${HERO_RESPAWN_S} secondes.`, 'danger', 3000);
         }
         break;
       case Ev.Item: {

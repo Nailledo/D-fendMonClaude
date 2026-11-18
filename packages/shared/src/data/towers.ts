@@ -199,8 +199,11 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
   ],
 };
 
-/** Bonus d'un campement (niveau, rangs de compétences) : portée, cadence et dégâts des tours voisines. */
-export function campAura(level: number, sk: readonly [number, number] | readonly number[]): { r: number; range: number; rate: number; dmg: number; mark: number } {
+/**
+ * Bonus d'un campement (niveau, rangs de compétences) : portée, cadence et dégâts des tours voisines.
+ * `boost` et `grow` : bonus d'Intendance du propriétaire (fractions), sur les bonus et sur le rayon.
+ */
+export function campAura(level: number, sk: readonly [number, number] | readonly number[], boost = 0, grow = 0): { r: number; range: number; rate: number; dmg: number; mark: number } {
   const l = TOWERS.camp[level];
   const a = l.aura ?? { range: 0, rate: 0 };
   const out = { r: l.range, range: a.range, rate: a.rate, dmg: 0, mark: 0 };
@@ -209,15 +212,17 @@ export function campAura(level: number, sk: readonly [number, number] | readonly
     if (level === 3) { out.mark = v(0); out.range += v(1); }
     else { out.rate += v(0); out.dmg = v(1); }
   }
+  if (boost) { const k = 1 + boost; out.range *= k; out.rate *= k; out.dmg *= k; }
+  if (grow) out.r *= 1 + grow;
   return out;
 }
 
-/** Or versé par une mine au début d'une vague (hors intérêts, grenier et marché). */
-export function mineIncome(level: number, sk: readonly [number, number] | readonly number[]): number {
+/** Or versé par une mine au début d'une vague (hors intérêts, grenier et marché) ; `bonus` : Intendance (fraction). */
+export function mineIncome(level: number, sk: readonly [number, number] | readonly number[], bonus = 0): number {
   const l = TOWERS.mine[level];
   let g = l.income ?? 0;
   if (level === 3 && sk[0] > 0) g += l.skills![0].values[sk[0] - 1];
-  return g;
+  return bonus ? Math.round(g * (1 + bonus)) : g;
 }
 
 /** Coût total investi pour atteindre un niveau donné (sans compétences). */

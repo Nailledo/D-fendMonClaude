@@ -16,8 +16,9 @@ export const enum DmgType {
   True = 2,
 }
 
-export type HeroId = 'samuel' | 'lyra' | 'brom' | 'nox';
-export const HERO_IDS: HeroId[] = ['samuel', 'lyra', 'brom', 'nox'];
+/** Apparences jouables (sans nom : le héros porte le pseudo de son joueur). L'ordre sert d'index réseau. */
+export type HeroId = 'samuel' | 'lyra' | 'brom' | 'nox' | 'ombre' | 'paladin' | 'druide' | 'ours' | 'brasier';
+export const HERO_IDS: HeroId[] = ['samuel', 'lyra', 'brom', 'nox', 'ombre', 'paladin', 'druide', 'ours', 'brasier'];
 
 export type Biome = 'vallee' | 'marais' | 'cendre';
 export type Mode = 'story' | 'survival';

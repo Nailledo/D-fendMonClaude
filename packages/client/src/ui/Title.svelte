@@ -19,7 +19,7 @@
   const heroPts = $derived(heroPointsLeft());
   // premier lancement : choix de l'apparence du héros
   $effect(() => {
-    if (!ui.loading.active && !ui.overlay && !loadRaw<boolean>('skinChosen', false)) ui.overlay = 'skin';
+    if (!ui.loading.active && !ui.overlay && !loadRaw<boolean>('skinChosen2', false)) ui.overlay = 'skin';
   });
   const storyLabel = $derived(progress.unlocked === 0 ? 'Commencer l’histoire' : progress.finished ? 'Histoire' : 'Continuer l’histoire');
   const storySub = $derived(

@@ -8,18 +8,18 @@
 <div class="picker">
   <div class="list">
     {#each HERO_IDS as h}
-      <button class="hero" class:on={h === value} onclick={() => onpick(h)} title={HEROES[h].name}>
-        {#if ui.portraits[h]}<img src={ui.portraits[h]} alt={HEROES[h].name} />{/if}
-        <span>{HEROES[h].name}</span>
+      <button class="hero" class:on={h === value} onclick={() => onpick(h)} title={HEROES[h].title} aria-label={HEROES[h].title}>
+        {#if ui.portraits[h]}<img src={ui.portraits[h]} alt="" />{/if}
+        {#if !compact}<span>{HEROES[h].title}</span>{/if}
       </button>
     {/each}
   </div>
-  {#if !compact}<p class="who"><b>{HEROES[value].name}</b> · {HEROES[value].title}. {HEROES[value].desc}</p>{/if}
+  {#if !compact}<p class="who"><b>{HEROES[value].title}</b> · {HEROES[value].desc}</p>{/if}
 </div>
 
 <style>
   .picker { display: flex; flex-direction: column; gap: 12px; }
-  .list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 8px; }
   .hero { cursor: pointer; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r-sm); padding: 6px 4px 5px; display: flex; flex-direction: column; align-items: center; gap: 4px;
     font-weight: 900; font-size: 0.85em; color: var(--text); box-shadow: 0 3px 0 var(--ink); transition: transform 0.08s, box-shadow 0.08s; }
   .hero:hover:not(.on) { background: #fff; }

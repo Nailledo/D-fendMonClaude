@@ -8,6 +8,7 @@ import type { Renderer } from '../render/Renderer';
 import { stride } from '../render/stride';
 import { settings } from '../settings';
 import { audio } from '../audio/Audio';
+import { ui } from '../state.svelte';
 
 /**
  * Mise en scène 3D du prologue, devant la porte du château, synchronisée sur les répliques :
@@ -72,7 +73,7 @@ export class Prologue {
     this.ethan = a(-1.1, 0.2, K.hero('ethan'), () => heroGeometry('ethan'), 1.4, 0.45);
     this.kessin = a(-1.6, -1.6, K.enemy('kessin1'), () => enemyGeometry('kessin1'), 1.75, 0.35);
     this.kessin.visible = false;
-    this.samuel = a(-6, 2.5, K.hero('samuel'), () => heroGeometry('samuel'), 1.4, 0, 0x3b82f6);
+    this.samuel = a(-6, 2.5, K.hero(ui.hero), () => heroGeometry(ui.hero), 1.4, 0, 0x3b82f6);
     this.samuel.visible = false;
     this.hemi0 = r.hemi.intensity;
     this.sun0 = r.sun.intensity;

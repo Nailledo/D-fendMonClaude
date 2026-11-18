@@ -63,7 +63,7 @@ class App {
     try {
       await loadManifest();
       setLoading(0.04, 'Chargement des modèles 3D…');
-      const keys = [K.hero('samuel'), ...['kessin1', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], []), ...portraitModelKeys()];
+      const keys = [...['kessin1', 'gobelin', 'loup', 'brute', 'corbeau'].map(K.enemy), ...gameModelKeys('vallee', [], []), ...portraitModelKeys()];
       await ensureModels(keys, span(0.04, 0.6));
       await buildLods(keys, span(0.6, 0.7, 'Optimisation des modèles…'));
       setLoading(0.7, 'Portraits des héros…');

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ENEMIES } from '@dfend/shared';
+import { ENEMIES, HERO_IDS } from '@dfend/shared';
 import { enemyGeometry } from '../art/enemies';
 import { heroGeometry, soldierGeometry } from '../art/units';
 import { towerModel } from '../art/towers';
@@ -65,10 +65,10 @@ export function renderPortraits(): Record<string, string> {
     out[key] = canvas.toDataURL('image/png');
     scene.remove(mesh);
   };
-  for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot(id, pick(K.hero(id), () => heroGeometry(id)), true);
+  for (const id of [...HERO_IDS, 'ethan', 'roi']) shot(id, pick(K.hero(id), () => heroGeometry(id)), true);
   // le narrateur n'a pas d'art en code : portrait seulement si son modèle est chargé
   if (model(K.hero('narrateur'))) shot('narrateur', pick(K.hero('narrateur'), () => heroGeometry('nox')), true, 0.66);
-  for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
+  for (const id of [...HERO_IDS, 'ethan', 'roi']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
   for (const e of ENEMIES) shot('e_' + e.id, pick(K.enemy(e.id), () => enemyGeometry(e.id)), false);
   shot('kessin', pick(K.enemy('kessin1'), () => enemyGeometry('kessin1')), true);
   shot('grolbak', pick(K.enemy('grolbak'), () => enemyGeometry('grolbak')), true);

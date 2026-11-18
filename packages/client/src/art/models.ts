@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptSimplifier } from 'meshoptimizer/simplifier';
-import { ENEMIES, type Biome } from '@dfend/shared';
+import { ENEMIES, HERO_IDS, type Biome } from '@dfend/shared';
 
 /**
  * Bibliothèque de modèles importés (GLB cuits par `pnpm models:bake`).
@@ -277,7 +277,7 @@ export function gameModelKeys(biome: Biome, enemyIds: string[], heroIds: string[
 /** Modèles utilisés par les portraits et l'encyclopédie (héros, ennemis, tours, soldats). */
 export function portraitModelKeys(): string[] {
   const keys: string[] = [];
-  for (const id of ['samuel', 'lyra', 'brom', 'nox', 'ethan', 'roi', 'narrateur']) keys.push(K.hero(id));
+  for (const id of [...HERO_IDS, 'ethan', 'roi', 'narrateur']) keys.push(K.hero(id));
   for (const e of ENEMIES) keys.push(K.enemy(e.id));
   for (let f = 0; f < 4; f++) for (let l = 0; l < 5; l++) keys.push(K.tower(f, l));
   for (let k = 0; k < 8; k++) keys.push(K.soldier(k));

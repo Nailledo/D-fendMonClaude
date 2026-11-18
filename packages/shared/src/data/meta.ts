@@ -1,7 +1,7 @@
 /**
  * Progression entre les parties, payée en étoiles :
- * - l'arbre de compétences : six branches de cinq rangs, achetés dans l'ordre ; bonus permanents,
- *   remboursables à tout moment (réinitialisation) ;
+ * - l'arbre de compétences : six branches de cinq rangs (tours, mines et campements, royaume), achetés
+ *   dans l'ordre ; bonus permanents, remboursables à tout moment (réinitialisation) ;
  * - la boutique : objets à usage unique emportés dans les parties (or, vies, givre, bombe).
  *
  * La simulation ne lit que les rangs de l'arbre et le stock d'objets de chaque joueur (dans GameConfig) :
@@ -21,12 +21,12 @@ export interface Perks {
   soldierArmor: number;
   /** réduction du temps de réapparition des soldats */
   soldierRespawn: number;
-  heroHp: number;
-  heroDmg: number;
-  heroRespawn: number;
-  heroXp: number;
-  /** réduction des temps de recharge des compétences du héros */
-  heroCd: number;
+  /** or des mines en plus (fraction) */
+  mineGold: number;
+  /** bonus des campements (portée, cadence, dégâts des voisines) en plus (fraction) */
+  campAura: number;
+  /** rayon des campements en plus (fraction) */
+  campRange: number;
   /** réduction des temps de recharge des sorts */
   spellCd: number;
   meteorDmg: number;
@@ -42,7 +42,7 @@ export function emptyPerks(): Perks {
     // une valeur par famille de tour (mine et campement compris, toujours nulles)
     dmg: [0, 0, 0, 0, 0, 0], range: [0, 0, 0, 0, 0, 0], rate: [0, 0, 0, 0, 0, 0], splash: 0,
     soldierHp: 0, soldierDmg: 0, soldierArmor: 0, soldierRespawn: 0,
-    heroHp: 0, heroDmg: 0, heroRespawn: 0, heroXp: 0, heroCd: 0,
+    mineGold: 0, campAura: 0, campRange: 0,
     spellCd: 0, meteorDmg: 0, renfortHp: 0, gold: 0, lives: 0,
   };
 }
@@ -114,13 +114,13 @@ export const TREE: TreeBranch[] = [
     ],
   },
   {
-    id: 'hero', name: 'Héros', color: '#1e88e5', icon: 'hero',
+    id: 'works', name: 'Intendance', color: '#26a69a', icon: 'fam4',
     ranks: [
-      { name: 'Endurance', desc: 'Points de vie du héros +12 %.', fx: (p) => { p.heroHp += 0.12; } },
-      { name: 'Bras armé', desc: 'Dégâts du héros +12 %.', fx: (p) => { p.heroDmg += 0.12; } },
-      { name: 'Retour héroïque', desc: 'Le héros réapparaît 30 % plus vite.', fx: (p) => { p.heroRespawn += 0.3; } },
-      { name: 'Expérience', desc: 'Le héros gagne 25 % d’expérience en plus.', fx: (p) => { p.heroXp += 0.25; } },
-      { name: 'Légende', desc: 'Compétences du héros rechargées 15 % plus vite.', fx: (p) => { p.heroCd += 0.15; } },
+      { name: 'Filons riches', desc: 'Les mines rapportent 15 % d’or en plus.', fx: (p) => { p.mineGold += 0.15; } },
+      { name: 'Piquets solides', desc: 'Rayon des campements +12 %.', fx: (p) => { p.campRange += 0.12; } },
+      { name: 'Prospecteurs', desc: 'Les mines rapportent 20 % d’or en plus.', fx: (p) => { p.mineGold += 0.2; } },
+      { name: 'Intendants', desc: 'Bonus des campements (portée, cadence, dégâts des tours voisines) +20 %.', fx: (p) => { p.campAura += 0.2; } },
+      { name: 'Grands travaux', desc: 'Mines +15 % d’or ; campements +15 % de bonus et de rayon.', fx: (p) => { p.mineGold += 0.15; p.campAura += 0.15; p.campRange += 0.15; } },
     ],
   },
   {
@@ -136,6 +136,12 @@ export const TREE: TreeBranch[] = [
 ];
 
 export const TREE_RANKS = 5;
+/**
+ * Version de l'ordre des branches. 2 : la branche Héros (indice 4) devient Intendance ;
+ * les rangs d'une progression plus ancienne y sont remis à zéro (étoiles rendues).
+ */
+export const TREE_VERSION = 2;
+export const TREE_RETIRED: Record<number, number[]> = { 2: [4] };
 
 /** Étoiles investies dans un arbre (rangs par branche). */
 export function treeCost(tree: readonly number[]): number {

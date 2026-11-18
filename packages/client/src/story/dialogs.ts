@@ -6,6 +6,7 @@ export interface Line {
 }
 
 export const SPEAKERS: Record<Speaker, { name: string; color: string }> = {
+  /** le héros joué : nom et portrait remplacés par le pseudo et le personnage du joueur (Dialog.svelte) */
   samuel: { name: 'Samuel', color: '#6aa8ff' },
   ethan: { name: 'Princesse Ethan', color: '#f472b6' },
   kessin: { name: 'Kessin', color: '#f26464' },

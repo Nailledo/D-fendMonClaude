@@ -1,4 +1,4 @@
-import { TREE, sanitizeMeta, treeCost } from './data/meta';
+import { TREE, TREE_RETIRED, TREE_VERSION, sanitizeMeta, treeCost } from './data/meta';
 import { EMPTY_BUILD, buildCost, heroPoints, sanitizeBuild, type HeroBuild } from './data/classes';
 
 /**
@@ -14,6 +14,8 @@ export interface Progress {
   finished: boolean;
   /** arbre de compétences : rangs achetés par branche */
   tree: number[];
+  /** version de l'ordre des branches de l'arbre (voir TREE_VERSION) */
+  treeV: number;
   /** objets de boutique en réserve (stock par objet) */
   items: number[];
   /** étoiles dépensées en boutique (non remboursables) */
@@ -25,7 +27,7 @@ export interface Progress {
 }
 
 export function emptyProgress(): Progress {
-  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], items: [], shopSpent: 0, bonusStars: 0, hero: sanitizeBuild(EMPTY_BUILD) };
+  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], treeV: TREE_VERSION, items: [], shopSpent: 0, bonusStars: 0, hero: sanitizeBuild(EMPTY_BUILD) };
 }
 
 const MAX_LEVELS = 64;
@@ -41,6 +43,7 @@ export function sanitizeProgress(raw: unknown): Progress {
   const stars = Array.isArray(p.stars) ? p.stars.slice(0, MAX_LEVELS) : [];
   const seen = Array.isArray(p.seen) ? p.seen.filter((s): s is string => typeof s === 'string' && /^[\w-]{1,32}$/.test(s)) : [];
   const meta = sanitizeMeta(p.tree, p.items);
+  migrateTree(meta.tree, int(p.treeV, TREE_VERSION) || 1);
   return {
     unlocked: int(p.unlocked, MAX_LEVELS),
     stars: stars.map((l) => (Array.isArray(l) ? l.slice(0, 3).map((s) => int(s, 3)) : [])),
@@ -48,11 +51,19 @@ export function sanitizeProgress(raw: unknown): Progress {
     seen: [...new Set(seen)].slice(0, MAX_SEEN),
     finished: p.finished === true,
     tree: meta.tree,
+    treeV: TREE_VERSION,
     items: meta.items,
     shopSpent: int(p.shopSpent, 1e6),
     bonusStars: int(p.bonusStars, 1e6),
     hero: sanitizeBuild(p.hero),
   };
+}
+
+/** Remet à zéro (étoiles rendues) les branches remplacées depuis la version `from` de l'arbre. */
+export function migrateTree(tree: number[], from: number): boolean {
+  let changed = false;
+  for (let v = from + 1; v <= TREE_VERSION; v++) for (const b of TREE_RETIRED[v] ?? []) if (tree[b]) { tree[b] = 0; changed = true; }
+  return changed;
 }
 
 /** Étoiles gagnées : meilleur résultat de chaque niveau dans chaque difficulté + étoiles bonus. */
@@ -95,6 +106,7 @@ export function mergeProgress(local: Progress, remote: Progress, localAt: number
     seen: [...new Set([...a.seen, ...b.seen])].slice(0, MAX_SEEN),
     finished: a.finished || b.finished,
     tree: [...spend.tree],
+    treeV: TREE_VERSION,
     items: [...spend.items],
     shopSpent: spend.shopSpent,
     bonusStars: Math.max(a.bonusStars, b.bonusStars),

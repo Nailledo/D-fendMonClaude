@@ -4,7 +4,7 @@
     AVENTURIER, CLASSES, CORE, CORE_COST, CORE_RANKS, DmgType, HEROES, ROUTE_COUNT, ROUTE_LEN, SKILL_UNLOCK, STAT_LABEL,
     chosenRoute, classNodes, classOf, coreOpen, heroSkills, nodeOpen, nodeReqs, nodeRoute, nodeStep, routeNode, type ClassSkill, type TreeNode,
   } from '@dfend/shared';
-  import { setHero, ui } from '../state.svelte';
+  import { heroName, setHero, ui } from '../state.svelte';
   import { buyCore, buyNode, canBuyCore, canBuyNode, heroBuild, heroPointsLeft, heroPointsTotal, loadout, resetHero } from '../meta';
   import { net } from '../net/Net';
   import HeroPicker from './HeroPicker.svelte';
@@ -384,7 +384,7 @@
           <div class="who">
             {#if ui.portraits[ui.hero]}<img src={ui.portraits[ui.hero]} alt="" />{/if}
             <div>
-              <b>{HEROES[ui.hero].name}</b>
+              <b>{heroName()}</b>
               <span>{active ? `${active.name}${route >= 0 ? ` · ${active.routes[route].name}` : ''}` : `${AVENTURIER.name} · ${AVENTURIER.role}`}</span>
             </div>
             <button class="btn small" onclick={() => (showSkins = !showSkins)}>Apparence</button>

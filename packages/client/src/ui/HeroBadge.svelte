@@ -1,6 +1,6 @@
 <script lang="ts">
   import { HEROES, buildCost, chosenRoute, classLook, classOf } from '@dfend/shared';
-  import { progress, ui } from '../state.svelte';
+  import { heroName, progress, ui } from '../state.svelte';
   import { heroBuild, heroPointsLeft } from '../meta';
   import { hex } from './classIcons';
 
@@ -15,8 +15,8 @@
 <button class="badge" style="--cc:{hex(c.color)}" onclick={() => (ui.overlay = 'herotree')}>
   {#if ui.portraits[ui.hero]}<img src={ui.portraits[ui.hero]} alt="" />{/if}
   <span class="tx">
-    <b>{HEROES[ui.hero].name}</b>
-    <span class="cl">{c.name}{rt ? ` · ${rt}` : ''}{spent ? ` · ${spent} point${spent > 1 ? 's' : ''} investi${spent > 1 ? 's' : ''}` : ''}</span>
+    <b>{heroName()}</b>
+    <span class="cl">{HEROES[ui.hero].title} · {c.name}{rt ? ` · ${rt}` : ''}{spent ? ` · ${spent} point${spent > 1 ? 's' : ''} investi${spent > 1 ? 's' : ''}` : ''}</span>
   </span>
   <span class="go">Arbre du héros{#if pts > 0}<em>{pts}</em>{/if}</span>
 </button>

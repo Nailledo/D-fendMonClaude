@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { ENEMIES, buildRuntimeMap, type SampledPath } from '@dfend/shared';
+import { ENEMIES, buildRuntimeMap, classLook, classOf, type SampledPath } from '@dfend/shared';
 import { enemyGeometry } from '../art/enemies';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry } from '../art/units';
 import { WEAPON_STYLE, heroWeapon } from '../art/weapons';
 import { settings } from '../settings';
+import { progress, ui } from '../state.svelte';
 import { Decal, Fx } from './Fx';
 import { InstPool, forgetPools } from './InstPool';
 import type { Renderer } from './Renderer';
@@ -15,7 +16,7 @@ import { buildWorld } from './World';
 /**
  * Écran titre : un diorama qui vit tout seul.
  * Des gobelins, loups et brutes avancent vraiment le long du chemin, deux tours leur tirent dessus,
- * Samuel les attend et les combat ;
+ * le héros les attend et les combat ;
  * des corbeaux tournent dans le ciel et des lucioles flottent.
  */
 interface Foe {
@@ -44,15 +45,18 @@ export class TitleScene {
   private path: SampledPath;
   private foes: Foe[] = [];
   private pools = new Map<number, InstPool>();
-  private hero: InstPool;
+  private hero!: InstPool;
+  /** personnage affiché (apparence choisie, arme de sa classe) */
+  private skin = '';
+  private weaponKind = -1;
   private heroWeapon: InstPool | null = null;
   private heroStyle = 0;
-  /** poste de garde de Samuel (devant la tour), sa position et son cap */
+  /** poste de garde du héros (devant la tour), sa position et son cap */
   private post = { x: 0, z: 0 };
   private heroPos = { x: 0, z: 0, yaw: 0 };
   private heroMoving = false;
   private heroPhase = 0;
-  /** avancement sur le chemin du poste de Samuel, et cap de base de la caméra */
+  /** avancement sur le chemin du poste du héros, et cap de base de la caméra */
   private postD = 40;
   private camBase = 0;
   private heroAtk = 0;
@@ -91,15 +95,8 @@ export class TitleScene {
     const k = Math.min(this.path.count - 1, Math.floor((this.path.length * 0.58) / (this.path.length / (this.path.count - 1))));
     this.heroPos.x = this.tmp.x + this.path.nx[k] * 0.4;
     this.heroPos.z = this.tmp.z + this.path.nz[k] * 0.4;
-    this.hero = pool(K.hero('samuel'), () => heroGeometry('samuel'), 1);
-    // son épée et son animation de combat (modèle importé)
-    const hm = model(K.hero('samuel'));
-    const wg = hm ? heroWeapon('samuel', hm.geo, 1) : null;
-    if (wg) {
-      this.heroWeapon = new InstPool(wg, 1, this.group, settings.shadows);
-      this.heroStyle = WEAPON_STYLE[1];
-    }
-    // deux tours sur les emplacements les plus proches de Samuel
+    this.syncHero();
+    // deux tours sur les emplacements les plus proches du héros
     const slots = [...map.slots].filter((s) => !s.locked && (s.x - this.heroPos.x) ** 2 + (s.z - this.heroPos.z) ** 2 > 16).sort((a, b) => (a.x - this.heroPos.x) ** 2 + (a.z - this.heroPos.z) ** 2 - ((b.x - this.heroPos.x) ** 2 + (b.z - this.heroPos.z) ** 2));
     [[0, 2], [2, 2]].forEach(([fam, lvl], i) => {
       const s = slots[i];
@@ -110,7 +107,7 @@ export class TitleScene {
       const y = m ? (m.meta.muzzleY ?? m.meta.height * 0.8) : tm!.muzzleY;
       this.towers.push({ pool: p, x: s.x, z: s.z, y, kind: fam === 0 ? 0 : fam === 2 ? 1 : 4, cd: fam === 0 ? 0.9 : fam === 2 ? 1.4 : 2.4, fired: -9, range: fam === 3 ? 9 : 8 });
     });
-    // Samuel monte la garde devant la première tour : entre elle et le chemin, au bord de la terre battue
+    // le héros monte la garde devant la première tour : entre elle et le chemin, au bord de la terre battue
     const t0 = this.towers[0];
     if (t0) {
       let best = 0, bd = Infinity;
@@ -123,7 +120,7 @@ export class TitleScene {
       const dx = t0.x - px, dz = t0.z - pz, l = Math.hypot(dx, dz) || 1;
       this.post.x = px + (dx / l) * 1.6;
       this.post.z = pz + (dz / l) * 1.6;
-      // la caméra reste du côté du chemin (Samuel entre elle et la tour)
+      // la caméra reste du côté du chemin (le héros entre elle et la tour)
       this.camBase = Math.atan2(-dx, -dz);
     } else {
       this.post.x = this.heroPos.x;
@@ -133,7 +130,7 @@ export class TitleScene {
     this.heroPos.z = this.post.z;
     this.focus.set(this.post.x, 1, this.post.z);
     this.crows = pool(K.enemy('corbeau'), () => enemyGeometry('corbeau'), 4);
-    // une colonne déjà en route au lancement : la tête arrive au poste de Samuel en quelques secondes
+    // une colonne déjà en route au lancement : la tête arrive au poste du héros en quelques secondes
     for (let i = 0; i < 6; i++) this.spawn(Math.max(0.5, this.postD - 5 - i * 3.2), -9);
     r.scene.add(this.group);
   }
@@ -156,7 +153,30 @@ export class TitleScene {
     }
   }
 
+  /** Personnage choisi par le joueur (apparence + arme de sa classe) : maillages refaits s'il a changé. */
+  private syncHero() {
+    const id = ui.hero;
+    const weapon = classLook(classOf(progress.hero) ? progress.hero.cls : -1).weapon;
+    if (id === this.skin && weapon === this.weaponKind) return;
+    this.skin = id;
+    this.weaponKind = weapon;
+    this.hero?.dispose();
+    this.heroWeapon?.dispose();
+    this.heroWeapon = null;
+    this.heroStyle = 0;
+    const g = geoFor(K.hero(id), () => heroGeometry(id));
+    this.hero = new InstPool(g.geo, 1, this.group, settings.shadows, g.map);
+    // arme et animation de combat (modèle importé)
+    const hm = model(K.hero(id));
+    const wg = hm ? heroWeapon(id, hm.geo, weapon) : null;
+    if (wg) {
+      this.heroWeapon = new InstPool(wg, 1, this.group, settings.shadows);
+      this.heroStyle = WEAPON_STYLE[weapon];
+    }
+  }
+
   update(dt: number) {
+    this.syncHero();
     this.t += dt;
     const t = this.t, fx = this.fx;
     const tick = t * TICK;
@@ -174,7 +194,7 @@ export class TitleScene {
       if (f.d > L - 1) continue;
       this.foes[w++] = f;
       if (f.dead >= 0) continue;
-      // Samuel choisit le premier ennemi qui approche de son poste ; celui-ci s'arrête quand Samuel est au contact
+      // le héros choisit le premier ennemi qui approche de son poste ; celui-ci s'arrête quand le héros est au contact
       const dp = Math.hypot(f.x - this.post.x, f.z - this.post.z);
       if (!this.heroTarget && dp < 4.2) this.heroTarget = f;
       const dh = Math.hypot(f.x - this.heroPos.x, f.z - this.heroPos.z);
@@ -189,7 +209,7 @@ export class TitleScene {
     this.foes.length = w;
     if (this.heroTarget && (this.heroTarget.dead >= 0 || !this.foes.includes(this.heroTarget))) this.heroTarget = null;
 
-    // ------------------------------------------------ Samuel : va au-devant de l'ennemi, se bat, puis regagne son poste
+    // ------------------------------------------------ le héros : va au-devant de l'ennemi, se bat, puis regagne son poste
     const tg = this.heroTarget;
     const hp = this.heroPos;
     let gx = this.post.x, gz = this.post.z;
@@ -304,9 +324,13 @@ export class TitleScene {
     const a = this.camBase + Math.sin(t * 0.07) * 0.75;
     const cam = this.r.camera;
     const f = this.focus;
+    // téléphone en portrait : le menu couvre le bas de l'écran ; on vise plus bas pour remonter le héros
+    // dans la bande visible entre le logo et le menu
+    const tall = (cam as THREE.PerspectiveCamera).aspect < 0.8;
+    const dist = tall ? 15 : 13, lookY = tall ? f.y - 2.2 : f.y + 1.6;
     const place = () => {
-      cam.position.set(f.x + Math.sin(a) * 13, 5.2 + Math.sin(t * 0.2) * 0.5, f.z + Math.cos(a) * 13);
-      cam.lookAt(f.x - Math.sin(a) * 5, f.y + 1.6, f.z - Math.cos(a) * 5);
+      cam.position.set(f.x + Math.sin(a) * dist, (tall ? 6 : 5.2) + Math.sin(t * 0.2) * 0.5, f.z + Math.cos(a) * dist);
+      cam.lookAt(f.x - Math.sin(a) * 5, lookY, f.z - Math.cos(a) * 5);
     };
     place();
     this.r.update(dt, t);

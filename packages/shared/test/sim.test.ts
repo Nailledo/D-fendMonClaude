@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, sanitizeProgress, TREE_VERSION, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 /** arbre : vocation, la voie gauche (0) ou droite (1) jusqu'au rang `upto`, l'ultime si demandé */
 /** rangs : la racine et les `n` premiers nœuds de la route `j` (au maximum) */
@@ -275,7 +275,8 @@ describe('arbre de compétences et boutique', () => {
     const boosted = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', tree: full }] }));
     expect(boosted.players[0].gold).toBe(base.players[0].gold + 100);
     expect(boosted.maxLives).toBe(base.maxLives + 2);
-    expect(boosted.heroes[0].u.maxHp).toBeGreaterThan(base.heroes[0].u.maxHp);
+    // l'atelier ne touche plus au héros (il progresse dans son propre arbre)
+    expect(boosted.heroes[0].u.maxHp).toBe(base.heroes[0].u.maxHp);
     // soldats de caserne : plus de points de vie
     const slot = base.map.slots.findIndex((s) => !s.locked);
     base.apply(0, { k: 'build', slot, fam: 1 });
@@ -427,6 +428,29 @@ describe('priorité de ciblage, propriétés d’ennemis, mine et campement', ()
     } else expect(t.auraRate).toBe(0);
     expect(campAura(4, [0, 3]).dmg).toBeGreaterThan(0);
     expect(campAura(3, [2, 0]).mark).toBeGreaterThan(0);
+  });
+
+  it('l’Intendance de l’atelier enrichit les mines et renforce les campements', () => {
+    const W = TREE.findIndex((b) => b.id === 'works');
+    expect(W).toBe(4);
+    const tree = TREE.map((_, i) => (i === W ? 5 : 0));
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', tree }] }));
+    const slot = sim.map.slots.findIndex((s) => !s.locked);
+    sim.apply(0, { k: 'build', slot, fam: 4 });
+    const g = sim.players[0].gold;
+    sim.apply(0, { k: 'wave' });
+    // +15 % +20 % +15 % = +50 %
+    expect(sim.players[0].gold).toBe(g + Math.round(TOWERS.mine[0].income! * 1.5));
+    const a = campAura(0, [0, 0], 0.35, 0.27);
+    expect(a.rate).toBeCloseTo(TOWERS.camp[0].aura!.rate * 1.35);
+    expect(a.r).toBeCloseTo(TOWERS.camp[0].range * 1.27);
+  });
+
+  it('une ancienne sauvegarde rend les étoiles de l’ancienne branche Héros', () => {
+    const p = sanitizeProgress({ tree: [1, 0, 0, 0, 5, 2] });
+    expect(p.tree).toEqual([1, 0, 0, 0, 0, 2]);
+    expect(p.treeV).toBe(TREE_VERSION);
+    expect(sanitizeProgress({ tree: [0, 0, 0, 0, 3, 0], treeV: TREE_VERSION }).tree[4]).toBe(3);
   });
 });
 
