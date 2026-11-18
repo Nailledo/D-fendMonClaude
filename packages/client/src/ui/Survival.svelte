@@ -3,8 +3,8 @@
   import { DIFFICULTY_NAMES, MAPS, SURVIVAL_MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
-  import { setDifficulty, setHero, ui } from '../state.svelte';
-  import HeroPicker from './HeroPicker.svelte';
+  import { setDifficulty, ui } from '../state.svelte';
+  import HeroBadge from './HeroBadge.svelte';
   import { ICON } from './icons';
 
   let map = $state(SURVIVAL_MAPS[0]);
@@ -42,7 +42,7 @@
         <button class:on={diff === i} onclick={() => setDifficulty(i as Difficulty)}>{d}</button>
       {/each}
     </div>
-    <HeroPicker value={ui.hero} onpick={setHero} />
+    <HeroBadge />
     <div class="row">
       <button class="btn gold big grow" onclick={play}>Jouer seul</button>
       <button class="btn" onclick={() => { ui.screen = 'multi'; app.connect(); }}>{@html ICON.users} En coop</button>

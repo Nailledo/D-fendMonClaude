@@ -1,3 +1,4 @@
+import type { HeroBuild } from './data/classes';
 export type Family = 'archer' | 'barracks' | 'mage' | 'artillery' | 'mine' | 'camp';
 /** Familles de tours : les quatre de combat, puis la mine (économie) et le campement (soutien). */
 export const FAMILIES: Family[] = ['archer', 'barracks', 'mage', 'artillery', 'mine', 'camp'];
@@ -31,6 +32,8 @@ export interface PlayerInfo {
   tree?: number[];
   /** objets de boutique emportés (stock par objet) */
   items?: number[];
+  /** arbre du héros : classe et nœuds (voir data/classes) */
+  build?: HeroBuild;
 }
 
 export interface GameConfig {

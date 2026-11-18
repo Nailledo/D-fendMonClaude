@@ -1,12 +1,12 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { DIFFICULTY_NAMES, ENEMIES, ENEMY_INDEX, HEROES, LEVELS, MAPS, type Difficulty } from '@dfend/shared';
+  import { DIFFICULTY_NAMES, ENEMIES, ENEMY_INDEX, LEVELS, MAPS, type Difficulty } from '@dfend/shared';
   import { app } from '../app';
   import { audio } from '../audio/Audio';
-  import { progress, setDifficulty, setHero, ui } from '../state.svelte';
+  import { progress, setDifficulty, ui } from '../state.svelte';
   import { availableStars } from '../meta';
   import { TRAIT_ICON, enemyTraits } from './enemyTraits';
-  import HeroPicker from './HeroPicker.svelte';
+  import HeroBadge from './HeroBadge.svelte';
   import { ICON } from './icons';
 
   // positions des niveaux sur la carte (en %)
@@ -154,8 +154,7 @@
 
     <section>
       <h3 class="lbl">Héros</h3>
-      <div class="hp"><HeroPicker value={ui.hero} onpick={setHero} compact /></div>
-      <p class="hint"><b>{HEROES[ui.hero].name}</b> · {HEROES[ui.hero].title}</p>
+      <HeroBadge />
     </section>
     </div>
 
@@ -227,9 +226,7 @@
   .diff { gap: 6px; }
   .diff > button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; padding: 7px 4px; font-size: 0.86em; }
   .diff :global(.icon) { width: 14px; height: 14px; margin: 0; vertical-align: 0; flex: none; }
-  .hp :global(.hero img) { max-width: 46px; }
   .hint { margin: 0; font-size: 0.9em; color: var(--muted); font-weight: 700; }
-  .hint b { color: var(--text); font-weight: 900; }
   .cta { flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(45, 36, 22, 0.25); }
   .cta .btn { width: 100%; }
   .sub { display: flex; gap: 8px; }

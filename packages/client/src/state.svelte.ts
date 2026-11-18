@@ -3,7 +3,7 @@ import type { Line } from './story/dialogs';
 import { load, loadRaw, save } from './storage';
 
 export type Screen = 'title' | 'story' | 'survival' | 'multi' | 'lobby' | 'game';
-export type Overlay = null | 'settings' | 'encyclo' | 'leaderboard' | 'heroes' | 'help' | 'atelier';
+export type Overlay = null | 'settings' | 'encyclo' | 'leaderboard' | 'heroes' | 'help' | 'atelier' | 'herotree' | 'skin';
 
 export interface Selection {
   kind: 'build' | 'tower' | 'enemy' | 'hero' | 'ally';
@@ -65,7 +65,7 @@ export const ui = $state({
     speed: 1,
     mutations: [] as number[],
     players: [] as HudPlayer[],
-    hero: { type: 0, level: 1, xp: 0, hp: 1, cds: [0, 0, 0], respawn: 0, dead: false },
+    hero: { type: 0, cls: 0, nodes: 0, level: 1, xp: 0, hp: 1, cds: [0, 0, 0], respawn: 0, dead: false },
     spells: [0, 0],
     /** objets de boutique restants dans la partie */
     items: [] as number[],
@@ -76,6 +76,8 @@ export const ui = $state({
   end: null as null | EndInfo,
   /** étoiles gagnées pour l'atelier à la fin de la partie */
   starsGained: 0,
+  /** points de héros gagnés à la fin de la partie */
+  heroPointsGained: 0,
   chat: [] as { from: string; text: string; color: number; t: number }[],
   chatOpen: false,
   toasts: [] as { id: number; text: string; kind: string }[],

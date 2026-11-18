@@ -30,8 +30,10 @@ export class Entities {
   private soldierPools: InstPool[] = [];
   private heroPools: InstPool[] = [];
   /** arme tenue par chaque héros importé (null : art en code, l'arme fait partie du modèle) */
+  /** arme de chaque apparence × style d'arme (classe) : index type * 5 + style */
   private weaponPools: (InstPool | null)[] = [];
-  private heroStyle: number[] = [];
+  /** le modèle importé de l'apparence peut porter une arme (sinon pas d'animation de combat) */
+  private heroArmed: boolean[] = [];
   /** tourelle de Matéo : socle fixe et tête orientable (pas d'animation de personnage) */
   private turretBase: InstPool;
   private turretHead: InstPool;
@@ -77,6 +79,8 @@ export class Entities {
   /** hauteur du canon de chaque tour (pour l'origine des tirs) */
   towerMuzzle = new Map<number, { x: number; y: number; z: number; fam: number; level: number; owner: number; slot: number }>();
   heroTypeByUnit = new Map<number, number>();
+  /** style d'arme (classe) de chaque héros : 1 épée, 2 arc, 3 marteau, 4 bâton */
+  heroStyleByUnit = new Map<number, number>();
   /** joueur local : son héros reçoit un halo pour qu'on le repère d'un coup d'œil */
   you = -1;
   /** pendant une cinématique, les héros de la partie sont masqués (les acteurs prennent leur place) */
@@ -158,9 +162,11 @@ export class Entities {
       this.heroPools.push(pool(K.hero(h), () => heroGeometry(h), 4));
       // modèle importé : on lui met son arme en main et son animation de combat
       const m = model(K.hero(h));
-      const wg = m ? heroWeapon(h, m.geo) : null;
-      this.weaponPools.push(wg ? new InstPool(wg, 4, this.group, settings.shadows) : null);
-      this.heroStyle.push(wg ? HERO_STYLE[h] ?? 0 : 0);
+      this.heroArmed.push(!!m);
+      for (let st = 0; st < 5; st++) {
+        const wg = m && st ? heroWeapon(h, m.geo, st) : null;
+        this.weaponPools.push(wg ? new InstPool(wg, 4, this.group, settings.shadows) : null);
+      }
     }
     const g = new THREE.PlaneGeometry(1, 1);
     this.hp = new THREE.InstancedMesh(g, hpBarMaterial(), 1024);
@@ -404,8 +410,9 @@ export class Entities {
           this.uDead[id] = 1;
           const hero = kind === HERO_UNIT;
           const ht = this.heroTypeByUnit.get(id) ?? 0;
+          const st = this.heroArmed[ht] ? this.heroStyleByUnit.get(id) ?? HERO_STYLE[HERO_IDS[ht]] ?? 0 : 0;
           const pool = hero ? this.heroPools[ht] : this.soldierPools[kind] ?? this.soldierPools[0];
-          this.corpses.push({ pool, weapon: hero ? this.weaponPools[ht] : null, style: hero ? this.heroStyle[ht] : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
+          this.corpses.push({ pool, weapon: hero ? this.weaponPools[ht * 5 + st] : null, style: hero && this.weaponPools[ht * 5 + st] ? st : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
         }
         continue;
       }
@@ -442,9 +449,10 @@ export class Entities {
       let scale = 1;
       if (kind === HERO_UNIT) {
         const ht = this.heroTypeByUnit.get(id) ?? 0;
+        const st = this.heroArmed[ht] ? this.heroStyleByUnit.get(id) ?? HERO_STYLE[HERO_IDS[ht]] ?? 0 : 0;
         pool = this.heroPools[ht];
-        weapon = this.weaponPools[ht];
-        style = this.heroStyle[ht];
+        weapon = this.weaponPools[ht * 5 + st];
+        style = weapon ? st : 0;
         scale = 1.25;
         if (f.uOwner[i] === this.you) this.placeGlow(f.uX[i], f.uZ[i], team, time);
       } else {

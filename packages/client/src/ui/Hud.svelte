@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, TRAITS } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, TRAITS, CLASSES, SKILL_UNLOCK, heroSkills } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -13,11 +13,13 @@
   import TowerPanel from './TowerPanel.svelte';
   import { enemyTraits } from './enemyTraits';
   import { FAMILY_NAME, ICON, ITEM_ICON, LINE, SKILL_ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
-  import { SKILL_ICON as HERO_SKILL_ICON } from './skillIcons';
+  import { skillIcon } from './classIcons';
   import { fit } from './fit';
 
   const h = $derived(ui.hud);
   const hero = $derived(HEROES[HERO_IDS[h.hero.type]]);
+  const hcls = $derived(CLASSES[h.hero.cls] ?? CLASSES[0]);
+  const hskills = $derived(heroSkills({ cls: h.hero.cls, nodes: h.hero.nodes, common: 0 }));
   const g = () => app.game;
   const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
   const multi = $derived(!!ui.game?.multi);
@@ -170,19 +172,22 @@
       {#if h.hero.dead}<span class="resp">{h.hero.respawn}</span>{/if}
     </button>
     <div class="hcol">
-      <div class="hname">{hero.name}<small>niveau {h.hero.level}</small></div>
+      <div class="hname">{hero.name}<small>{hcls.name} · niveau {h.hero.level}</small></div>
       <div class="bar hp"><i style="width:{h.hero.hp * 100}%"></i></div>
       <div class="bar xp"><i style="width:{h.hero.xp * 100}%"></i></div>
       <div class="skills">
-        {#each hero.skills as s, i}
-          {@const locked = h.hero.level < s.unlock}
+        {#each hskills as s, i}
+          {@const unlock = SKILL_UNLOCK[i]}
+          {@const locked = !s || h.hero.level < unlock}
           {@const cd = h.hero.cds[i]}
           <button class="skill" class:ult={i === 2} class:locked disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
-            title="{s.name} — {s.desc} (recharge {s.cd} s){locked ? ` — niveau ${s.unlock} requis` : ''}">
-            {#if locked}
-              <Ico k="lock" fb={LINE.lock} /><span class="sn">Niv. {s.unlock}</span>
+            title={s ? `${s.name} — ${s.desc} (recharge ${s.cd} s)${locked ? ` — niveau ${unlock} requis` : ''}` : 'Ultime : à apprendre dans l’arbre du héros (dernier nœud d’une classe)'}>
+            {#if !s}
+              <Ico k="lock" fb={LINE.lock} /><span class="sn">Arbre</span>
+            {:else if locked}
+              <Ico k="lock" fb={LINE.lock} /><span class="sn">Niv. {unlock}</span>
             {:else}
-              <span class="si"><Ico k={`sk_${hero.id}_${i}`} fb={HERO_SKILL_ICON[hero.id]?.[i] ?? SKILL_ICON[s.icon] ?? ''} /></span><span class="sn">{s.short}</span>
+              <span class="si"><Ico k={skillIcon(s).k} fb={skillIcon(s).fb} /></span><span class="sn">{s.short}</span>
               {#if cd > 0}<span class="cd" style="--p:{frac(cd, s.cd)}">{cd}</span>{/if}
             {/if}
             <span class="kbd">{keyLabel(i === 0 ? keys.skill1 : i === 1 ? keys.skill2 : keys.ult)}</span>

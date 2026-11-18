@@ -11,6 +11,8 @@
   import Leaderboard from './Leaderboard.svelte';
   import Help from './Help.svelte';
   import Atelier from './Atelier.svelte';
+  import HeroTree from './HeroTree.svelte';
+  import SkinPick from './SkinPick.svelte';
   import Loading from './Loading.svelte';
 </script>
 
@@ -33,6 +35,8 @@
 {#if ui.overlay === 'leaderboard'}<Leaderboard />{/if}
 {#if ui.overlay === 'help'}<Help />{/if}
 {#if ui.overlay === 'atelier'}<Atelier />{/if}
+{#if ui.overlay === 'herotree'}<HeroTree />{/if}
+{#if ui.overlay === 'skin'}<SkinPick />{/if}
 
 <Loading />
 

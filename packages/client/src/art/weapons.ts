@@ -55,14 +55,13 @@ function limb(g: GB, pts: [number, number][], x: number, oy: number, oz: number,
 }
 
 /** Arme du héros `id` ajustée à la main du modèle `geo` ; null si le héros n'a pas d'arme prévue. */
-export function heroWeapon(id: string, geo: THREE.BufferGeometry): THREE.BufferGeometry | null {
-  const style = HERO_STYLE[id];
+export function heroWeapon(id: string, geo: THREE.BufferGeometry, style = HERO_STYLE[id]): THREE.BufferGeometry | null {
   if (!style) return null;
   const left = style === 2;
   const arm = armOf(geo, left ? Part.ArmL : Part.ArmR);
   if (!arm) return null;
   const [hx, hy, hz] = arm.hand;
-  const g = new GB(id.length * 17 + 5);
+  const g = new GB(id.length * 17 + 5 + style * 101);
   g.ao = false;
   g.jitter = 0.04;
   // pivot du poignet sous l'épaule (même axe de rotation que le bras), arme placée à la vraie main

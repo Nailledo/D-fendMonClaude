@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DmgType, ENEMY_INDEX, LEAD_PHYS, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 const cfg = (over: Partial<GameConfig> = {}): GameConfig => ({
   mode: 'story', mapId: 'pont', difficulty: 1, seed: 42,
@@ -167,8 +167,8 @@ describe('coopération et héros', () => {
     expect(sim.players[0].gold - before).toBeLessThan(t.invested);
   });
 
-  it('la charge de Samuel s’arrête à sa portée', () => {
-    const sim = new Sim(cfg());
+  it('la charge de l’épéiste s’arrête à sa portée', () => {
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: { cls: 1, nodes: 1, common: 0 } }] }));
     const u = sim.heroes[0].u;
     const x0 = u.x, z0 = u.z;
     sim.apply(0, { k: 'hskill', i: 0, x: x0 + 30, z: z0 });
@@ -177,7 +177,7 @@ describe('coopération et héros', () => {
 
   it('un clic droit sur un ennemi : la mêlée va au contact, le tir reste à portée', () => {
     for (const hero of ['samuel', 'lyra'] as const) {
-      const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero }] }));
+      const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero, build: { cls: hero === 'lyra' ? 3 : 1, nodes: 1, common: 0 } }] }));
       const u = sim.heroes[0].u;
       sim.apply(0, { k: 'wave' });
       let e: (typeof sim.enemies)[number] | undefined;
@@ -423,3 +423,51 @@ describe('priorité de ciblage, propriétés d’ennemis, mine et campement', ()
     expect(campAura(3, [2, 0]).mark).toBeGreaterThan(0);
   });
 });
+
+describe('classes du héros', () => {
+  const spawn = (sim: Sim, type: string, dist: number, traits = 0) =>
+    (sim as any).spawnEnemy(ENEMY_INDEX[type], 0, 1, 0, dist, traits) as Sim['enemies'][number];
+  it('sans vocation : Aventurier, deux compétences simples', () => {
+    const sim = new Sim(cfg());
+    const h = sim.heroes[0];
+    expect(h.cls.id).toBe('aventurier');
+    expect(h.skills.map((s) => s?.id ?? null)).toEqual(['coup', 'souffle', null]);
+    expect(h.u.range).toBe(0);
+  });
+
+  it('la chaîne de classe débloque compétences et passifs dans l’ordre', () => {
+    expect(heroSkills({ cls: 4, nodes: 1, common: 0 }).map((s) => s?.id ?? null)).toEqual(['boule', 'souffle', null]);
+    expect(heroSkills({ cls: 4, nodes: 5, common: 0 }).map((s) => s?.id ?? null)).toEqual(['boule', 'nova', 'meteore']);
+    expect(heroPassives({ cls: 4, nodes: 4, common: 0 })).toEqual(['clairvoyance', 'arcanes']);
+    expect(buildCost({ cls: 4, nodes: 5, common: 3 })).toBe(12);
+    expect(sanitizeBuild({ cls: 99, nodes: -3, common: 'x' })).toEqual({ cls: 7, nodes: 0, common: 0 });
+    expect(heroPoints([[3, 0, 0], [1, 2, 0], undefined as unknown as number[], [0, 0, 0]])).toBe(3);
+  });
+
+  it('un mage repère les camouflés de plus loin avec Clairvoyance', () => {
+    const mk = (nodes: number) => {
+      const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'nox', build: { cls: 4, nodes, common: 0 } }] }));
+      const u = sim.heroes[0].u;
+      const e = spawn(sim, 'gobelin', 3, Trait.Camo);
+      u.x = u.hx = e.x + 4; u.z = u.hz = e.z;
+      sim.step();
+      return e.revealed;
+    };
+    expect(mk(1)).toBe(false);
+    expect(mk(2)).toBe(true);
+  });
+
+  it('les compétences de chaque classe se lancent sans erreur', () => {
+    for (let c = 0; c < CLASSES.length; c++) {
+      const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: { cls: c, nodes: 5, common: 3 } }] }));
+      const h = sim.heroes[0];
+      h.level = 10;
+      sim.apply(0, { k: 'wave' });
+      for (let i = 0; i < 20 * 15; i++) sim.step();
+      for (const i of [0, 1, 2] as const) sim.apply(0, { k: 'hskill', i, x: h.u.x + 2, z: h.u.z });
+      for (let i = 0; i < 20 * 3; i++) sim.step();
+      expect(h.cds.filter((v) => v > 0).length, CLASSES[c].id).toBe(c === 0 ? 2 : 3);
+    }
+  });
+});
+

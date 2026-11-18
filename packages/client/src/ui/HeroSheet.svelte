@@ -1,35 +1,37 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { HEROES, type HeroId } from '@dfend/shared';
-  import { ui } from '../state.svelte';
-  import { PASSIVE_ICON, SKILL_ICON } from './skillIcons';
+  import { CLASSES, DmgType, SKILL_UNLOCK, type ClassPassive, type ClassSkill } from '@dfend/shared';
+  import { hex, passiveIcon, skillIcon } from './classIcons';
 
-  /** Fiche d'un héros : en-tête, puis ses 4 capacités en cases alignées (icône, nom, type, effet). */
-  let { id, portrait = false }: { id: HeroId; portrait?: boolean } = $props();
-  const h = $derived(HEROES[id]);
-  const abilities = $derived([
-    { icon: 'pa_' + id, fb: PASSIVE_ICON[id] ?? '', name: h.passive.name, kind: 'Passif', meta: 'toujours actif', desc: h.passive.desc, ult: false },
-    ...h.skills.map((s, i) => ({
-      icon: `sk_${id}_${i}`,
-      fb: SKILL_ICON[id]?.[i] ?? '',
+  /** Fiche d'une classe de héros : en-tête, statistiques, puis ses passifs et compétences (icône, nom, type, effet). */
+  let { cls }: { cls: number } = $props();
+  const c = $derived(CLASSES[cls] ?? CLASSES[0]);
+  type Ab = { icon: { k: string; fb: string }; name: string; kind: string; meta: string; desc: string; ult: boolean };
+  const abilities = $derived<Ab[]>([
+    ...(c.passives as ClassPassive[]).map((p, i) => ({ icon: passiveIcon(p), name: p.name, kind: 'Passif', meta: `nœud ${i === 0 ? 2 : 4}`, desc: p.desc, ult: false })),
+    ...(c.skills as ClassSkill[]).map((s, i) => ({
+      icon: skillIcon(s),
       name: s.name,
       kind: i === 2 ? 'Ultime' : `Compétence ${i + 1}`,
-      meta: `niveau ${s.unlock} · recharge ${s.cd} s`,
+      meta: `niveau ${SKILL_UNLOCK[i]} · recharge ${s.cd} s`,
       desc: s.desc,
       ult: i === 2,
     })),
   ]);
 </script>
 
-<div class="sheet" class:withp={portrait}>
-  {#if portrait && ui.portraits['full_' + id]}<img class="big" src={ui.portraits['full_' + id]} alt={h.name} />{/if}
+<div class="sheet" style="--cc:{hex(c.color)}">
   <div class="main">
-    <div class="hd"><b>{h.name}</b><span>{h.title}</span></div>
-    <p class="desc">{h.desc}</p>
+    <div class="hd"><b>{c.name}</b><span>{c.role}</span></div>
+    <p class="desc">{c.desc}</p>
+    <div class="st">
+      <span>PV {c.hp}</span><span>Dégâts {c.dmg[0]}–{c.dmg[1]}</span><span>{c.range ? `Portée ${String(c.range).replace('.', ',')}` : 'Mêlée'}</span>
+      <span>{c.dmgType === DmgType.Magic ? 'Magique' : 'Physique'}</span><span>Armure {Math.round(c.armor * 100)} %</span>
+    </div>
     <ul class="ab">
       {#each abilities as a}
         <li class:ult={a.ult}>
-          <span class="ic"><Ico k={a.icon} fb={a.fb} /></span>
+          <span class="ic"><Ico k={a.icon.k} fb={a.icon.fb} /></span>
           <div class="tx">
             <b class="nm">{a.name}</b>
             <div class="meta"><span class="kind">{a.kind}</span>{a.meta}</div>
@@ -43,10 +45,11 @@
 
 <style>
   .sheet { display: flex; gap: 16px; align-items: flex-start; text-align: left; }
-  .big { flex: none; width: 112px; height: 112px; border-radius: 50%; border: 2.5px solid var(--ink); background: linear-gradient(180deg, #a9d3f2 0 55%, #7cc242 55%); }
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .hd { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
-  .hd b { font-family: var(--font-display); font-weight: 400; font-size: 1.5em; line-height: 1; }
+  .st { display: flex; flex-wrap: wrap; gap: 4px; }
+  .st span { font-size: 11.5px; font-weight: 900; padding: 0 8px; border: 2px solid var(--ink); border-radius: 99px; background: var(--panel-hi); }
+  .hd b { font-family: var(--font-display); font-weight: 400; font-size: 1.5em; line-height: 1; color: var(--cc); -webkit-text-stroke: 0.5px var(--ink); }
   .hd span { font-size: 0.9em; font-weight: 800; color: var(--muted); }
   .desc { margin: 0; font-size: 0.92em; color: var(--muted); font-weight: 700; line-height: 1.35; }
   .ab { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
@@ -62,7 +65,6 @@
   .meta { display: flex; flex-wrap: wrap; align-items: center; row-gap: 2px; margin-top: 2px; font-size: 11.5px; font-weight: 800; color: var(--faint); }
   .tx p { margin: 2px 0 0; font-size: 0.86em; font-weight: 700; line-height: 1.3; color: var(--text); }
   @media (max-width: 560px) {
-    .big { width: 72px; height: 72px; }
     .sheet { gap: 10px; }
   }
 </style>

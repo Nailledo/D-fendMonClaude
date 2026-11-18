@@ -33,6 +33,9 @@
     {#if ui.starsGained > 0}
       <p class="gain"><Ico k="star" fb={ICON.star} /> +{ui.starsGained} étoile{ui.starsGained > 1 ? 's' : ''} pour l’atelier</p>
     {/if}
+    {#if ui.heroPointsGained > 0}
+      <p class="gain hero">+{ui.heroPointsGained} point{ui.heroPointsGained > 1 ? 's' : ''} de héros · <button class="btn small" onclick={() => (ui.overlay = 'herotree')}>Arbre du héros</button></p>
+    {/if}
     <table>
       <thead><tr><th>Joueur</th><th>Éliminations</th><th>Dégâts</th><th>Or gagné</th></tr></thead>
       <tbody>

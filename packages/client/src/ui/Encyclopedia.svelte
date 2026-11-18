@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HERO_IDS, TOWERS, TRAITS } from '@dfend/shared';
+  import { CLASSES, ENEMIES, FAMILIES, TOWERS, TRAITS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
   import { FAMILY_COLOR, FAMILY_NAME, ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { UPGRADE_ICON } from './skillIcons';
@@ -20,7 +20,7 @@
     <div class="seg">
       <button class:on={tab === 'towers'} onclick={() => (tab = 'towers')}>Tours</button>
       <button class:on={tab === 'enemies'} onclick={() => (tab = 'enemies')}>Ennemis ({seenCount})</button>
-      <button class:on={tab === 'heroes'} onclick={() => (tab = 'heroes')}>Héros</button>
+      <button class:on={tab === 'heroes'} onclick={() => (tab = 'heroes')}>Classes du héros</button>
     </div>
     <div class="body scroll">
       {#if tab === 'towers'}
@@ -72,7 +72,8 @@
         </div>
       {:else}
         <div class="heroes">
-          {#each HERO_IDS as h}<div class="hrow"><HeroSheet id={h} portrait /></div>{/each}
+          <p class="small intro">L’apparence du héros ne change rien à ses pouvoirs : ils dépendent de la classe choisie dans l’arbre du héros.</p>
+          {#each CLASSES as _, i}<div class="hrow"><HeroSheet cls={i} /></div>{/each}
         </div>
       {/if}
     </div>

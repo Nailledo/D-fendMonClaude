@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
-  ET_REVEALED, PRIO_NAMES, SHOOTERS, TRAITS, Trait, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
+  ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, heroSkills, heroPoints, CLASSES, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
@@ -41,6 +41,14 @@ function bowPos(hx: number, hz: number, tx: number, tz: number, out: { x: number
   out.y = 0.88;
   return out;
 }
+
+/** Compétences du héros du joueur (d'après sa classe, reçue dans l'instantané). */
+function hudSkills() {
+  const h = ui.hud.hero;
+  return heroSkills({ cls: h.cls, nodes: h.nodes, common: 0 });
+}
+/** Rayon de l'anneau de visée des compétences de zone. */
+const SKILL_RADIUS: Record<string, number> = { pluie: 2.3, forge: 3, boule: 1.9, meteore: 3, acide: 2, transmutation: 2.8, bombe: 2.2 };
 
 /** Conseil affiché la première fois qu'une propriété d'ennemi apparaît. */
 const TRAIT_ADVICE = [
@@ -276,9 +284,8 @@ export class GameClient {
 
   heroSkill(i: 0 | 1 | 2) {
     const h = ui.hud.hero;
-    const def = HEROES[HERO_IDS[h.type]];
-    const sk = def.skills[i];
-    if (h.dead || h.level < sk.unlock || h.cds[i] > 0) { audio.play('deny'); return; }
+    const sk = hudSkills()[i];
+    if (!sk || h.dead || h.level < SKILL_UNLOCK[i] || h.cds[i] > 0) { audio.play('deny'); return; }
     if (!sk.targeted) {
       const hp = this.heroPos();
       if (hp) this.send({ k: 'hskill', i, x: hp.x, z: hp.z });
@@ -340,7 +347,7 @@ export class GameClient {
 
   /** Portée maximale d'une compétence ciblée du héros (charge de Samuel), sinon 0. */
   private skillRange(i: number): number {
-    return HEROES[HERO_IDS[ui.hud.hero.type]].skills[i]?.range ?? 0;
+    return hudSkills()[i]?.range ?? 0;
   }
 
   /** Point visé ramené à la portée de la compétence, depuis le héros. */
@@ -740,7 +747,10 @@ export class GameClient {
     if (!f || !snap) return;
 
     // héros : type par unité
-    for (let i = 0; i < snap.hCount; i++) this.ents.heroTypeByUnit.set(snap.hUnit[i], snap.hType[i]);
+    for (let i = 0; i < snap.hCount; i++) {
+      this.ents.heroTypeByUnit.set(snap.hUnit[i], snap.hType[i]);
+      this.ents.heroStyleByUnit.set(snap.hUnit[i], (CLASSES[snap.hCls[i]] ?? CLASSES[0]).style);
+    }
     this.ents.you = this.you;
 
     // événements
@@ -844,8 +854,7 @@ export class GameClient {
       if (t.kind === 'item') r = ITEMS[t.i].radius;
       else if (t.kind === 'spell') r = t.s === 0 ? 2.6 : 1;
       else {
-        const id = HERO_IDS[ui.hud.hero.type];
-        r = id === 'lyra' && t.i === 1 ? 2.3 : id === 'brom' && t.i === 2 ? 3 : 1.2;
+        r = SKILL_RADIUS[hudSkills()[t.i]?.id ?? ''] ?? 1.2;
       }
       const q = t.kind === 'hskill' ? this.clampSkill(t.i, p) : p;
       this.aimRing.visible = true;
@@ -1043,6 +1052,8 @@ export class GameClient {
     if (hi >= 0) {
       const he = h.hero;
       he.type = s.hType[hi];
+      he.cls = s.hCls[hi];
+      he.nodes = s.hNodes[hi];
       he.level = s.hLevel[hi];
       he.xp = s.hXp[hi];
       he.cds[0] = Math.ceil(s.hCd[hi * 3] / TICK_RATE);
@@ -1406,9 +1417,9 @@ export class GameClient {
         let [, , , x, z] = ev;
         const s = this.interp.latest!;
         const hi = s.heroIndex(owner);
-        const type = hi >= 0 ? HERO_IDS[s.hType[hi]] : 'samuel';
+        const sk = hi >= 0 ? heroSkills({ cls: s.hCls[hi], nodes: s.hNodes[hi], common: 0 })[skill] : null;
         // flèche perçante : un vrai tir à l'arc (bras en joue), pas le geste de sort levé vers le ciel
-        const shot = type === 'lyra' && skill === 0;
+        const shot = sk?.id === 'perce';
         if (hi >= 0) {
           if (shot) this.ents.uFireTime[s.hUnit[hi]] = this.time;
           else this.ents.castTime[s.hUnit[hi]] = this.time;
@@ -1429,9 +1440,9 @@ export class GameClient {
             fx.glow.spawn(sx + (ex - sx) * t, sy + (Math.random() - 0.5) * 0.3, sz + (ez - sz) * t, (dx / l) * 2 + (Math.random() - 0.5), Math.random() * 0.8, (dz / l) * 2 + (Math.random() - 0.5), 0.35 + t * 0.3, 0.08, 0xd4f5b0, 0);
           }
           audio.play('arrow', 1.5);
-        } else if (type === 'samuel' && skill === 0) {
+        } else if (sk?.id === 'charge') {
           // charge : traînée bleutée et poussière le long du trajet réel (s'arrête à la portée, pas au curseur)
-          const d0 = Math.hypot(x - hx, z - hz), range = HEROES.samuel.skills[0].range ?? 7;
+          const d0 = Math.hypot(x - hx, z - hz), range = sk.range ?? 7;
           const k = d0 > range ? range / d0 : 1;
           x = hx + (x - hx) * k;
           z = hz + (z - hz) * k;
@@ -1441,15 +1452,13 @@ export class GameClient {
             const t = Math.random();
             fx.sparks.spawn(hx + (x - hx) * t, 0.15, hz + (z - hz) * t, (Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2, 0.6, 0.18, 0x9e8a70, -3);
           }
-        } else if (type === 'samuel' && skill === 1) {
+        } else if (sk?.id === 'ralliement') {
           // cri de ralliement : cercle doré, étincelles qui montent
           fx.ring(hx, hz, 4.5, 0xffcc80, 0.8);
           fx.runes.add(hx, hz, 4.5, Decal.Rune, 1.4, 0xffcc80, 1.4);
           fx.spiral(hx, hz, 3, 30, 0xffe082, 1.2);
           fx.pillars.add(hx, 0, hz, 0.6, 1.2, 1, 3, 0.8, 0xffe082, 1);
           audio.play('heal');
-        } else if (type === 'brom' && skill === 1) {
-          // l'impact Turret suffit
         }
         if (owner === this.you) audio.play('spell', 0.6);
         break;
@@ -1498,9 +1507,9 @@ export class GameClient {
       }
       case Ev.LevelUp: {
         if (ev[1] === this.you) {
-          const id = HERO_IDS[ui.hud.hero.type];
-          const def = HEROES[id];
-          const unlocked = def.skills.find((s) => s.unlock === ev[2]);
+          const def = HEROES[HERO_IDS[ui.hud.hero.type]];
+          const k = SKILL_UNLOCK.indexOf(ev[2]);
+          const unlocked = k >= 0 ? hudSkills()[k] : null;
           toast(`${def.name} passe niveau ${ev[2]} !${unlocked ? ` Nouvelle compétence : ${unlocked.name}` : ''}`, 'good', 3000);
           audio.play('levelup');
         }
@@ -1621,8 +1630,10 @@ export class GameClient {
       ui.starsGained = survivalStars(info.wave);
       addBonusStars(ui.starsGained);
     }
+    ui.heroPointsGained = 0;
     if (info.mode === 'story' && ui.game && info.won) {
       const lv = ui.game.level;
+      const ptsBefore = heroPoints(progress.stars);
       progress.stars[lv] ??= [0, 0, 0];
       const before = progress.stars[lv][info.difficulty] ?? 0;
       progress.stars[lv][info.difficulty] = Math.max(before, info.stars);
@@ -1631,6 +1642,7 @@ export class GameClient {
         ui.starsGained = 1;
         addBonusStars(1);
       }
+      ui.heroPointsGained = heroPoints(progress.stars) - ptsBefore;
       if (lv + 1 > progress.unlocked && lv + 1 < STORY.length) progress.unlocked = lv + 1;
       if (lv === STORY.length - 1) progress.finished = true;
       saveProgress();

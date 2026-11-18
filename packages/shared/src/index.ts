@@ -12,6 +12,7 @@ export * from './preview';
 export * from './data/towers';
 export * from './data/enemies';
 export * from './data/heroes';
+export * from './data/classes';
 export * from './data/maps';
 export * from './data/levels';
 export * from './data/meta';

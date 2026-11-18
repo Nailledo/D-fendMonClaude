@@ -1,11 +1,13 @@
 /** Bots d'équilibrage partagés par balance.ts et tune.ts. */
 import {
-  ENEMIES, FAMILIES, GameState, LEVELS, Sim, TOWERS, type Difficulty, type GameConfig, type HeroId,
+  ENEMIES, FAMILIES, GameState, LEVELS, SKILL_UNLOCK, Sim, TOWERS, type Difficulty, type GameConfig, type HeroId,
 } from '../packages/shared/src/index';
 
 /** glouton : archers partout sans améliorer ; diversifie : rotation des familles ; mono0..3 : une seule famille, améliorée comme diversifie */
 export type Strategy = 'glouton' | 'diversifie' | 'mono0' | 'mono1' | 'mono2' | 'mono3';
 const HEROES: HeroId[] = ['samuel', 'lyra', 'brom', 'nox'];
+/** classes complètes des bots (épéiste, archer, ingénieur, nécromancien), comme les anciens héros */
+const BOT_BUILDS = [1, 3, 7, 5].map((cls) => ({ cls, nodes: 5, common: 0 }));
 const monoFam = (s: Strategy) => (s.startsWith('mono') ? Number(s[4]) : -1);
 
 export function runBot(sim: Sim, strat: Strategy, n: number) {
@@ -56,7 +58,7 @@ export function runBot(sim: Sim, strat: Strategy, n: number) {
       const h = sim.heroes.find((h) => h.owner === p.id);
       if (h && !h.u.dead && sim.enemies.length) {
         const e = sim.enemies.reduce((a, b) => (b.dist > a.dist ? b : a));
-        for (const i of [0, 1, 2] as const) if (h.cds[i] === 0 && h.level >= h.def.skills[i].unlock) sim.apply(p.id, { k: 'hskill', i, x: e.x, z: e.z });
+        for (const i of [0, 1, 2] as const) if (h.cds[i] === 0 && h.skills[i] && h.level >= SKILL_UNLOCK[i]) sim.apply(p.id, { k: 'hskill', i, x: e.x, z: e.z });
       }
     }
   }
@@ -65,7 +67,7 @@ export function runBot(sim: Sim, strat: Strategy, n: number) {
 export function play(level: number, n: number, diff: Difficulty, strat: Strategy, seed: number) {
   const cfg: GameConfig = {
     mode: 'story', mapId: LEVELS[level].mapId, difficulty: diff, seed,
-    players: Array.from({ length: n }, (_, i) => ({ id: i, name: 'Bot' + i, hero: HEROES[i] })),
+    players: Array.from({ length: n }, (_, i) => ({ id: i, name: 'Bot' + i, hero: HEROES[i], build: BOT_BUILDS[i] })),
   };
   const sim = new Sim(cfg);
   sim.apply(0, { k: 'wave' });

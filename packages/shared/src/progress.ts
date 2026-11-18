@@ -1,4 +1,5 @@
 import { TREE, sanitizeMeta, treeCost } from './data/meta';
+import { EMPTY_BUILD, buildCost, heroPoints, sanitizeBuild, type HeroBuild } from './data/classes';
 
 /**
  * Progression du joueur (campagne, atelier). Conservée dans le navigateur et, quand le joueur est
@@ -19,10 +20,12 @@ export interface Progress {
   shopSpent: number;
   /** étoiles gagnées en plus des records (survie, victoires sur un niveau déjà parfait) */
   bonusStars: number;
+  /** arbre du héros (classe, nœuds, entraînement), payé en points de héros */
+  hero: HeroBuild;
 }
 
 export function emptyProgress(): Progress {
-  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], items: [], shopSpent: 0, bonusStars: 0 };
+  return { unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], items: [], shopSpent: 0, bonusStars: 0, hero: { ...EMPTY_BUILD } };
 }
 
 const MAX_LEVELS = 64;
@@ -48,6 +51,7 @@ export function sanitizeProgress(raw: unknown): Progress {
     items: meta.items,
     shopSpent: int(p.shopSpent, 1e6),
     bonusStars: int(p.bonusStars, 1e6),
+    hero: sanitizeBuild(p.hero),
   };
 }
 
@@ -94,9 +98,11 @@ export function mergeProgress(local: Progress, remote: Progress, localAt: number
     items: [...spend.items],
     shopSpent: spend.shopSpent,
     bonusStars: Math.max(a.bonusStars, b.bonusStars),
+    hero: { ...spend.hero },
   };
   // garde-fou : jamais de solde négatif (l'arbre se rembourse, la boutique non)
   if (progressEarned(out) - out.shopSpent - treeCost(out.tree) < 0) out.tree = TREE.map(() => 0);
+  if (buildCost(out.hero) > heroPoints(out.stars)) out.hero = { ...EMPTY_BUILD };
   return out;
 }
 

@@ -5,7 +5,8 @@
   import { app } from '../app';
   import { progress, setName, ui } from '../state.svelte';
   import { ICON } from './icons';
-  import { availableStars } from '../meta';
+  import { availableStars, heroPointsLeft } from '../meta';
+  import { loadRaw } from '../storage';
   import { account, loginUrl, logout } from '../account.svelte';
 
   let editing = $state(false);
@@ -15,6 +16,11 @@
   const next = $derived(Math.min(progress.unlocked, LEVELS.length - 1));
   // étoiles à dépenser dans l'atelier (pastille sur le bouton)
   const wallet = $derived(availableStars());
+  const heroPts = $derived(heroPointsLeft());
+  // premier lancement : choix de l'apparence du héros
+  $effect(() => {
+    if (!ui.loading.active && !ui.overlay && !loadRaw<boolean>('skinChosen', false)) ui.overlay = 'skin';
+  });
   const storyLabel = $derived(progress.unlocked === 0 ? 'Commencer l’histoire' : progress.finished ? 'Histoire' : 'Continuer l’histoire');
   const storySub = $derived(
     progress.finished ? `Campagne terminée · ${stars} ★ sur ${LEVELS.length * 3}` : `Niveau ${next + 1} · ${LEVELS[next].name}`,
@@ -61,6 +67,7 @@
       <button class="row coop" onclick={() => go('multi')}><span class="pop"><Ico k="reinforce" fb={ICON.users} /></span><span class="lbl"><b>Multijoueur</b><span>De 1 à 4 joueurs</span></span></button>
     </div>
     <div class="small">
+      <button onclick={() => overlay('herotree')}><i>{#if ui.portraits[ui.hero]}<img class="hp" src={ui.portraits[ui.hero]} alt="" />{:else}{@html ICON.helmet}{/if}{#if heroPts > 0}<em class="badge">{heroPts}</em>{/if}</i><span>Héros</span></button>
       <button onclick={() => overlay('atelier')}><i>{@html ICON.tree}{#if wallet > 0}<em class="badge">{wallet}</em>{/if}</i><span>Atelier</span></button>
       <button onclick={() => overlay('encyclo')}><i>{@html ICON.book}</i><span>Encyclopédie</span></button>
       <button onclick={() => overlay('leaderboard')}><i><Ico k="trophy" fb={ICON.trophy} /></i><span>Classement</span></button>
@@ -140,6 +147,7 @@
   .small button:hover i { filter: brightness(1.06); transform: translateY(-2px); }
   .small button:active i { transform: translateY(3px); box-shadow: var(--rim); }
   .small i { position: relative; }
+  .small i img.hp { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
   .badge { position: absolute; top: -6px; right: -8px; min-width: 24px; height: 24px; padding: 0 5px; display: grid; place-items: center; border-radius: 99px; border: 2.5px solid var(--ink);
     background: var(--gold-fill); color: var(--ink); font-style: normal; font-weight: 900; font-size: 13px; line-height: 1; box-shadow: 0 2px 0 var(--ink); }
   .small span { font-family: var(--font-display); font-size: 15px; color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; white-space: nowrap; }

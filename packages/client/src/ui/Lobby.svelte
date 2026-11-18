@@ -1,11 +1,12 @@
 <script lang="ts">
   import { loadout } from '../meta';
-  import { DIFFICULTY_NAMES, HEROES, LEVELS, MAPS, PLAYER_COLORS, SURVIVAL_MAPS, type Difficulty, type HeroId, type Mode } from '@dfend/shared';
+  import { CLASSES, DIFFICULTY_NAMES, HEROES, LEVELS, MAPS, PLAYER_COLORS, SURVIVAL_MAPS, type Difficulty, type HeroId, type Mode } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { net } from '../net/Net';
   import { progress, setHero, toast, ui } from '../state.svelte';
   import Chat from './Chat.svelte';
   import HeroPicker from './HeroPicker.svelte';
+  import HeroBadge from './HeroBadge.svelte';
 
   const room = $derived(ui.room);
   const me = $derived(room?.players.find((p) => p.id === room.you));
@@ -50,7 +51,7 @@
             {#if ui.portraits[p.hero]}<img src={ui.portraits[p.hero]} alt="" />{/if}
             <div class="grow">
               <b>{p.name}</b>
-              <div class="small">{HEROES[p.hero].name}{#if !p.connected} · <i>déconnecté</i>{/if}</div>
+              <div class="small">{HEROES[p.hero].name} · {CLASSES[p.cls ?? 0]?.name ?? ''}{#if !p.connected} · <i>déconnecté</i>{/if}</div>
             </div>
             <span class="rdy" class:ok={p.ready || p.host}>{p.host ? 'Hôte' : p.ready ? 'Prêt' : 'Pas prêt'}</span>
           </div>
@@ -98,7 +99,7 @@
       </div>
     </div>
     <div class="side">
-      <div class="panel"><h3>Votre héros</h3><HeroPicker value={me?.hero ?? ui.hero} onpick={pickHero} /></div>
+      <div class="panel"><h3>Votre héros</h3><HeroPicker value={me?.hero ?? ui.hero} onpick={pickHero} compact /><div class="hb"><HeroBadge /></div></div>
       <div class="chatbox"><Chat inline /></div>
     </div>
   </div>
@@ -126,4 +127,5 @@
   .actions { margin-top: 8px; }
   .chatbox { min-height: 240px; display: flex; }
   @media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } .players { grid-template-columns: 1fr; } }
+  .hb { margin-top: 10px; }
 </style>
