@@ -29,7 +29,6 @@ export interface Perks {
   campRange: number;
   /** réduction des temps de recharge des sorts */
   spellCd: number;
-  meteorDmg: number;
   renfortHp: number;
   /** rang des renforts : 0 miliciens, 1 chevaliers, 2 paladins (voir RENFORT_TIERS) */
   renfortTier: number;
@@ -52,7 +51,7 @@ export function emptyPerks(): Perks {
     dmg: [0, 0, 0, 0, 0, 0], range: [0, 0, 0, 0, 0, 0], rate: [0, 0, 0, 0, 0, 0], splash: 0,
     soldierHp: 0, soldierDmg: 0, soldierArmor: 0, soldierRespawn: 0,
     mineGold: 0, campAura: 0, campRange: 0,
-    spellCd: 0, meteorDmg: 0, renfortHp: 0, renfortTier: 0, renfortCount: 0, renfortDur: 0, spellDmg: 0, spellArea: 0, gold: 0, lives: 0,
+    spellCd: 0, renfortHp: 0, renfortTier: 0, renfortCount: 0, renfortDur: 0, spellDmg: 0, spellArea: 0, gold: 0, lives: 0,
   };
 }
 
@@ -137,7 +136,7 @@ export const TREE: TreeBranch[] = [
     ranks: [
       { name: 'Trésor royal', desc: '+40 or au début de chaque partie.', fx: (p) => { p.gold += 40; } },
       { name: 'Grimoire royal', desc: 'Sorts rechargés 12 % plus vite.', fx: (p) => { p.spellCd += 0.12; } },
-      { name: 'Ciel ardent', desc: 'Météores +25 % de dégâts, renforts +30 % de points de vie.', fx: (p) => { p.meteorDmg += 0.25; p.renfortHp += 0.3; } },
+      { name: 'Ciel ardent', desc: 'Dégâts de tous vos sorts +20 % et renforts +30 % de points de vie.', fx: (p) => { p.spellDmg += 0.2; p.renfortHp += 0.3; } },
       { name: 'Remparts', desc: '+2 vies au début de chaque partie (sauf Cauchemar).', fx: (p) => { p.lives += 2; } },
       { name: 'Âge d’or', desc: '+60 or au départ et sorts rechargés 12 % plus vite.', fx: (p) => { p.gold += 60; p.spellCd += 0.12; } },
     ],
@@ -146,9 +145,9 @@ export const TREE: TreeBranch[] = [
     id: 'renforts', name: 'Renforts & sorts', color: '#5c6bc0', icon: 'army',
     ranks: [
       { name: 'Chevaliers', desc: 'Vos renforts deviennent des chevaliers : près de deux fois plus de PV, de meilleures armes et une armure.', fx: (p) => { p.renfortTier = Math.max(p.renfortTier, 1); } },
-      { name: 'Magie de guerre', desc: 'Dégâts des sorts +15 % (météores, zones, foudre, séisme).', fx: (p) => { p.spellDmg += 0.15; } },
+      { name: 'Magie de guerre', desc: 'Dégâts de tous vos sorts +15 % (météores, zones, foudre, séisme…).', fx: (p) => { p.spellDmg += 0.15; } },
       { name: 'Troisième lame', desc: 'Un renfort de plus à chaque appel, et ils restent 5 s de plus.', fx: (p) => { p.renfortCount += 1; p.renfortDur += 5; } },
-      { name: 'Grimoire étendu', desc: 'Zones des sorts : rayon et durée +15 %.', fx: (p) => { p.spellArea += 0.15; } },
+      { name: 'Grimoire étendu', desc: 'Tous vos sorts de zone (météores compris) : rayon et durée +15 %.', fx: (p) => { p.spellArea += 0.15; } },
       { name: 'Paladins', desc: 'Vos renforts deviennent des paladins : très résistants, ils frappent fort et se soignent. Dégâts des sorts +10 %.', fx: (p) => { p.renfortTier = Math.max(p.renfortTier, 2); p.spellDmg += 0.1; } },
     ],
   },

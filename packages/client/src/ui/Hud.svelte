@@ -11,7 +11,7 @@
   import PauseMenu from './PauseMenu.svelte';
   import Radial from './Radial.svelte';
   import TowerPanel from './TowerPanel.svelte';
-  import { enemyTraits } from './enemyTraits';
+  import { enemyCounters, enemyTraits } from './enemyTraits';
   import { FAMILY_NAME, ICON, ITEM_ICON, LINE, SKILL_ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { skillIcon } from './classIcons';
   import { spellFb, spellKey } from './spellIcon';
@@ -308,6 +308,7 @@
     </div>
   {:else if sel?.kind === 'enemy' && sel.enemyType !== undefined}
     {@const d = ENEMIES[sel.enemyType]}
+    {@const ct = enemyCounters(d)}
     <div class="info panel ui sheet-{ui.sheet}">
       <div class="row">
         {#if ui.portraits['e_' + d.id]}<img src={ui.portraits['e_' + d.id]} alt="" width="56" height="56" />{/if}
@@ -316,6 +317,10 @@
       <div class="stats">
         <span>PV {Math.round(d.hp)}</span><span>Armure {Math.round(d.armor * 100)} %</span><span>Rés. magie {Math.round(d.mres * 100)} %</span>
         <span>Vitesse {d.speed}</span><span>Vies {d.lives}</span>{#if d.flying}<span>Volant</span>{/if}
+      </div>
+      <div class="counters">
+        <div class="weak"><b>Sensible à</b> {ct.weak.join(' · ')}</div>
+        {#if ct.strong.length}<div class="strong"><b>Résiste à</b> {ct.strong.join(' · ')}</div>{/if}
       </div>
       {#each TRAITS as T, k}
         {#if (sel.traits ?? 0) & (1 << k)}
@@ -681,4 +686,8 @@
     .touch .spell { width: 46px; height: 46px; }
     .touch .top { gap: 6px; font-size: 0.74em; }
   }
+  .counters { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 0.82em; font-weight: 700; line-height: 1.3; }
+  .counters b { font-weight: 900; margin-right: 4px; }
+  .counters .weak b { color: #2e7d32; }
+  .counters .strong b { color: #c62828; }
 </style>

@@ -4,6 +4,7 @@
   import { progress, ui } from '../state.svelte';
   import { FAMILY_COLOR, FAMILY_NAME, ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { UPGRADE_ICON } from './skillIcons';
+  import { enemyCounters } from './enemyTraits';
   import HeroSheet from './HeroSheet.svelte';
 
   let tab = $state<'towers' | 'enemies' | 'heroes' | 'secrets'>('towers');
@@ -68,6 +69,9 @@
               <span class="small">{known ? e.desc : 'Pas encore rencontré.'}</span>
               {#if known}
                 <span class="small">PV {e.hp} · Armure {Math.round(e.armor * 100)} % · Magie {Math.round(e.mres * 100)} %{e.flying ? ' · Volant' : ''}</span>
+                {@const ct = enemyCounters(e)}
+                <span class="ct weak"><b>Sensible à</b> {ct.weak.join(' · ')}</span>
+                {#if ct.strong.length}<span class="ct strong"><b>Résiste à</b> {ct.strong.join(' · ')}</span>{/if}
               {/if}
             </div>
           {/each}
@@ -131,4 +135,8 @@
   .trait.unknown .ti { background: #888; }
   .heroes { display: flex; flex-direction: column; gap: 12px; }
   .hrow { padding: 14px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r); box-shadow: 0 3px 0 var(--ink); }
+  .ct { font-size: 0.8em; font-weight: 700; line-height: 1.3; text-align: left; width: 100%; }
+  .ct b { font-weight: 900; margin-right: 3px; }
+  .ct.weak b { color: #2e7d32; }
+  .ct.strong b { color: #c62828; }
 </style>

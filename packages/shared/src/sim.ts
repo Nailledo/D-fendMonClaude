@@ -1217,7 +1217,7 @@ export class Sim {
         offs.forEach(([ox, oz], i) => {
           const tx = x + ox, tz = z + oz;
           const flight = sec(1.0 + i * 0.25);
-          this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * (1 + pk.meteorDmg + pk.spellDmg), DmgType.True, 1.9, false, null));
+          this.projs.push(this.mkProj(FIRE_METEOR, null, pid, null, tx, tz, flight, 75 * dm, DmgType.True, 1.9 * am, false, null));
           this.ev(Ev.Fire, FIRE_METEOR, Src.Sky, pid, 0xffff, tx, tz, flight);
         });
         break;

@@ -43,3 +43,30 @@ export const TRAIT_ICON: Record<string, string> = {
   voleur: svg('<path d="M8 7h8l-1-3H9z" fill="currentColor"/><path d="M6 9h12l1 9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" fill="currentColor"/><path d="M12 11v7M10 13h3a1.5 1.5 0 0 1 0 3h-3" stroke="#fff" stroke-width="1.6"/>'),
   enragé: svg('<path d="M12 2c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-6 1 2 2 2 3 2-1-3 0-5 0-7z" fill="currentColor"/>'),
 };
+
+/**
+ * Ce qui marche (et ne marche pas) contre un ennemi : une note courte pour l'aperçu de vague,
+ * la fiche de l'ennemi et l'encyclopédie.
+ */
+export function enemyCounters(d: EnemyDef): { weak: string[]; strong: string[] } {
+  const weak: string[] = [], strong: string[] = [];
+  const a = d.ab;
+  const pct = (v: number) => Math.round(v * 100) + ' %';
+  if (d.armor >= 0.35) { strong.push(`flèches, boulets et lames (armure ${pct(d.armor)})`); if (d.mres < 0.3) weak.push('magie (tours de mage, sorts)'); }
+  if (d.mres >= 0.35) { strong.push(`magie (résiste à ${pct(d.mres)})`); if (d.armor < 0.3) weak.push('flèches, boulets et soldats'); }
+  if (d.flying) { strong.push('soldats et catapultes (il vole hors de portée)'); weak.push('archers et mages'); }
+  if (d.speed >= 2.2) weak.push('ralentissements (givre, sables, filets)');
+  if (a.regen && !d.boss) weak.push('gros dégâts groupés, poison et brûlure (il se régénère)');
+  if (a.heal) weak.push('à abattre en premier : il soigne les autres');
+  if (a.shield) weak.push('à abattre en premier : il protège ses voisins');
+  if (a.split) weak.push('dégâts de zone (catapultes, météores) contre ses petits');
+  if (a.kamikaze) { strong.push('soldats (il explose à leur contact)'); weak.push('tirs à distance'); }
+  if (a.burrow) { strong.push('tirs lents (il replonge sous terre)'); weak.push('tours à tir rapide quand il ressort'); }
+  if (a.stunTowers) weak.push('héros et soldats (il étourdit les tours)');
+  if (a.summon && !d.boss) weak.push('l’abattre vite, avant qu’il appelle des renforts');
+  if (a.thief) weak.push('tirs rapides avant qu’il s’enfuie avec votre or');
+  if (d.boss) strong.push('étourdissements et ralentissements (durée réduite)');
+  if (!d.flying && d.armor < 0.35 && d.mres < 0.35 && d.hp < 60) weak.push('dégâts de zone : il vient en nombre');
+  if (!weak.length) weak.push('tout ce qui frappe fort : aucune protection particulière');
+  return { weak, strong };
+}
