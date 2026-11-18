@@ -1,14 +1,14 @@
 import { BALANCE, computeScaling, earlyCallBonus, starsFor, type Scaling } from './balance';
 import { DT, SELL_RATIO, TICK_RATE, UNDO_SELL_S, sec } from './constants';
-import { ENEMIES, ENEMY_INDEX, type EnemyDef } from './data/enemies';
+import { ENEMIES, ENEMY_INDEX, HERO_DETECT, LEAD_PHYS, REGROW_DELAY_S, REGROW_RATE, Trait, traitHp, type EnemyDef } from './data/enemies';
 import { ITEMS, ITEM_COOLDOWN_S, ITEM_MAX, Item, perksOf, type Perks } from './data/meta';
 import { HEROES, HERO_EXTRA_HOLD, HERO_MAX_LEVEL, HERO_RESPAWN_S, HERO_XP, SPELLS, type HeroDef } from './data/heroes';
 import { LEVELS, SURVIVAL_START_GOLD, type LevelDef } from './data/levels';
-import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, type SoldierDef, type TowerLevel } from './data/towers';
+import { LEVEL_SPEC_A, PROJ_KINDS, SoldierKind, TOWERS, campAura, mineIncome, type SoldierDef, type TowerLevel } from './data/towers';
 import { buildRuntimeMap, type RuntimeMap } from './mapgen';
 import { activePathsFor, scaledCount } from './preview';
 import { Rng } from './rng';
-import { DmgType, FAMILIES, GameState, type Command, type Family, type GameConfig } from './types';
+import { DmgType, FAMILIES, GameState, Prio, SHOOTERS, type Command, type Family, type GameConfig } from './types';
 import { MUTATION_INDEX, genStoryWaves, genSurvivalWave, mutationsFor, type Wave } from './waves';
 
 // ---------------------------------------------------------------- Événements
@@ -38,6 +38,7 @@ export const enum Ev {
   GameEnd = 22, // won
   Skill = 23, // towerId, skillIndex (déclenchement de compétence de tour)
   Item = 24, // owner, objet, x, z (objet de boutique utilisé)
+  Income = 25, // towerId, or, vies (revenu d'une mine au début d'une vague)
 }
 
 export const enum Impact {
@@ -93,6 +94,14 @@ export interface Enemy {
   shielded: boolean;
   dead: boolean;
   hitBy: number; // dernier joueur à l'avoir touché
+  /** propriétés de vague (voir Trait) */
+  traits: number;
+  /** camouflé repéré ce tick (mage, tour de guet ou héros proche) */
+  revealed: boolean;
+  /** ticks restants avant que la régénération (propriété) reprenne */
+  quietT: number;
+  /** dégâts subis en plus (Marquage d'une tour de guet) */
+  marked: number;
 }
 
 export interface Unit {
@@ -158,6 +167,12 @@ export interface Tower {
   s2T: number;
   x: number;
   z: number;
+  /** priorité de ciblage (voir Prio) */
+  prio: number;
+  /** bonus du meilleur campement voisin (recalculés à chaque tick) */
+  auraRange: number;
+  auraRate: number;
+  auraDmg: number;
 }
 
 export interface Hero {
@@ -210,6 +225,7 @@ interface SpawnEntry {
   path: number;
   hpMul: number;
   lane: number;
+  traits: number;
 }
 
 export interface PlayerState {
@@ -465,21 +481,30 @@ export class Sim {
     return this.pathOf(e).length - e.dist;
   }
 
+  /** Atteignable par une zone (explosion, sort) : les camouflés compris. */
   private targetable(e: Enemy, air: boolean) {
     return !e.dead && !e.burrowed && (air || !e.flying) && e.dist > 0.5;
   }
 
-  /** Ennemi le plus avancé dans le rayon. */
-  private findTarget(x: number, z: number, r: number, air: boolean, exclude?: Enemy | null): Enemy | null {
+  /** Visible pour un tir ou un soldat : un camouflé doit être repéré. */
+  visible(e: Enemy) {
+    return !(e.traits & Trait.Camo) || e.revealed;
+  }
+
+  /** Cible d'un tir dans le rayon selon la priorité (par défaut : l'ennemi le plus avancé). */
+  private findTarget(x: number, z: number, r: number, air: boolean, exclude?: Enemy | null, prio: number = Prio.First): Enemy | null {
     const r2 = r * r;
     let best: Enemy | null = null;
-    let bestRem = Infinity;
+    let bestScore = Infinity;
     for (const e of this.enemies) {
-      if (e === exclude || !this.targetable(e, air)) continue;
+      if (e === exclude || !this.targetable(e, air) || !this.visible(e)) continue;
       const dx = e.x - x, dz = e.z - z;
-      if (dx * dx + dz * dz > r2) continue;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > r2) continue;
       const rem = this.remaining(e);
-      if (rem < bestRem) { bestRem = rem; best = e; }
+      // départage : à score égal, le plus avancé
+      const score = prio === Prio.Last ? -rem : prio === Prio.Strong ? -e.hp * 1000 + rem * 1e-3 : prio === Prio.Close ? d2 + rem * 1e-4 : rem;
+      if (score < bestScore) { bestScore = score; best = e; }
     }
     return best;
   }
@@ -501,14 +526,21 @@ export class Sim {
 
   // ------------------------------------------------------------ dégâts
 
-  damage(e: Enemy, amount: number, type: DmgType, owner: number, hero: Hero | null, flags = 0, silent = false): number {
+  /**
+   * Inflige des dégâts. `explosive` : dégâts de zone d'une explosion (ils entament le plomb).
+   * Renvoie les dégâts réellement infligés.
+   */
+  damage(e: Enemy, amount: number, type: DmgType, owner: number, hero: Hero | null, flags = 0, silent = false, explosive = false): number {
     if (e.dead || amount <= 0) return 0;
-    let mult = 1;
-    if (type === DmgType.Phys) mult = 1 - Math.max(0, Math.min(0.9, e.armor - e.shred));
-    else if (type === DmgType.Magic) mult = 1 - Math.min(0.9, e.mres);
+    let mult = 1 + e.marked;
+    // plomb : les coups physiques non explosifs ricochent presque entièrement (drapeau 4 : étincelle côté client)
+    if (type === DmgType.Phys && !explosive && e.traits & Trait.Lead) { mult *= LEAD_PHYS; flags |= 4; }
+    if (type === DmgType.Phys) mult *= 1 - Math.max(0, Math.min(0.9, e.armor - e.shred));
+    else if (type === DmgType.Magic) mult *= 1 - Math.min(0.9, e.mres);
     if (e.shielded) mult *= 0.7;
     const d = amount * mult;
     e.hp -= d;
+    if (e.traits & Trait.Regrow) e.quietT = sec(REGROW_DELAY_S);
     if (owner >= 0) {
       e.hitBy = owner;
       const p = this.player(owner);
@@ -552,7 +584,7 @@ export class Sim {
     if (def.ab.split) {
       const st = ENEMY_INDEX[def.ab.split.type];
       for (let i = 0; i < def.ab.split.count; i++) {
-        const c = this.spawnEnemy(st, e.path, e.hpScale, (i - 1) * 0.5, e.dist - i * 0.4);
+        const c = this.spawnEnemy(st, e.path, e.hpScale / traitHp(e.traits), (i - 1) * 0.5, e.dist - i * 0.4, e.traits);
         c.dist = Math.max(0.6, e.dist - i * 0.4);
       }
     }
@@ -605,14 +637,18 @@ export class Sim {
 
   // ------------------------------------------------------------ apparition
 
-  private spawnEnemy(type: number, path: number, hpScale: number, lane: number, dist = 0): Enemy {
+  private spawnEnemy(type: number, path: number, hpScale: number, lane: number, dist = 0, traits = 0): Enemy {
     const def = ENEMIES[type];
+    if (def.boss) traits = 0;
+    // une propriété se paie en PV : la difficulté vient de la tour qu'il faut, pas de la masse à abattre
+    hpScale *= traitHp(traits);
     const e: Enemy = {
       id: this.nextId++, type, def, hp: def.hp * hpScale, maxHp: def.hp * hpScale, hpScale, path, dist, lane,
       x: 0, z: 0, armor: def.armor, mres: def.mres, slowMul: 1, slowT: 0, stunT: 0, poisonDps: 0, poisonT: 0,
       burnDps: 0, burnT: 0, shred: 0, shredT: 0, blockers: [], fighting: false, atkT: 0,
       abT: sec(2 + this.rng.next() * 2), ab2T: sec(3 + this.rng.next() * 3), ab3T: sec(4), burrowed: false,
       burrowT: def.ab.burrow ? sec(def.ab.burrow.up) : 0, flying: !!def.flying, shielded: false, dead: false, hitBy: -1,
+      traits, revealed: false, quietT: 0, marked: 0,
     };
     if (this.mutations.includes(MUTATION_INDEX.blindes)) e.armor = Math.min(0.9, e.armor + 0.25);
     if (this.mutations.includes(MUTATION_INDEX.resistants)) e.mres = Math.min(0.9, e.mres + 0.25);
@@ -648,7 +684,7 @@ export class Sim {
       for (let i = 0; i < count; i++) {
         this.spawnQ.push({
           tick: this.tick + sec(g.delay + i * interval), type: g.type, path: Math.min(g.path, this.map.paths.length - 1),
-          hpMul, lane: def.boss ? 0 : (this.rng.next() * 2 - 1) * 0.7,
+          hpMul, lane: def.boss ? 0 : (this.rng.next() * 2 - 1) * 0.7, traits: g.traits ?? 0,
         });
       }
     }
@@ -658,6 +694,33 @@ export class Sim {
     this.state = GameState.Running;
     for (const h of this.heroes) this.addXp(h, 6 * this.waveIdx);
     this.ev(Ev.WaveStart, this.waveIdx, wave.boss ? 1 : 0, wave.mutation ?? 255);
+    this.payMines();
+  }
+
+  /** Revenus des mines au début d'une vague : or, intérêts, marché (alliés) et grenier (vies). */
+  private payMines() {
+    for (const t of this.towers) {
+      if (t.fam !== 'mine') continue;
+      const p = this.player(t.owner);
+      if (!p || !p.active) continue;
+      let g = mineIncome(t.level, t.sk);
+      const lvl = TOWERS.mine[t.level];
+      let lives = 0;
+      if (t.level === 3 && t.sk[1] > 0) g += Math.floor(Math.min(80, p.gold * lvl.skills![1].values[t.sk[1] - 1]));
+      if (t.level === 4) {
+        if (t.sk[0] > 0 && this.waveIdx % lvl.skills![0].values[t.sk[0] - 1] === 0 && this.lives < this.maxLives) {
+          this.lives++;
+          lives = 1;
+        }
+        if (t.sk[1] > 0) {
+          const v = lvl.skills![1].values[t.sk[1] - 1];
+          for (const q of this.players) if (q !== p && q.active) { q.gold += v; q.goldEarned += v; }
+        }
+      }
+      p.gold += g;
+      p.goldEarned += g;
+      this.ev(Ev.Income, t.id, g, lives);
+    }
   }
 
   // ------------------------------------------------------------ commandes
@@ -668,7 +731,7 @@ export class Sim {
     switch (c.k) {
       case 'build': {
         const slot = clampNum(c.slot, 0, this.map.slots.length - 1);
-        const fi = clampNum(c.fam, 0, 3);
+        const fi = clampNum(c.fam, 0, FAMILIES.length - 1);
         if (slot === null || fi === null || slot !== c.slot || fi !== c.fam) return;
         const s = this.map.slots[slot];
         if (s.locked || this.towerBySlot[slot]) return;
@@ -679,6 +742,7 @@ export class Sim {
         const t: Tower = {
           id: this.nextId++, slot, owner: pid, fam, fi, level: 0, sk: [0, 0], cdT: sec(0.3), burstLeft: 0, burstT: 0,
           stunT: 0, aim: null, rallyX: s.x, rallyZ: s.z, units: [], invested: def.cost, paid: { [pid]: def.cost }, lastBuy: this.tick, lastBuyer: pid, s1T: 0, s2T: 0, x: s.x, z: s.z,
+          prio: Prio.First, auraRange: 0, auraRate: 0, auraDmg: 0,
         };
         if (fam === 'barracks') {
           // point de ralliement : le point du chemin le plus proche
@@ -763,6 +827,12 @@ export class Sim {
         this.removeTower(t);
         break;
       }
+      case 'prio': {
+        const t = this.ownTower(pid, c.tower);
+        if (!t || !SHOOTERS.includes(t.fi) || typeof c.p !== 'number' || !Number.isInteger(c.p) || c.p < 0 || c.p > 3) return;
+        t.prio = c.p;
+        break;
+      }
       case 'rally': {
         const t = this.ownTower(pid, c.tower);
         const x = clampNum(c.x, -100, 100), z = clampNum(c.z, -100, 100);
@@ -796,7 +866,7 @@ export class Sim {
         const h = this.heroes.find((h) => h.owner === pid);
         if (!h || h.u.dead || typeof c.e !== 'number') return;
         const e = this.enemies.find((q) => q.id === c.e);
-        if (!e || !this.targetable(e, true)) return;
+        if (!e || !this.targetable(e, true) || !this.visible(e)) return;
         const u = h.u;
         this.release(u);
         u.moving = false;
@@ -1101,7 +1171,7 @@ export class Sim {
 
   private fireTower(t: Tower, lvl: TowerLevel, target: Enemy) {
     const pk = this.perk(t.owner);
-    const dmg = this.rollDmg(lvl.dmg[0], lvl.dmg[1]) * (1 + pk.dmg[t.fi]);
+    const dmg = this.rollDmg(lvl.dmg[0], lvl.dmg[1]) * (1 + pk.dmg[t.fi] + t.auraDmg);
     const splash = (lvl.splash ?? 0) * (1 + pk.splash);
     if (lvl.proj === 'tesla') {
       const chainN = (lvl.chain ?? 1) + (t.level === 4 ? lvl.skills![0].values[t.sk[0] - 1] ?? 0 : 0);
@@ -1166,18 +1236,20 @@ export class Sim {
   }
 
   private applyHit(p: Proj, e: Enemy, aoe: boolean) {
-    if (p.mortel && !e.def.boss && this.rng.next() < p.mortel) {
+    // flèche ou carreau sur du plomb : ni poison ni tir mortel (les dégâts ricochent presque tous)
+    const lead = !aoe && p.dtype === DmgType.Phys && (e.traits & Trait.Lead) !== 0;
+    if (p.mortel && !lead && !e.def.boss && this.rng.next() < p.mortel) {
       this.damage(e, e.hp + 1, DmgType.True, p.owner, p.heroXp, 2);
       return;
     }
     let dmg = p.dmg;
     let flags = 0;
     if (p.heroXp && p.heroXp.def.id === 'lyra' && this.rng.next() < 0.2) { dmg *= 2; flags = 1; }
-    const dealt = this.damage(e, dmg, p.dtype, p.owner, p.heroXp, flags, aoe && dmg < 10);
+    const dealt = this.damage(e, dmg, p.dtype, p.owner, p.heroXp, flags, aoe && dmg < 10, aoe);
     if (p.heroXp && p.heroXp.def.id === 'nox') p.heroXp.u.hp = Math.min(p.heroXp.u.maxHp, p.heroXp.u.hp + dealt * 0.2);
     if (e.dead) return;
     if (p.slowF) { e.slowMul = Math.min(e.slowMul, 1 - p.slowF); e.slowT = Math.max(e.slowT, p.slowT); }
-    if (p.poison) { e.poisonDps = p.poison; e.poisonT = sec(4); }
+    if (p.poison && !lead) { e.poisonDps = p.poison; e.poisonT = sec(4); }
     if (p.shred) { e.shred = p.shred; e.shredT = sec(4); }
   }
 
@@ -1189,6 +1261,7 @@ export class Sim {
       return;
     }
     this.stepWaves();
+    this.stepSupport();
     this.stepEnemies();
     this.stepUnits();
     this.stepTowers();
@@ -1203,7 +1276,7 @@ export class Sim {
   private stepWaves() {
     while (this.spawnQ.length && this.spawnQ[0].tick <= this.tick) {
       const s = this.spawnQ.shift()!;
-      this.spawnEnemy(s.type, s.path, s.hpMul, s.lane);
+      this.spawnEnemy(s.type, s.path, s.hpMul, s.lane, 0, s.traits);
     }
     if (this.waveSpawning && this.spawnQ.length === 0) {
       this.waveSpawning = false;
@@ -1215,6 +1288,57 @@ export class Sim {
       this.nextWaveT--;
       if (this.nextWaveT === 0) this.startWave();
     }
+  }
+
+  /** Campements (bonus des tours voisines, marquage) et repérage des camouflés. */
+  private stepSupport() {
+    for (const t of this.towers) { t.auraRange = 0; t.auraRate = 0; t.auraDmg = 0; }
+    let watch = false, camo = false;
+    for (const c of this.towers) {
+      if (c.fam !== 'camp') continue;
+      if (c.level === 3) watch = true;
+      const a = campAura(c.level, c.sk);
+      const r2 = a.r * a.r;
+      for (const t of this.towers) {
+        if (t === c || t.fam === 'mine' || t.fam === 'camp') continue;
+        const dx = t.x - c.x, dz = t.z - c.z;
+        if (dx * dx + dz * dz > r2) continue;
+        t.auraRange = Math.max(t.auraRange, a.range);
+        t.auraRate = Math.max(t.auraRate, a.rate);
+        t.auraDmg = Math.max(t.auraDmg, a.dmg);
+      }
+    }
+    for (const e of this.enemies) { e.marked = 0; e.revealed = false; if (e.traits & Trait.Camo) camo = true; }
+    if (!watch && !camo) return;
+    for (const t of this.towers) {
+      const detect = t.fam === 'mage' || (t.fam === 'camp' && t.level === 3);
+      if (!detect) continue;
+      const mark = t.fam === 'camp' ? campAura(t.level, t.sk).mark : 0;
+      if (!mark && !camo) continue;
+      const r = t.fam === 'mage' ? TOWERS.mage[t.level].range * (1 + (this.perk(t.owner).range[2] ?? 0)) : TOWERS.camp[t.level].range;
+      const r2 = r * r;
+      for (const e of this.enemies) {
+        const dx = e.x - t.x, dz = e.z - t.z;
+        if (dx * dx + dz * dz > r2) continue;
+        e.revealed = true;
+        if (mark > e.marked) e.marked = mark;
+      }
+    }
+    if (!camo) return;
+    for (const h of this.heroes) {
+      if (h.u.dead) continue;
+      const r2 = this.heroDetect(h) ** 2;
+      for (const e of this.enemies) {
+        if (e.revealed || !(e.traits & Trait.Camo)) continue;
+        const dx = e.x - h.u.x, dz = e.z - h.u.z;
+        if (dx * dx + dz * dz <= r2) e.revealed = true;
+      }
+    }
+  }
+
+  /** Rayon où un héros repère les ennemis camouflés. */
+  private heroDetect(_h: Hero) {
+    return HERO_DETECT;
   }
 
   private stepEnemies() {
@@ -1243,6 +1367,10 @@ export class Sim {
       if (e.burnT > 0) { e.burnT--; this.damage(e, e.burnDps * DT, DmgType.True, e.hitBy, null, 0, true); }
       if (e.dead) continue;
       if (ab.regen) e.hp = Math.min(e.maxHp, e.hp + ab.regen * e.hpScale * DT);
+      if (e.traits & Trait.Regrow) {
+        if (e.quietT > 0) e.quietT--;
+        else e.hp = Math.min(e.maxHp, e.hp + e.maxHp * REGROW_RATE * DT);
+      }
       if (regenMut) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.015 * DT);
       // compétences
       if (ab.heal && --e.abT <= 0) {
@@ -1395,7 +1523,7 @@ export class Sim {
       // cible imposée (héros) : la mêlée va au contact, le tir s'approche juste à portée
       if (u.focus) {
         const f = u.focus;
-        if (!this.targetable(f, u.range > 0) || (u.range <= 0 && f.flying)) {
+        if (!this.targetable(f, u.range > 0) || (u.range <= 0 && f.flying) || !this.visible(f)) {
           u.focus = null;
           u.hx = u.x; u.hz = u.z;
           u.moving = false;
@@ -1432,7 +1560,7 @@ export class Sim {
         let best: Enemy | null = null;
         let bestScore = Infinity;
         for (const e of this.enemies) {
-          if (e.dead || e.flying || e.burrowed || e.dist < 0.5) continue;
+          if (e.dead || e.flying || e.burrowed || e.dist < 0.5 || !this.visible(e)) continue;
           const dx = e.x - u.hx, dz = e.z - u.hz;
           const d2 = dx * dx + dz * dz;
           if (d2 > r2) continue;
@@ -1453,7 +1581,7 @@ export class Sim {
         if (u.extra.length < cap) {
           for (const e of this.enemies) {
             if (u.extra.length >= cap) break;
-            if (e === u.target || e.dead || e.flying || e.burrowed || e.blockers.length) continue;
+            if (e === u.target || e.dead || e.flying || e.burrowed || e.blockers.length || !this.visible(e)) continue;
             const dx = e.x - u.x, dz = e.z - u.z;
             if (dx * dx + dz * dz < 3.2) { u.extra.push(e); e.blockers.push(u); }
           }
@@ -1488,7 +1616,7 @@ export class Sim {
           u.fighting = true;
           if (u.cdT <= 0) {
             u.cdT = u.cdTicks;
-            let dmg = this.rollDmg(u.dmgMin, u.dmgMax) * (u.buffT > 0 ? 1.5 : 1);
+            let dmg = this.rollDmg(u.dmgMin, u.dmgMax) * (u.buffT > 0 ? 1.5 : 1) * (1 + (t ? t.auraDmg : 0));
             let flags = 0;
             if (t && t.level === 4 && t.sk[1] > 0 && this.rng.next() < TOWERS.barracks[4].skills![1].values[t.sk[1] - 1]) { dmg *= 2; flags = 1; }
             if (u.hero && u.hero.def.id === 'lyra' && this.rng.next() < 0.2) { dmg *= 2; flags = 1; }
@@ -1521,18 +1649,19 @@ export class Sim {
   private stepTowers() {
     const near: Enemy[] = [];
     for (const t of this.towers) {
+      if (t.fam === 'mine' || t.fam === 'camp') continue;
       if (t.stunT > 0) { t.stunT--; continue; }
       const lvl = TOWERS[t.fam][t.level];
       const s0 = t.level >= 3 ? t.sk[0] : 0;
       const s1 = t.level >= 3 ? t.sk[1] : 0;
       const pk = this.perk(t.owner);
-      let range = lvl.range * (1 + pk.range[t.fi]);
+      let range = lvl.range * (1 + pk.range[t.fi] + t.auraRange);
       if (t.fam === 'archer' && t.level === 3 && s1) range += lvl.skills![1].values[s1 - 1];
       if (t.fam === 'barracks') {
         // Rôdeurs : bond
         if (t.level === 4 && s0 && --t.s1T <= 0) {
           let best: Enemy | null = null;
-          for (const e of this.enemiesIn(t.rallyX, t.rallyZ, range + 1.5, false, near)) if (!best || e.hp > best.hp) best = e;
+          for (const e of this.enemiesIn(t.rallyX, t.rallyZ, range + 1.5, false, near)) if (this.visible(e) && (!best || e.hp > best.hp)) best = e;
           const u = t.units.find((u) => !u.dead);
           if (best && u) {
             t.s1T = sec(9);
@@ -1549,14 +1678,14 @@ export class Sim {
       if (t.level >= 3 && lvl.skills) {
         const sk0 = lvl.skills[0], sk1 = lvl.skills[1];
         if (sk1.id === 'rafale' && s1 && --t.s2T <= 0) {
-          const targets = this.enemiesIn(t.x, t.z, range, true, near).slice();
+          const targets = this.enemiesIn(t.x, t.z, range, true, near).filter((e) => this.visible(e));
           if (targets.length) {
             t.s2T = sec(8);
             const n = sk1.values[s1 - 1];
             for (let k = 0; k < n; k++) {
               const e = targets[k % targets.length];
               const flight = this.flightTicks(t.x, t.z, e.x, e.z, 22);
-              const p = this.mkProj(0, t, t.owner, e, e.x, e.z, flight, this.rollDmg(lvl.dmg[0], lvl.dmg[1]) * (1 + pk.dmg[t.fi]), DmgType.Phys, 0, true, null);
+              const p = this.mkProj(0, t, t.owner, e, e.x, e.z, flight, this.rollDmg(lvl.dmg[0], lvl.dmg[1]) * (1 + pk.dmg[t.fi] + t.auraDmg), DmgType.Phys, 0, true, null);
               if (s0) p.poison = sk0.values[s0 - 1];
               this.projs.push(p);
               this.ev(Ev.Fire, 0, Src.Tower, t.id, e.id, e.x, e.z, flight);
@@ -1565,7 +1694,7 @@ export class Sim {
           } else t.s2T = sec(1);
         }
         if (sk0.id === 'desint' && s0 && --t.s1T <= 0) {
-          const e = this.findTarget(t.x, t.z, range, true);
+          const e = this.findTarget(t.x, t.z, range, true, null, t.prio);
           if (e) {
             t.s1T = sec(sk0.values[s0 - 1]);
             this.ev(Ev.Impact, Impact.Arcane, e.x, e.z, 10);
@@ -1575,7 +1704,7 @@ export class Sim {
           } else t.s1T = sec(1);
         }
         if (sk1.id === 'teleport' && s1 && --t.s2T <= 0) {
-          const list = this.enemiesIn(t.x, t.z, range, true, near).filter((e) => !e.def.boss);
+          const list = this.enemiesIn(t.x, t.z, range, true, near).filter((e) => !e.def.boss && this.visible(e));
           if (list.length) {
             t.s2T = sec(10);
             list.sort((a, b) => this.remaining(a) - this.remaining(b));
@@ -1590,7 +1719,7 @@ export class Sim {
           } else t.s2T = sec(1);
         }
         if (sk0.id === 'blizzard' && s0 && --t.s1T <= 0) {
-          const e = this.findTarget(t.x, t.z, range, false);
+          const e = this.findTarget(t.x, t.z, range, false, null, t.prio);
           if (e) {
             t.s1T = sec(12);
             for (const o of this.enemiesIn(e.x, e.z, 2.5, false, near)) o.stunT = Math.max(o.stunT, sec(sk0.values[s0 - 1]));
@@ -1599,7 +1728,7 @@ export class Sim {
           } else t.s1T = sec(1);
         }
         if (sk1.id === 'frag' && s1 && --t.s2T <= 0) {
-          const e = this.findTarget(t.x, t.z, range, false);
+          const e = this.findTarget(t.x, t.z, range, false, null, t.prio);
           if (e) {
             t.s2T = sec(10);
             const n = sk1.values[s1 - 1];
@@ -1619,17 +1748,17 @@ export class Sim {
       }
       // tir principal
       if (t.burstLeft > 0 && --t.burstT <= 0) {
-        const tgt = t.aim && this.targetable(t.aim, true) ? t.aim : this.findTarget(t.x, t.z, range, lvl.hitsAir);
+        const tgt = t.aim && this.targetable(t.aim, true) && this.visible(t.aim) ? t.aim : this.findTarget(t.x, t.z, range, lvl.hitsAir, null, t.prio);
         if (tgt) this.fireTower(t, lvl, tgt);
         t.burstLeft--;
         t.burstT = 2;
       }
       if (t.cdT > 0) { t.cdT--; continue; }
-      const tgt = this.findTarget(t.x, t.z, range, lvl.hitsAir);
+      const tgt = this.findTarget(t.x, t.z, range, lvl.hitsAir, null, t.prio);
       t.aim = tgt;
       if (!tgt) continue;
       this.fireTower(t, lvl, tgt);
-      t.cdT = sec(lvl.cooldown / (1 + pk.rate[t.fi]));
+      t.cdT = sec(lvl.cooldown / (1 + pk.rate[t.fi] + t.auraRate));
       if (lvl.burst) { t.burstLeft = lvl.burst - 1; t.burstT = 2; }
     }
   }

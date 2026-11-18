@@ -46,6 +46,12 @@ export const ICON = {
   bag: line('<path d="M6 8.5h12l1.2 11.5H4.8z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>'),
   potion: line('<path d="M10 3.5h4M10.5 3.5v4.2L6.5 14a5.5 5.5 0 1 0 11 0l-4-6.3V3.5"/><path d="M7 14.5h10"/>', LIFE),
   snow: line('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>', '#3d8fd1'),
+  pick: line('<path d="M4 7c5-4.5 11-4.5 16 0"/><path d="M12 4.5L9 21"/><path d="M15.5 16l2 2.5 2.5-1-1-2.5z"/>', GOLD),
+  tent: line('<path d="M3 20L12 4l9 16z"/><path d="M12 4v16M9.5 20l2.5-5 2.5 5"/><path d="M12 4V2.5h3"/>'),
+  target: line('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'),
+  eye: line('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+  weight: line('<path d="M6.5 9h11l2.5 11H4z"/><circle cx="12" cy="6" r="2.5"/>'),
+  regrow: line('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/><path d="M12 9v6M9 12h6"/>'),
   bomb: line('<circle cx="11" cy="14.5" r="6.5"/><path d="M9.5 8.2V6.5h3v1.7"/><path d="M11 6.5c0-2.5 2-3.5 4-2.5"/><path d="M17 2.5v1.5M19.5 4h-1.5M18.6 2.4l-1 1"/><path d="M8 13a3 3 0 0 1 2.5-2"/>'),
 };
 
@@ -57,10 +63,14 @@ export const BRANCH_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon, ICON.h
 /** Ancien nom conservé : même jeu d'icônes. */
 export const LINE = ICON;
 
-export const FAMILY_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon];
-export const FAMILY_NAME = ['Archers', 'Caserne', 'Mages', 'Artillerie'];
+export const FAMILY_ICON = [ICON.bow, ICON.shield, ICON.orb, ICON.cannon, ICON.pick, ICON.tent];
+export const FAMILY_NAME = ['Archers', 'Caserne', 'Mages', 'Artillerie', 'Mine', 'Campement'];
 /** Couleur de chaque famille de tours (jetons CSS). */
-export const FAMILY_COLOR = ['var(--f-arch)', 'var(--f-bar)', 'var(--f-mag)', 'var(--f-art)'];
+export const FAMILY_COLOR = ['var(--f-arch)', 'var(--f-bar)', 'var(--f-mag)', 'var(--f-art)', 'var(--f-mine)', 'var(--f-camp)'];
+/** Icône de chaque propriété d'ennemi (même ordre que TRAITS). */
+export const TRAIT_ICONS = [ICON.eye, ICON.weight, ICON.regrow];
+/** Couleur de chaque propriété d'ennemi. */
+export const TRAIT_COLOR = ['#3f9a7a', '#7d8792', '#4caf50'];
 
 /** Une icône par compétence de héros (clé `icon` des données). */
 export const SKILL_ICON: Record<string, string> = {

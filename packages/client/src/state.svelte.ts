@@ -16,6 +16,10 @@ export interface Selection {
   mine?: boolean;
   enemyType?: number;
   hp?: number;
+  /** propriétés de l'ennemi sélectionné (voir Trait) */
+  traits?: number;
+  /** priorité de ciblage de la tour sélectionnée */
+  prio?: number;
 }
 
 export interface HudPlayer {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { FAMILIES, TOWERS, UNDO_SELL_S } from '@dfend/shared';
+  import { FAMILIES, PRIO_NAMES, SHOOTERS, TOWERS, UNDO_SELL_S } from '@dfend/shared';
   import { app } from '../app';
   import { keyLabel, keys } from '../settings';
   import { ui } from '../state.svelte';
@@ -80,6 +80,14 @@
     {#if mine}<div class="btns one"><button class="btn" onclick={() => g()?.sell()}>Vendre +{sell}<span class="kbd">{keyLabel(keys.sell)}</span></button></div>{/if}
   {/if}
 
+  {#if SHOOTERS.includes(fi) && mine}
+    <div class="prio" role="radiogroup" aria-label="Priorité de ciblage">
+      <span class="pl"><Ico k="target" fb={ICON.target} /> Cible<span class="kbd">{keyLabel(keys.prio)}</span></span>
+      {#each PRIO_NAMES as n, p}
+        <button role="radio" aria-checked={(sel.prio ?? 0) === p} class:on={(sel.prio ?? 0) === p} onclick={() => g()?.setPrio(p)}>{n}</button>
+      {/each}
+    </div>
+  {/if}
   {#if fam === 'barracks' && mine}
     <button class="btn ghost rally" onclick={() => g()?.startRally()}><Ico k="flag" fb={ICON.flag} /> Déplacer le point de ralliement<span class="kbd">{keyLabel(keys.rally)}</span></button>
   {/if}
@@ -129,6 +137,11 @@
   .pips { display: flex; gap: 3px; }
   .pips i { width: 11px; height: 11px; border-radius: 50%; background: #d8bf8f; border: 1.5px solid var(--ink); }
   .pips i.on { background: var(--gold-fill); }
+  .prio { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; align-items: center; gap: 4px; }
+  .prio .pl { grid-column: 1 / -1; }
+  .prio .pl { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-right: 2px; }
+  .prio button { font: inherit; font-size: 12px; font-weight: 900; padding: 4px 7px; min-height: 32px; white-space: nowrap; border: 2px solid var(--ink); border-radius: 99px; background: var(--toon-cream); color: var(--text); cursor: pointer; }
+  .prio button.on { background: var(--fc); box-shadow: inset 0 -2px 0 rgba(0,0,0,0.2); }
   .undo { margin: 0; font-size: 12px; font-weight: 700; color: var(--faint); }
   .kbd { margin-left: 2px; }
 </style>

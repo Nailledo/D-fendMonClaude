@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { FAMILIES, TOWERS } from '@dfend/shared';
+  import { FAMILIES, PRIO_NAMES, SHOOTERS, TOWERS } from '@dfend/shared';
   import { app } from '../app';
   import { ui } from '../state.svelte';
   import { keyLabel, keys } from '../settings';
@@ -19,7 +19,7 @@
   let flip = $state(false);
   const place = (e: PointerEvent) => (flip = (e.currentTarget as HTMLElement).getBoundingClientRect().left > window.innerWidth * 0.6);
   const g = () => app.game;
-  const R = $derived(ui.touch ? (ui.short ? 70 : 82) : 74);
+  const R = $derived((ui.touch ? (ui.short ? 70 : 82) : 74) + (sel.kind === 'build' ? (ui.short ? 12 : 18) : 0));
   const at = (angleDeg: number, r = R) => {
     const a = (angleDeg * Math.PI) / 180;
     return `left:${Math.cos(a) * r}px;top:${Math.sin(a) * r}px`;
@@ -31,8 +31,18 @@
   /** avant la première vague, la revente rend tout */
   const prep = $derived(ui.hud.state === 0);
   const sellValue = $derived(sellOf(sel.fam ?? 0, lvl, sk as [number, number], prep));
+  const famKeys = $derived([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery, keys.buildMine, keys.buildCamp]);
+  const PRIO_SHORT = ['1er', 'Dernier', 'Fort', 'Proche'];
+  const PRIO_DESC = [
+    'vise l’ennemi le plus avancé sur le chemin.',
+    'vise l’ennemi le moins avancé : utile en fin de chemin.',
+    'vise l’ennemi qui a le plus de PV.',
+    'vise l’ennemi le plus proche de la tour.',
+  ];
   const statLine = (fi: string, l: number) => {
     const t = TOWERS[fi as keyof typeof TOWERS][l];
+    if (t.income !== undefined) return `+${t.income} or au début de chaque vague · ne tire pas`;
+    if (t.aura) return `tours voisines (rayon ${t.range}) : portée +${Math.round(t.aura.range * 100)} %, cadence +${Math.round(t.aura.rate * 100)} %${t.detect ? ' · repère les camouflés' : ''}`;
     if (t.soldiers) return `${t.soldiers.count} soldats · ${t.soldiers.hp} PV · ${t.soldiers.dmg[0]}-${t.soldiers.dmg[1]} dégâts · armure ${Math.round(t.soldiers.armor * 100)} %`;
     const dps = ((t.dmg[0] + t.dmg[1]) / 2 / t.cooldown) * (t.burst ?? 1);
     return `${t.dmg[0]}-${t.dmg[1]} ${t.dmgType === 1 ? 'magiques' : 'physiques'} · portée ${t.range} · ${dps.toFixed(0)} dégâts/s${t.hitsAir ? ' · anti-air' : ''}${t.splash ? ' · zone' : ''}`;
@@ -75,12 +85,12 @@
     {#each FAMILIES as f, i}
       {@const t = TOWERS[f][0]}
       {@const tp = { title: t.name, text: t.desc + ' ' + statLine(f, 0), cost: t.cost }}
-      <button class="opt" class:poor={gold < t.cost} class:armed={armed === 'b' + i} style={at(-90 + i * 90)}
+      <button class="opt" class:poor={gold < t.cost} class:armed={armed === 'b' + i} style={at(-90 + i * (360 / FAMILIES.length))}
         onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp, i)}
         onclick={() => act('b' + i, tp, () => g()?.build(i), i)}>
         <span class="face hex" style="--fc:{FAMILY_COLOR[i]}"><Ico k={'fam_' + i} fb={FAMILY_ICON[i]} /></span>
         <span class="cost">{t.cost}</span>
-        <span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery][i])}</span>
+        <span class="kbd">{keyLabel(famKeys[i])}</span>
       </button>
     {/each}
   {:else if sel.kind === 'tower'}
@@ -122,6 +132,13 @@
       <button class="opt sell" class:armed={armed === 'sell'} style={at(90)} onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)} onclick={() => act('sell', tp, () => g()?.sell())}>
         <span class="face hex neutral"><Ico k="sell" fb={ICON.sell} /></span><span class="cost">+{sellValue}</span><span class="kbd">{keyLabel(keys.sell)}</span>
       </button>
+      {#if SHOOTERS.includes(sel.fam ?? -1)}
+        {@const p = sel.prio ?? 0}
+        {@const tp = { title: `Priorité : ${PRIO_NAMES[p]}`, text: `La tour ${PRIO_DESC[p]} Touchez pour passer à « ${PRIO_NAMES[(p + 1) % 4]} ».` }}
+        <button class="opt prio" style={at(180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview(tp)} onclick={() => { const n = ((sel.prio ?? 0) + 1) % 4; g()?.setPrio(n); tip = { title: `Priorité : ${PRIO_NAMES[n]}`, text: `La tour ${PRIO_DESC[n]}` }; }}>
+          <span class="face hex neutral"><Ico k="target" fb={ICON.target} /></span><span class="cost plabel">{PRIO_SHORT[p]}</span><span class="kbd">{keyLabel(keys.prio)}</span>
+        </button>
+      {/if}
       {#if fam === 'barracks'}
         <button class="opt" style={at(lvl >= 2 ? 160 : 180)} onpointerenter={(e) => e.pointerType !== 'touch' && preview({ title: 'Point de ralliement', text: 'Choisissez où vos soldats se postent.' })} onclick={() => g()?.startRally()}>
           <span class="face hex neutral"><Ico k="flag" fb={ICON.flag} /></span><span class="kbd">{keyLabel(keys.rally)}</span>
@@ -169,6 +186,7 @@
   /* prix : jeton doré sous l'option */
   .cost { position: absolute; z-index: 1; bottom: -16px; font-family: var(--font-display); font-size: 15px; line-height: 1.1; color: var(--ink); background: var(--gold-fill); border: 2.5px solid var(--ink); padding: 0 8px; border-radius: 99px; box-shadow: 0 2px 0 var(--ink); font-variant-numeric: tabular-nums; }
   .opt.poor .cost { background: #d9c5a0; color: var(--bad); }
+  .opt .cost.plabel { background: var(--toon-cream); font-size: 13px; white-space: nowrap; }
   .opt .kbd { position: absolute; top: -8px; right: -6px; font-size: 11px; }
   .tip { position: absolute; left: 108px; top: -50px; width: min(270px, calc(100vw - 24px)); padding: 10px 14px 12px; font-size: 0.88em; z-index: 5; display: flex; flex-direction: column; gap: 4px; animation: pop 0.12s ease; }
   .tip.flip { left: auto; right: 108px; }

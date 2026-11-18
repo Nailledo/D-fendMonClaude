@@ -8,12 +8,12 @@
  * tout se rejoue à l'identique, et les valeurs reçues d'un client sont bornées par `sanitizeMeta`.
  */
 
-/** Bonus cumulés d'un joueur (fractions : 0.1 = +10 %). Par famille de tour : archer, caserne, mage, artillerie. */
+/** Bonus cumulés d'un joueur (fractions : 0.1 = +10 %). Par famille de tour : archer, caserne, mage, artillerie, (mine, campement). */
 export interface Perks {
-  dmg: [number, number, number, number];
-  range: [number, number, number, number];
+  dmg: number[];
+  range: number[];
   /** cadence de tir : le temps de recharge est divisé par (1 + rate) */
-  rate: [number, number, number, number];
+  rate: number[];
   splash: number;
   soldierHp: number;
   soldierDmg: number;
@@ -39,7 +39,8 @@ export interface Perks {
 
 export function emptyPerks(): Perks {
   return {
-    dmg: [0, 0, 0, 0], range: [0, 0, 0, 0], rate: [0, 0, 0, 0], splash: 0,
+    // une valeur par famille de tour (mine et campement compris, toujours nulles)
+    dmg: [0, 0, 0, 0, 0, 0], range: [0, 0, 0, 0, 0, 0], rate: [0, 0, 0, 0, 0, 0], splash: 0,
     soldierHp: 0, soldierDmg: 0, soldierArmor: 0, soldierRespawn: 0,
     heroHp: 0, heroDmg: 0, heroRespawn: 0, heroXp: 0, heroCd: 0,
     spellCd: 0, meteorDmg: 0, renfortHp: 0, gold: 0, lives: 0,

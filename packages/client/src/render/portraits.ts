@@ -74,7 +74,7 @@ export function renderPortraits(): Record<string, string> {
   shot('grolbak', pick(K.enemy('grolbak'), () => enemyGeometry('grolbak')), true);
   shot('vasiere', pick(K.enemy('vasiere'), () => enemyGeometry('vasiere')), true);
   shot('corbeau', pick(K.enemy('corbeau'), () => enemyGeometry('corbeau')), false);
-  for (let f = 0; f < 4; f++) for (let l = 0; l < 5; l++) shot(`t_${f}_${l}`, pick(K.tower(f, l), () => towerModel(f, l).base), false);
+  for (let f = 0; f < 6; f++) for (let l = 0; l < 5; l++) shot(`t_${f}_${l}`, pick(K.tower(f, l), () => towerModel(f, l).base), false);
   for (let k = 0; k < 8; k++) shot('s_' + k, pick(K.soldier(k), () => soldierGeometry(k)), false);
   for (const m of texMats.values()) m.dispose();
   // tampon réduit au minimum ; le contexte est rendu au navigateur quand le canevas est libéré

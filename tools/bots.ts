@@ -18,7 +18,10 @@ export function runBot(sim: Sim, strat: Strategy, n: number) {
       const o = mine[k];
       if (sim.towerBySlot[o.i]) continue;
       // un joueur réel s'adapte : contre les ennemis blindés de la Cendre, plus de mages
-      const rot = sim.map.def.biome === 'cendre' ? [2, 1, 0, 2, 3] : [0, 1, 2, 3];
+      // ... et contre le plomb (annoncé par l'aperçu des vagues), des mages et de l'artillerie
+      const lt = sim.level?.traits;
+      const lead = !!lt?.lead && sim.waveIdx + 1 >= lt.lead;
+      const rot = lead ? [2, 3, 1, 2, 0, 3] : sim.map.def.biome === 'cendre' ? [2, 1, 0, 2, 3] : [0, 1, 2, 3];
       const mono = monoFam(strat);
       const fam = strat === 'glouton' ? 0 : mono >= 0 ? mono : rot[k % rot.length];
       if (p.gold >= TOWERS[FAMILIES[fam]][0].cost) sim.apply(p.id, { k: 'build', slot: o.i, fam });

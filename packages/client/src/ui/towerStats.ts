@@ -25,6 +25,21 @@ export function towerStats(fam: Family, level: number): StatRow[] {
       { label: 'Réapparition', value: s.respawn, text: `${s.respawn} s`, lowerIsBetter: true },
     ];
   }
+  if (t.income !== undefined) {
+    return [
+      { label: 'Or par vague', value: t.income, text: `+${t.income}` },
+      { label: 'Rentabilisée en', value: Math.ceil(investedCost(fam, level) / t.income), text: `${Math.ceil(investedCost(fam, level) / t.income)} vagues`, lowerIsBetter: true },
+    ];
+  }
+  if (t.aura) {
+    const rows: StatRow[] = [
+      { label: 'Zone d’influence', value: t.range, text: num(t.range) },
+      { label: 'Portée des voisines', value: t.aura.range, text: '+' + pct(t.aura.range) },
+      { label: 'Cadence des voisines', value: t.aura.rate, text: '+' + pct(t.aura.rate) },
+    ];
+    if (t.detect) rows.push({ label: 'Repère les camouflés', value: 1, text: 'Oui' });
+    return rows;
+  }
   const burst = t.burst ?? 1;
   const chain = t.chain ?? 1;
   const dps = ((t.dmg[0] + t.dmg[1]) / 2 / t.cooldown) * burst;
@@ -44,6 +59,9 @@ export function towerStats(fam: Family, level: number): StatRow[] {
 export function towerTags(fam: Family, level: number): string[] {
   const t = TOWERS[fam][level];
   if (t.soldiers) return ['Bloque au sol'];
+  if (t.income !== undefined) return ['Économie', 'Ne tire pas'];
+  if (t.aura) return t.detect ? ['Soutien', 'Détection'] : ['Soutien', 'Ne tire pas'];
+  if (fam === 'mage') return [t.hitsAir ? 'Sol + air' : 'Sol uniquement', 'Magique', 'Détection'];
   return [t.hitsAir ? 'Sol + air' : 'Sol uniquement', t.dmgType === 1 ? 'Magique' : 'Physique'];
 }
 

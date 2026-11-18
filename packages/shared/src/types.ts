@@ -1,6 +1,13 @@
-export type Family = 'archer' | 'barracks' | 'mage' | 'artillery';
-export const FAMILIES: Family[] = ['archer', 'barracks', 'mage', 'artillery'];
-export const FAMILY_INDEX: Record<Family, number> = { archer: 0, barracks: 1, mage: 2, artillery: 3 };
+export type Family = 'archer' | 'barracks' | 'mage' | 'artillery' | 'mine' | 'camp';
+/** Familles de tours : les quatre de combat, puis la mine (économie) et le campement (soutien). */
+export const FAMILIES: Family[] = ['archer', 'barracks', 'mage', 'artillery', 'mine', 'camp'];
+export const FAMILY_INDEX: Record<Family, number> = { archer: 0, barracks: 1, mage: 2, artillery: 3, mine: 4, camp: 5 };
+/** Familles qui tirent : elles ont une priorité de ciblage. */
+export const SHOOTERS: readonly number[] = [0, 2, 3];
+
+/** Priorité de ciblage d'une tour. */
+export const enum Prio { First = 0, Last = 1, Strong = 2, Close = 3 }
+export const PRIO_NAMES = ['Premier', 'Dernier', 'Plus fort', 'Plus proche'];
 
 export const enum DmgType {
   Phys = 0,
@@ -40,6 +47,8 @@ export type Command =
   | { k: 'spec'; tower: number; s: 1 | 2 }
   | { k: 'skill'; tower: number; i: 0 | 1 }
   | { k: 'sell'; tower: number }
+  /** priorité de ciblage (voir Prio) */
+  | { k: 'prio'; tower: number; p: number }
   | { k: 'rally'; tower: number; x: number; z: number }
   | { k: 'hmove'; x: number; z: number }
   /** le héros prend un ennemi pour cible : au contact pour la mêlée, à portée de tir pour les héros à distance */

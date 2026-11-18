@@ -42,6 +42,7 @@ const IVORY = 0xefe6d4, IRON = 0x5b6670, PURPLE = 0x9b5cf6, GREEN = 0x7bd36b, OR
 /** couleurs des médaillons */
 const M = {
   arch: 0x4f9a32, bar: 0x2f6fa8, mag: 0x7c4fc4, art: 0xc4621f, gold: 0xc8901c, neutral: 0x3a444b,
+  mine: 0xb8860b, camp: 0xa8432f,
   red: 0xb8322c, samuel: 0x2f5fa8, lyra: 0x2f7d32, brom: 0xa0521e, nox: 0x5b2a9a, steel: 0x334155,
 };
 
@@ -196,6 +197,26 @@ export const ICONS3D: Record<string, Icon3D> = {
       g.box(1.0, 0.35, 0.6, WOOD, -0.15, -0.35, 0);
       for (const z of [-0.38, 0.38]) g.cyl(0.42, 0.42, 0.12, 10, 0x5a3a22, -0.15, -0.45, z, Math.PI / 2);
       for (const z of [-0.45, 0.45]) g.cyl(0.12, 0.12, 0.05, 6, GOLD, -0.15, -0.45, z, Math.PI / 2);
+    },
+  },
+  fam_4: {
+    medal: M.mine, rot: [0.25, -0.5, 0],
+    build(g) {
+      // pioche sur un tas de pépites
+      g.box(0.12, 1.5, 0.12, WOOD, 0.1, 0.15, 0, 0, 0, -0.5);
+      g.shape([[-0.75, 0], [0.75, 0], [0.55, 0.16], [0, 0.26], [-0.55, 0.16]], 0.13, STEEL, 0.45, 0.72, 0, 0, 0, -0.5);
+      for (const [x, y, r] of [[-0.45, -0.5, 0.26], [-0.1, -0.62, 0.22], [-0.7, -0.62, 0.2], [-0.3, -0.3, 0.2]]) g.rock(r, GOLD, x, y, 0.1, 1, 0.8, 1);
+    },
+  },
+  fam_5: {
+    medal: M.camp, rot: [0.3, -0.5, 0],
+    build(g) {
+      // tente rayée et fanion
+      g.cone(0.95, 1.2, 4, 0xf3e5c8, 0, -0.1, 0, 0, Math.PI / 4);
+      g.cone(0.97, 0.6, 4, RED, 0, 0.2, 0, 0, Math.PI / 4);
+      g.box(0.3, 0.55, 0.05, 0x3e2723, 0, -0.42, 0.62);
+      g.box(0.05, 0.8, 0.05, WOOD, 0, 0.85, 0);
+      g.shape([[0, 0], [0.45, 0.12], [0, 0.26]], 0.04, YEL, 0.03, 1.05, 0);
     },
   },
   // ------------------------------------------------ actions de tour

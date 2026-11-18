@@ -86,7 +86,7 @@ export function autoDetect(gl: WebGLRenderingContext | WebGL2RenderingContext) {
 
 export type Action =
   | 'hero' | 'skill1' | 'skill2' | 'ult' | 'spell1' | 'spell2'
-  | 'buildArcher' | 'buildBarracks' | 'buildMage' | 'buildArtillery'
+  | 'buildArcher' | 'buildBarracks' | 'buildMage' | 'buildArtillery' | 'buildMine' | 'buildCamp' | 'prio'
   | 'upgrade' | 'sell' | 'rally' | 'wave' | 'speed' | 'chat' | 'menu' | 'debug'
   | 'camUp' | 'camDown' | 'camLeft' | 'camRight';
 
@@ -101,6 +101,9 @@ export const ACTION_LABELS: Record<Action, string> = {
   buildBarracks: 'Construire : Caserne',
   buildMage: 'Construire : Mages',
   buildArtillery: 'Construire : Artillerie',
+  buildMine: 'Construire : Mine',
+  buildCamp: 'Construire : Campement',
+  prio: 'Priorité de ciblage de la tour',
   upgrade: 'Améliorer la tour',
   sell: 'Vendre la tour',
   rally: 'Point de ralliement',
@@ -118,7 +121,7 @@ export const ACTION_LABELS: Record<Action, string> = {
 /** Codes physiques (event.code) : fonctionnent en AZERTY comme en QWERTY. */
 export const DEFAULT_KEYS: Record<Action, string> = {
   hero: 'KeyH', skill1: 'KeyQ', skill2: 'KeyW', ult: 'KeyR', spell1: 'Digit1', spell2: 'Digit2',
-  buildArcher: 'KeyZ', buildBarracks: 'KeyX', buildMage: 'KeyC', buildArtillery: 'KeyV',
+  buildArcher: 'KeyZ', buildBarracks: 'KeyX', buildMage: 'KeyC', buildArtillery: 'KeyV', buildMine: 'KeyB', buildCamp: 'KeyN', prio: 'KeyT',
   upgrade: 'KeyU', sell: 'KeyS', rally: 'KeyD', wave: 'Space', speed: 'KeyF', chat: 'Enter', menu: 'Escape', debug: 'F3',
   camUp: 'ArrowUp', camDown: 'ArrowDown', camLeft: 'ArrowLeft', camRight: 'ArrowRight',
 };

@@ -15,6 +15,7 @@ export class Frame {
   eDz = new Float32Array(2048);
   eHp = new Float32Array(2048);
   eFlags = new Uint8Array(2048);
+  eTraits = new Uint8Array(2048);
   uN = 0;
   uId = new Uint16Array(512);
   uKind = new Uint8Array(512);
@@ -160,6 +161,7 @@ export class Interp {
       f.eDz[k] = dir.z;
       f.eHp[k] = B.eHp[i];
       f.eFlags[k] = B.eFlags[i];
+      f.eTraits[k] = B.eTraits[i];
       f.markE(id, k);
       if (f.eN >= f.eId.length) break;
     }

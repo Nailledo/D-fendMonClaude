@@ -10,10 +10,19 @@
     <p>Empêchez les ennemis d’atteindre la porte au bout du chemin. Chaque ennemi qui passe vous coûte des vies, et la partie est perdue à zéro.</p>
     <h3>Construire</h3>
     <ul>
-      <li>Cliquez (ou touchez) un <b>emplacement de pierre</b> : un menu circulaire propose quatre tours. Au tactile, un premier appui sur une tour montre sa portée et son prix, un second la construit.</li>
+      <li>Cliquez (ou touchez) un <b>emplacement de pierre</b> : un menu circulaire propose six bâtiments. Au tactile, un premier appui sur une tour montre sa portée et son prix, un second la construit.</li>
       <li><b>Archers</b> : rapides, touchent les volants. <b>Caserne</b> : des soldats bloquent les ennemis au sol. <b>Mages</b> : ignorent l’armure. <b>Artillerie</b> : dégâts de zone.</li>
+      <li><b>Mine</b> : ne tire pas, mais rapporte de l’or au début de chaque vague ; sa spécialisation Ferme royale soigne la porte ou enrichit vos alliés. <b>Campement</b> : augmente la portée et la cadence des tours voisines ; la Tour de guet repère aussi les camouflés. Investir tôt rapporte, mais laisse le chemin moins défendu.</li>
+      <li><b>Priorité de ciblage</b> : chaque tour qui tire vise par défaut l’ennemi le plus avancé (« Premier »). Le bouton cible du menu circulaire, ou <span class="kbd">{keyLabel(keys.prio)}</span>, la fait passer à « Dernier », « Plus fort » ou « Plus proche ».</li>
       <li>Cliquez sur une tour pour l’améliorer (3 niveaux), puis choisir l’une des deux <b>spécialisations</b> et acheter ses compétences.</li>
       <li>La revente rend 60 % de l’investissement, ou 100 % pendant 3 secondes après un achat.</li>
+    </ul>
+    <h3>Ennemis particuliers</h3>
+    <ul>
+      <li>Une vague peut doter des ennemis d’une propriété, visible dans l’aperçu de la vague :</li>
+      <li><b>Camouflé</b> : les tours et soldats ne le voient que près d’une tour de mages, d’une tour de guet ou de votre héros. Les explosions et les sorts le touchent quand même.</li>
+      <li><b>Cuirassé de plomb</b> (gris) : flèches et lames ricochent ; préférez la magie, l’artillerie et les sorts.</li>
+      <li><b>Régénérant</b> (pulsation verte) : il se soigne s’il n’est pas blessé pendant un moment ; le poison et la brûlure l’en empêchent.</li>
     </ul>
     <h3>Votre héros</h3>
     <ul>

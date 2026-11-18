@@ -203,8 +203,134 @@ function artillery(level: number): TowerModel {
   return { base: g.build(), turret: t.build(), turretY: 0.4 + h, muzzleY: 1.3 + h };
 }
 
+const GOLD = 0xf2b33d;
+const CANVAS = 0xf1e3c4;
+
+/** Lanterne posée sur un poteau. */
+function lantern(g: GB, x: number, y: number, z: number) {
+  g.cyl(0.03, 0.03, 0.7, 4, WOOD_D, x, y + 0.35, z);
+  g.box(0.14, 0.16, 0.14, 0x3e2723, x, y + 0.78, z);
+  g.ball(0.06, 0xffd54f, x, y + 0.78, z);
+}
+
+function mine(level: number): TowerModel {
+  const g = new GB(701 + level);
+  plinth(g, 1.15);
+  if (level === 4) {
+    // ferme royale : grange rouge, meule, champ de blé et petit moulin
+    g.box(1.3, 0.9, 1.0, 0xa63d2a, -0.25, 0.73, -0.15);
+    g.roof(1.45, 0.65, 1.15, 0x5d4037, -0.25, 1.18, -0.15);
+    g.box(0.4, 0.55, 0.05, 0xf1e3c4, -0.25, 0.58, 0.36);
+    g.box(0.05, 0.55, 0.05, 0x3e2723, -0.25, 0.58, 0.39);
+    for (let k = 0; k < 6; k++) g.cone(0.08, 0.35, 4, 0xe6c35c, 0.55 + (k % 3) * 0.17, 0.45, 0.35 + Math.floor(k / 3) * 0.2);
+    g.cyl(0.24, 0.3, 0.45, 7, 0xd9b24a, 0.65, 0.5, -0.45);
+    g.cone(0.3, 0.3, 7, 0xc49a35, 0.65, 0.88, -0.45);
+    g.cyl(0.12, 0.18, 1.4, 6, STONE, 0.8, 0.98, 0.55);
+    for (let k = 0; k < 4; k++) g.box(0.08, 0.85, 0.04, 0xf1e3c4, 0.8, 1.75, 0.68, 0, 0, (k * Math.PI) / 4 + 0.3);
+    banner(g, -0.9, 0.5, 0.5, 0.45);
+    return { base: g.build(), turret: null, turretY: 0, muzzleY: 1.5 };
+  }
+  // colline percée d'une galerie, boisage, wagonnet de minerai
+  const hill = 0.75 + level * 0.12;
+  g.rock(hill, level === 3 ? 0x8d7b62 : 0x7d776d, -0.15, 0.35, -0.3, 1.3, 0.95, 1.05);
+  g.box(0.62, 0.62, 0.3, 0x2b2016, -0.15, 0.6, 0.38);
+  g.box(0.1, 0.8, 0.1, WOOD, -0.48, 0.68, 0.52);
+  g.box(0.1, 0.8, 0.1, WOOD, 0.18, 0.68, 0.52);
+  g.box(0.82, 0.1, 0.12, WOOD_D, -0.15, 1.1, 0.52);
+  // rails et wagonnet
+  for (const x of [0.28, 0.5]) g.box(0.04, 0.03, 1.0, 0x5b4636, x, 0.3, 0.55);
+  g.box(0.4, 0.22, 0.32, 0x5d4037, 0.39, 0.45, 0.75);
+  const ore = level === 0 ? 0xb87333 : level === 1 ? 0x8d99a6 : level === 2 ? 0xdfe6ea : GOLD;
+  for (let k = 0; k < 4; k++) g.rock(0.09, ore, 0.3 + (k % 2) * 0.17, 0.6, 0.68 + Math.floor(k / 2) * 0.14, 1, 0.8, 1, k);
+  if (level >= 1) {
+    // chevalement : la grande roue du puits
+    g.box(0.08, 1.5, 0.08, WOOD_D, 0.55, 1.0, -0.55, 0, 0, 0.15);
+    g.box(0.08, 1.5, 0.08, WOOD_D, 0.95, 1.0, -0.55, 0, 0, -0.15);
+    g.torus(0.28, 0x6d4c41, 0.75, 1.75, -0.55);
+  }
+  if (level >= 2) lantern(g, -0.75, 0.25, 0.65);
+  if (level === 3) {
+    // tas d'or et coffre
+    for (let k = 0; k < 5; k++) g.rock(0.13, GOLD, -0.8 + (k % 3) * 0.16, 0.38 + (k > 2 ? 0.12 : 0), -0.75 + (k % 2) * 0.12, 1, 0.8, 1, k);
+    g.box(0.4, 0.28, 0.28, 0x6d4c41, 0.75, 0.42, 0.1);
+    g.box(0.42, 0.06, 0.3, GOLD, 0.75, 0.58, 0.1);
+  }
+  banner(g, -0.95, 0.4, -0.2, 0.4);
+  return { base: g.build(), turret: null, turretY: 0, muzzleY: 1.4 };
+}
+
+/** Tente à quatre pans (couleur de toile, bande de couleur). */
+function tent(g: GB, x: number, z: number, s: number, c: number, stripe: number, ry = 0) {
+  g.cone(0.7 * s, 0.95 * s, 4, c, x, 0.28 + 0.47 * s, z, 0, Math.PI / 4 + ry);
+  g.cone(0.72 * s, 0.42 * s, 4, stripe, x, 0.28 + 0.75 * s, z, 0, Math.PI / 4 + ry);
+  g.box(0.24 * s, 0.4 * s, 0.04, 0x3e2723, x + Math.sin(ry) * 0.48 * s, 0.28 + 0.2 * s, z + Math.cos(ry) * 0.48 * s, 0, ry, 0);
+}
+
+function campfire(g: GB, x: number, z: number) {
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    g.rock(0.07, 0x6d6d6d, x + Math.cos(a) * 0.17, 0.3, z + Math.sin(a) * 0.17, 1, 0.7, 1, a);
+  }
+  g.box(0.32, 0.05, 0.05, WOOD_D, x, 0.33, z, 0, 0.5, 0);
+  g.box(0.32, 0.05, 0.05, WOOD_D, x, 0.34, z, 0, -0.6, 0);
+  g.cone(0.1, 0.24, 5, 0xff8f00, x, 0.45, z);
+  g.cone(0.05, 0.16, 5, 0xffeb3b, x, 0.45, z);
+}
+
+function camp(level: number): TowerModel {
+  const g = new GB(801 + level);
+  plinth(g, 1.15);
+  if (level === 3) {
+    // tour de guet : pilotis, plateforme couverte, longue-vue
+    for (const [x, z] of [[0.45, 0.45], [-0.45, 0.45], [0.45, -0.45], [-0.45, -0.45]]) g.box(0.13, 2.8, 0.13, WOOD, x, 1.65, z, x * 0.08, 0, -z * 0.08);
+    g.box(1.0, 0.07, 0.07, WOOD_D, 0, 1.2, 0.45, 0, 0, 0.7);
+    g.box(1.0, 0.07, 0.07, WOOD_D, 0, 1.2, -0.45, 0, 0, -0.7);
+    g.box(1.35, 0.12, 1.35, WOOD, 0, 3.0, 0);
+    for (const [x, z, ry] of [[0, 0.64, 0], [0, -0.64, 0], [0.64, 0, Math.PI / 2], [-0.64, 0, Math.PI / 2]]) g.box(1.35, 0.32, 0.06, WOOD_D, x, 3.2, z, 0, ry, 0);
+    g.cone(1.05, 0.7, 4, 0xa8432f, 0, 3.95, 0, 0, Math.PI / 4);
+    g.cyl(0.05, 0.07, 0.6, 6, 0x8d6e63, 0.3, 3.45, 0.55, 1.2, 0, 0);
+    g.ball(0.05, 0x80d8ff, 0.3, 3.6, 0.83);
+    banner(g, 0, 4.2, 0, 0.45);
+    campfire(g, -0.65, 0.65);
+    return { base: g.build(), turret: null, turretY: 0, muzzleY: 3.2 };
+  }
+  if (level === 4) {
+    // tente de commandement : grand pavillon, tambours, étendards
+    g.cyl(0.95, 1.0, 0.75, 8, 0xe9d6ab, 0, 0.66, 0);
+    g.cone(1.1, 1.0, 8, 0x8e2a1f, 0, 1.52, 0);
+    g.cone(1.12, 0.35, 8, GOLD, 0, 1.18, 0);
+    g.box(0.45, 0.6, 0.05, 0x3e2723, 0, 0.58, 0.97);
+    for (const x of [-0.75, 0.75]) {
+      g.cyl(0.17, 0.17, 0.26, 8, 0xa63d2a, x, 0.42, 0.85);
+      g.cyl(0.18, 0.18, 0.03, 8, 0xf1e3c4, x, 0.56, 0.85);
+    }
+    banner(g, -0.95, 0.4, -0.5, 0.7);
+    banner(g, 0.95, 0.4, -0.5, 0.7);
+    banner(g, 0, 2.0, 0, 0.45);
+    return { base: g.build(), turret: null, turretY: 0, muzzleY: 2 };
+  }
+  // campement : tentes et feu de camp, puis palissade et râtelier
+  const c = level === 0 ? CANVAS : 0xe9d6ab;
+  tent(g, -0.3, -0.25, 1.0 + level * 0.1, c, 0xa8432f, 0.4);
+  if (level >= 1) tent(g, 0.5, -0.45, 0.75, c, 0x2f6fa8, -0.5);
+  campfire(g, 0.35, 0.45);
+  g.box(0.5, 0.12, 0.12, WOOD, -0.55, 0.35, 0.6, 0, 0.3, 0);
+  if (level >= 1) for (let k = 0; k < 7; k++) {
+    const a = 0.3 + (k / 6) * 2.4;
+    g.box(0.1, 0.55, 0.1, WOOD, Math.cos(a) * 1.0, 0.5, -Math.sin(a) * 1.0, 0, 0, 0);
+    g.cone(0.07, 0.15, 4, WOOD_D, Math.cos(a) * 1.0, 0.85, -Math.sin(a) * 1.0);
+  }
+  if (level === 2) {
+    // râtelier d'armes
+    g.box(0.6, 0.06, 0.06, WOOD_D, -0.75, 0.75, 0.3, 0, 1.2, 0);
+    for (let k = 0; k < 3; k++) g.box(0.03, 0.7, 0.03, 0xb0bec5, -0.75 + Math.cos(1.2) * (k - 1) * 0.2, 0.62, 0.3 - Math.sin(1.2) * (k - 1) * 0.2);
+  }
+  banner(g, 0.1, 0.3 + 0.9 + level * 0.1, -0.25, 0.4 + level * 0.1);
+  return { base: g.build(), turret: null, turretY: 0, muzzleY: 1.2 };
+}
+
 const cache = new Map<number, TowerModel>();
-const builders = [archer, barracks, mage, artillery];
+const builders = [archer, barracks, mage, artillery, mine, camp];
 
 export function towerModel(fam: number, level: number): TowerModel {
   const key = fam * 10 + level;

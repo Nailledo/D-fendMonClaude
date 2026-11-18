@@ -1,6 +1,6 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HEROES, HERO_IDS, ITEMS, MUTATIONS, PLAYER_COLORS, SPELLS, TOWERS, earlyCallBonus, previewWave, TRAITS } from '@dfend/shared';
   import { app } from '../app';
   import { dom } from '../game/GameClient';
   import { keyLabel, keys } from '../settings';
@@ -12,7 +12,7 @@
   import Radial from './Radial.svelte';
   import TowerPanel from './TowerPanel.svelte';
   import { enemyTraits } from './enemyTraits';
-  import { FAMILY_NAME, ICON, ITEM_ICON, LINE, SKILL_ICON } from './icons';
+  import { FAMILY_NAME, ICON, ITEM_ICON, LINE, SKILL_ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { SKILL_ICON as HERO_SKILL_ICON } from './skillIcons';
   import { fit } from './fit';
 
@@ -142,7 +142,7 @@
             {#each preview.entries as en}
               {@const d = ENEMIES[en.type]}
               {@const tr = enemyTraits(d)}
-              <li class:boss={d.boss}><span>{d.name}{#each tr.slice(0, 2) as t}<em>{t}</em>{/each}</span><b>×{en.count}</b></li>
+              <li class:boss={d.boss}><span>{d.name}{#each TRAITS as T, k}{#if en.traits & (1 << k)}<em class="trait" style="--tc:{TRAIT_COLOR[k]}" title={T.desc}>{@html TRAIT_ICONS[k]}{T.short}</em>{/if}{/each}{#each tr.slice(0, en.traits ? 1 : 2) as t}<em>{t}</em>{/each}</span><b>×{en.count}</b></li>
             {/each}
           </ul>
           {#if preview.mutations.length}<div class="wm">{#each preview.mutations as m}<span>{MUTATIONS[m].name} : {MUTATIONS[m].desc}</span>{/each}</div>{/if}
@@ -253,6 +253,11 @@
         <span>PV {Math.round(d.hp)}</span><span>Armure {Math.round(d.armor * 100)} %</span><span>Rés. magie {Math.round(d.mres * 100)} %</span>
         <span>Vitesse {d.speed}</span><span>Vies {d.lives}</span>{#if d.flying}<span>Volant</span>{/if}
       </div>
+      {#each TRAITS as T, k}
+        {#if (sel.traits ?? 0) & (1 << k)}
+          <div class="etrait" style="--tc:{TRAIT_COLOR[k]}">{@html TRAIT_ICONS[k]}<div><b>{T.name}</b><span class="small">{T.desc}</span></div></div>
+        {/if}
+      {/each}
     </div>
   {:else if sel?.kind === 'tower' && sel.fam !== undefined}
     <TowerPanel />
@@ -260,7 +265,7 @@
     {#if ui.touch}
       <div class="info panel ui hint sheet-{ui.sheet}">Touchez une tour : portée et prix. Touchez-la encore : construction.</div>
     {:else}
-      <div class="info panel ui hint">Choisissez une tour : {#each FAMILY_NAME as n, i}<span class="nowrap"><span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery][i])}</span> {n} </span>{/each}</div>
+      <div class="info panel ui hint">Choisissez une tour : {#each FAMILY_NAME as n, i}<span class="nowrap"><span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery, keys.buildMine, keys.buildCamp][i])}</span> {n} </span>{/each}</div>
     {/if}
   {/if}
 
@@ -343,6 +348,11 @@
   .wavecard li { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-weight: 800; }
   .wavecard li b { font-family: var(--font-display); font-weight: 400; font-size: 1.15em; font-variant-numeric: tabular-nums; }
   .wavecard li.boss { color: var(--bad); }
+  .wavecard em.trait { display: inline-flex; align-items: center; gap: 2px; background: var(--tc); color: #fff; }
+  .wavecard em.trait :global(.icon) { width: 11px; height: 11px; }
+  .etrait { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; padding: 6px 8px; border: 2px solid var(--ink); border-radius: var(--r-sm); background: color-mix(in srgb, var(--tc) 18%, var(--panel-hi)); }
+  .etrait > :global(.icon) { flex: none; width: 22px; height: 22px; color: var(--tc); }
+  .etrait div { display: flex; flex-direction: column; gap: 1px; }
   .wavecard em { font-style: normal; font-size: 10.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink); background: var(--gold-fill); border: 1.5px solid var(--ink); border-radius: 99px; padding: 0 6px; margin-left: 6px; }
   .wm { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; font-weight: 800; color: var(--magic); }
   .wf { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 2px dashed var(--ink-soft); padding-top: 8px; font-size: 13px; font-weight: 800; color: var(--muted); }

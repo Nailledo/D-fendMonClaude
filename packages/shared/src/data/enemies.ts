@@ -16,6 +16,33 @@ export interface EnemyAbilities {
   cleave?: number;
 }
 
+/**
+ * Propriétés qu'une vague peut ajouter à n'importe quel ennemi (champ de bits) :
+ * - camouflé : invisible aux tours et aux soldats tant qu'il n'est pas près d'une tour de mages, d'une tour de guet
+ *   ou d'un héros ; les explosions et les sorts le touchent quand même ;
+ * - cuirassé de plomb : les flèches, les lames et tous les dégâts physiques non explosifs ricochent ;
+ * - régénérant : récupère vite ses PV s'il n'a pas été blessé depuis un moment (le poison et le feu l'en empêchent).
+ */
+export const enum Trait { Camo = 1, Lead = 2, Regrow = 4 }
+export const TRAIT_BITS = [1, 2, 4] as const;
+export const TRAITS = [
+  { id: 'camo', name: 'Camouflé', short: 'Camouflé', desc: 'Invisible aux tours et aux soldats, sauf près d’une tour de mages, d’une tour de guet ou d’un héros. Les explosions et les sorts le touchent quand même.' },
+  { id: 'lead', name: 'Cuirassé de plomb', short: 'Plomb', desc: 'Les flèches, les lames et tous les dégâts physiques non explosifs ricochent : seuls la magie, les explosions et les sorts l’entament.' },
+  { id: 'regrow', name: 'Régénérant', short: 'Régénérant', desc: 'Récupère 6 % de ses PV par seconde s’il n’a pas été blessé depuis 1,5 s. Le poison et le feu bloquent la régénération.' },
+];
+/** PV d'un ennemi doté de la propriété (camouflé, plomb, régénérant), en fraction de ses PV normaux. */
+export const TRAIT_HP = [0.8, 0.85, 0.75];
+export function traitHp(traits: number): number {
+  return (traits & 1 ? TRAIT_HP[0] : 1) * (traits & 2 ? TRAIT_HP[1] : 1) * (traits & 4 ? TRAIT_HP[2] : 1);
+}
+/** Part des dégâts physiques non explosifs qui passe le plomb. */
+export const LEAD_PHYS = 0.15;
+/** Rayon de détection des camouflés autour d'un héros. */
+export const HERO_DETECT = 2.6;
+/** Régénération d'un ennemi régénérant (fraction des PV max par seconde) et délai sans blessure. */
+export const REGROW_RATE = 0.06;
+export const REGROW_DELAY_S = 1.5;
+
 export interface EnemyDef {
   id: string;
   name: string;

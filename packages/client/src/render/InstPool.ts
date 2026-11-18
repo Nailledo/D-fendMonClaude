@@ -178,6 +178,11 @@ export class InstPool {
     this.tint[o] = r; this.tint[o + 1] = g; this.tint[o + 2] = b; this.tint[o + 3] = a;
   }
 
+  /** Opacité de teinte stockée à l'offset `o` (= instance × 4). */
+  tintAlpha(o: number) {
+    return this.tint[o + 3];
+  }
+
   setTeam(i: number, hex: number) {
     const o = i * 3;
     this.team[o] = ((hex >> 16) & 255) / 255;

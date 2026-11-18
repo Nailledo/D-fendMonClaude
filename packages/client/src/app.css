@@ -55,6 +55,8 @@
   --f-bar: #4a90c2;
   --f-mag: #9b6bdf;
   --f-art: #e07b39;
+  --f-mine: #d9a92a;
+  --f-camp: #c95b45;
   /* forme */
   --r: 18px;
   --r-sm: 13px;
@@ -335,6 +337,8 @@ input[type='checkbox'] { pointer-events: auto; accent-color: var(--blue); width:
   font-variant-numeric: tabular-nums;
 }
 .dn.crit { color: var(--gold-fill); font-size: 22px; }
+.dn.lead { color: #cfd8dc; font-size: 14px; }
+.dn.gold { color: var(--gold-fill); font-size: 20px; }
 .dn.go { animation: dn 0.8s ease-out forwards; }
 @keyframes dn {
   0% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }

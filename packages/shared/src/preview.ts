@@ -22,8 +22,8 @@ export interface WavePreview {
   boss: boolean;
   /** mutations actives (survie) */
   mutations: number[];
-  /** ennemis par type, dans l'ordre d'arrivée */
-  entries: { type: number; count: number }[];
+  /** ennemis par type (et propriétés), dans l'ordre d'arrivée */
+  entries: { type: number; count: number; traits: number }[];
 }
 
 const storyCache = new Map<string, Wave[]>();
@@ -50,12 +50,13 @@ export function previewWave(cfg: GameConfig, wave: number, activePlayers: number
   }
   if (!w) return null;
   const cm = computeScaling(activePlayers, cfg.difficulty, level?.multiK ?? 1).countMul;
-  const entries: { type: number; count: number }[] = [];
+  const entries: { type: number; count: number; traits: number }[] = [];
   for (const g of [...w.groups].sort((a, b) => a.delay - b.delay)) {
     const n = scaledCount(g.type, g.count, cm);
-    const e = entries.find((x) => x.type === g.type);
+    const tr = g.traits ?? 0;
+    const e = entries.find((x) => x.type === g.type && x.traits === tr);
     if (e) e.count += n;
-    else entries.push({ type: g.type, count: n });
+    else entries.push({ type: g.type, count: n, traits: tr });
   }
   return { wave, boss: w.boss, mutations, entries };
 }

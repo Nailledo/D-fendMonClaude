@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
+import { DmgType, ENEMY_INDEX, LEAD_PHYS, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 const cfg = (over: Partial<GameConfig> = {}): GameConfig => ({
   mode: 'story', mapId: 'pont', difficulty: 1, seed: 42,
@@ -308,5 +308,118 @@ describe('arbre de compétences et boutique', () => {
     expect(m.tree).toEqual([5, 0, 0, 2, 5, 5]);
     expect(m.items).toEqual([9, 0, 0, 0]);
     expect(sanitizeMeta('bad', {}).tree.every((v) => v === 0)).toBe(true);
+  });
+});
+
+describe('priorité de ciblage, propriétés d’ennemis, mine et campement', () => {
+  const spawn = (sim: Sim, type: string, dist: number, traits = 0) => {
+    const e = (sim as any).spawnEnemy(ENEMY_INDEX[type], 0, 1, 0, dist, traits) as Sim['enemies'][number];
+    return e;
+  };
+  const near = (sim: Sim, x: number, z: number, exclude: number[] = []) => {
+    let best = -1, bd = Infinity;
+    sim.map.slots.forEach((s, i) => {
+      if (s.locked || exclude.includes(i) || sim.towerBySlot[i]) return;
+      const d = Math.hypot(s.x - x, s.z - z);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  };
+
+  it('une tour vise selon sa priorité', () => {
+    const sim = new Sim(cfg());
+    const a = spawn(sim, 'gobelin', 10), b = spawn(sim, 'brute', 11), c = spawn(sim, 'gobelin', 12);
+    const find = (p: number) => (sim as any).findTarget(b.x, b.z, 30, true, null, p);
+    expect(find(Prio.First)).toBe(c);
+    expect(find(Prio.Last)).toBe(a);
+    expect(find(Prio.Strong)).toBe(b);
+    expect(find(Prio.Close)).toBe(b);
+    const slot = sim.map.slots.findIndex((s) => !s.locked);
+    sim.apply(0, { k: 'build', slot, fam: 0 });
+    const t = sim.towers[0];
+    sim.apply(0, { k: 'prio', tower: t.id, p: Prio.Strong });
+    expect(t.prio).toBe(Prio.Strong);
+    sim.apply(0, { k: 'prio', tower: t.id, p: 9 });
+    expect(t.prio).toBe(Prio.Strong);
+  });
+
+  it('un camouflé n’est visé que s’il est repéré', () => {
+    const sim = new Sim(cfg());
+    const e = spawn(sim, 'brute', 14, Trait.Camo);
+    // héros loin de l'ennemi
+    sim.heroes[0].u.x = e.x + 30; sim.heroes[0].u.hx = sim.heroes[0].u.x;
+    const archer = near(sim, e.x, e.z);
+    sim.apply(0, { k: 'build', slot: archer, fam: 0 });
+    for (let i = 0; i < 10; i++) { (sim as any).stepSupport(); expect((sim as any).findTarget(e.x, e.z, 3, true)).toBe(null); }
+    const mage = near(sim, e.x, e.z);
+    sim.players[0].gold = 1000;
+    sim.apply(0, { k: 'build', slot: mage, fam: 2 });
+    (sim as any).stepSupport();
+    expect(e.revealed).toBe(true);
+    expect((sim as any).findTarget(e.x, e.z, 3, true)).toBe(e);
+  });
+
+  it('le plomb ne craint que la magie et les explosions', () => {
+    const sim = new Sim(cfg());
+    const e = spawn(sim, 'brute', 10, Trait.Lead);
+    const hp = e.hp;
+    const phys = sim.damage(e, 50, DmgType.Phys, 0, null);
+    expect(phys).toBeGreaterThan(0);
+    expect(e.hp).toBeCloseTo(hp - phys);
+    const boom = sim.damage(e, 50, DmgType.Phys, 0, null, 0, false, true);
+    expect(phys).toBeLessThan(boom * LEAD_PHYS * 1.01);
+    expect(sim.damage(e, 50, DmgType.Magic, 0, null)).toBeGreaterThan(0);
+  });
+
+  it('un régénérant récupère ses PV quand on cesse de le blesser', () => {
+    const sim = new Sim(cfg());
+    const e = spawn(sim, 'brute', 3, Trait.Regrow);
+    sim.damage(e, 100, DmgType.True, 0, null);
+    const hp = e.hp;
+    for (let i = 0; i < 20; i++) sim.step();
+    expect(e.hp).toBe(hp);
+    for (let i = 0; i < 40; i++) sim.step();
+    expect(e.hp).toBeGreaterThan(hp);
+  });
+
+  it('les vagues de l’histoire et de la survie portent des propriétés', () => {
+    const lvl = LEVELS[6];
+    const waves = genStoryWaves(lvl, 2);
+    expect(waves.some((w) => w.groups.some((g) => (g.traits ?? 0) & Trait.Lead))).toBe(true);
+    // le premier niveau n'en a pas
+    expect(genStoryWaves(LEVELS[0], 1).every((w) => w.groups.every((g) => !g.traits))).toBe(true);
+    const s = genSurvivalWave('vallee', 7, 20, [0]);
+    expect(s.groups.some((g) => g.traits)).toBe(true);
+  });
+
+  it('une mine rapporte de l’or à chaque vague', () => {
+    const sim = new Sim(cfg());
+    const slot = sim.map.slots.findIndex((s) => !s.locked);
+    sim.apply(0, { k: 'build', slot, fam: 4 });
+    expect(sim.towers[0].fam).toBe('mine');
+    const g = sim.players[0].gold;
+    sim.apply(0, { k: 'wave' });
+    expect(sim.players[0].gold).toBe(g + TOWERS.mine[0].income!);
+    // une mine ne tire pas et n'a pas de priorité
+    sim.apply(0, { k: 'prio', tower: sim.towers[0].id, p: 2 });
+    expect(sim.towers[0].prio).toBe(0);
+  });
+
+  it('un campement accélère les tours voisines', () => {
+    const sim = new Sim(cfg());
+    sim.players[0].gold = 2000;
+    const s0 = sim.map.slots.findIndex((s) => !s.locked);
+    sim.apply(0, { k: 'build', slot: s0, fam: 0 });
+    const t = sim.towers[0];
+    const s1 = near(sim, t.x, t.z, [s0]);
+    const d = Math.hypot(sim.map.slots[s1].x - t.x, sim.map.slots[s1].z - t.z);
+    sim.apply(0, { k: 'build', slot: s1, fam: 5 });
+    sim.step();
+    if (d <= TOWERS.camp[0].range) {
+      expect(t.auraRate).toBeCloseTo(TOWERS.camp[0].aura!.rate);
+      expect(t.auraRange).toBeCloseTo(TOWERS.camp[0].aura!.range);
+    } else expect(t.auraRate).toBe(0);
+    expect(campAura(4, [0, 3]).dmg).toBeGreaterThan(0);
+    expect(campAura(3, [2, 0]).mark).toBeGreaterThan(0);
   });
 });

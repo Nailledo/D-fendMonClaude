@@ -129,6 +129,7 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.GameEnd]: 'b',
   [Ev.Skill]: 'wb',
   [Ev.Item]: 'bbpp',
+  [Ev.Income]: 'wwb',
 };
 
 // Drapeaux
@@ -137,6 +138,8 @@ export const UF_DEAD = 1, UF_FIGHTING = 2, UF_BUFF = 4, UF_SHIELD = 8, UF_MOVING
 /** le héros poursuit une cible imposée par son joueur (son id est alors dans la cible de l'unité) */
 export const UF_FOCUS = 32;
 export const PF_ACTIVE = 1, PF_CONNECTED = 2, PF_SPEED2 = 4;
+/** propriétés d'un ennemi (bits 1, 2, 4 = Trait) ; 8 = camouflé repéré ; 16 = se régénère en ce moment ; 32 = marqué */
+export const ET_REVEALED = 8, ET_REGROWING = 16, ET_MARKED = 32;
 
 const writer = new Writer(32768);
 
@@ -177,6 +180,7 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
     w.id(t.aim && !t.aim.dead ? t.aim.id : 0xffff);
     w.pos(t.rallyX);
     w.pos(t.rallyZ);
+    w.u8(t.prio);
   }
   // ennemis
   w.u16(sim.enemies.length);
@@ -197,6 +201,7 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
     if (e.shielded) f |= EF_SHIELDED;
     if (e.def.ab.enrage && e.hp < e.maxHp * e.def.ab.enrage.threshold) f |= EF_ENRAGED;
     w.u8(f);
+    w.u8(e.traits | (e.revealed ? ET_REVEALED : 0) | (e.traits & 4 && e.quietT === 0 && e.hp < e.maxHp ? ET_REGROWING : 0) | (e.marked > 0 ? ET_MARKED : 0));
   }
   // unités
   let nu = 0;
@@ -287,6 +292,7 @@ export class Snapshot {
   tAim = new Uint16Array(64);
   tRallyX = new Float32Array(64);
   tRallyZ = new Float32Array(64);
+  tPrio = new Uint8Array(64);
   // ennemis
   eCount = 0;
   eId = new Uint16Array(1024);
@@ -296,6 +302,7 @@ export class Snapshot {
   eLane = new Float32Array(1024);
   eHp = new Float32Array(1024);
   eFlags = new Uint8Array(1024);
+  eTraits = new Uint8Array(1024);
   // unités
   uCount = 0;
   uId = new Uint16Array(256);
@@ -322,7 +329,7 @@ export class Snapshot {
     if (count > this.eId.length) {
       const n = Math.max(count, this.eId.length * 2);
       this.eId = new Uint16Array(n); this.eType = new Uint8Array(n); this.ePath = new Uint8Array(n);
-      this.eDist = new Float32Array(n); this.eLane = new Float32Array(n); this.eHp = new Float32Array(n); this.eFlags = new Uint8Array(n);
+      this.eDist = new Float32Array(n); this.eLane = new Float32Array(n); this.eHp = new Float32Array(n); this.eFlags = new Uint8Array(n); this.eTraits = new Uint8Array(n);
     }
   }
   private growU(count: number) {
@@ -355,14 +362,14 @@ export class Snapshot {
     this.tCount = r.u8();
     for (let i = 0; i < this.tCount; i++) {
       this.tId[i] = r.u16(); this.tSlot[i] = r.u8(); this.tOwner[i] = r.u8(); this.tFam[i] = r.u8(); this.tLevel[i] = r.u8();
-      this.tSk[i] = r.u8(); this.tStun[i] = r.u16(); this.tAim[i] = r.u16(); this.tRallyX[i] = r.pos(); this.tRallyZ[i] = r.pos();
+      this.tSk[i] = r.u8(); this.tStun[i] = r.u16(); this.tAim[i] = r.u16(); this.tRallyX[i] = r.pos(); this.tRallyZ[i] = r.pos(); this.tPrio[i] = r.u8();
     }
     const ne = r.u16();
     this.grow(ne);
     this.eCount = ne;
     for (let i = 0; i < ne; i++) {
       this.eId[i] = r.u16(); this.eType[i] = r.u8(); this.ePath[i] = r.u8(); this.eDist[i] = r.u16() / 64;
-      this.eLane[i] = r.i8() / 100; this.eHp[i] = r.frac(); this.eFlags[i] = r.u8();
+      this.eLane[i] = r.i8() / 100; this.eHp[i] = r.frac(); this.eFlags[i] = r.u8(); this.eTraits[i] = r.u8();
     }
     const nu = r.u16();
     this.growU(nu);

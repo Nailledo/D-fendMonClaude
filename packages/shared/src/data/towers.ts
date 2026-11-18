@@ -53,6 +53,12 @@ export interface TowerLevel {
   soldiers?: SoldierDef;
   skills?: [SkillDef, SkillDef];
   desc: string;
+  /** mine : or versé à son propriétaire au début de chaque vague */
+  income?: number;
+  /** campement : bonus donnés aux tours voisines (rayon = `range`) */
+  aura?: { range: number; rate: number };
+  /** révèle les ennemis camouflés dans sa portée */
+  detect?: boolean;
 }
 
 export const LEVEL_SPEC_A = 3;
@@ -60,6 +66,11 @@ export const LEVEL_SPEC_B = 4;
 
 const P = DmgType.Phys;
 const M = DmgType.Magic;
+
+/** Bâtiment sans tir (mine, campement). */
+const building = (name: string, cost: number, range: number, desc: string, extra: Partial<TowerLevel>): TowerLevel => ({
+  name, cost, range, cooldown: 0, dmg: [0, 0], dmgType: P, proj: 'none', hitsAir: false, projSpeed: 0, desc, ...extra,
+});
 
 export const TOWERS: Record<Family, TowerLevel[]> = {
   archer: [
@@ -148,7 +159,66 @@ export const TOWERS: Record<Family, TowerLevel[]> = {
       ],
     },
   ],
+  mine: [
+    building('Mine de cuivre', 110, 0, 'Rapporte de l’or au début de chaque vague. Ne se défend pas.', { income: 20 }),
+    building('Mine de fer', 120, 0, 'Des galeries plus profondes, des mineurs plus nombreux.', { income: 38 }),
+    building('Mine d’argent', 160, 0, 'Le filon brille. Les mineurs aussi.', { income: 60 }),
+    building('Mine d’or', 250, 0, 'Une fortune à chaque vague.', {
+      income: 100,
+      skills: [
+        { id: 'filon', name: 'Filon profond', desc: 'Or supplémentaire à chaque vague.', costs: [150, 150, 150], values: [20, 40, 60] },
+        { id: 'coffre', name: 'Coffre-fort', desc: 'À chaque vague, intérêts sur votre or (80 au plus).', costs: [150, 150, 150], values: [0.03, 0.05, 0.07] },
+      ],
+    }),
+    building('Ferme royale', 250, 0, 'Nourrit le royaume : de l’or, et de quoi réparer les murs.', {
+      income: 75,
+      skills: [
+        { id: 'grenier', name: 'Grenier', desc: 'Rend une vie au château toutes les 3, 2 puis 1 vague(s).', costs: [175, 175, 175], values: [3, 2, 1] },
+        { id: 'marche', name: 'Jour de marché', desc: 'Chaque allié touche aussi de l’or à chaque vague.', costs: [125, 125, 125], values: [15, 30, 45] },
+      ],
+    }),
+  ],
+  camp: [
+    building('Campement', 90, 4.5, 'Les tours voisines tirent plus loin et plus vite.', { aura: { range: 0.06, rate: 0.1 } }),
+    building('Camp fortifié', 110, 4.8, 'Des tentes plus solides, des encouragements plus forts.', { aura: { range: 0.08, rate: 0.14 } }),
+    building('Camp militaire', 150, 5, 'Intendance, forge et cantine : tout le monde tire mieux.', { aura: { range: 0.1, rate: 0.18 } }),
+    building('Tour de guet', 220, 6, 'Repère les ennemis camouflés autour d’elle et guide les tirs.', {
+      aura: { range: 0.12, rate: 0.18 }, detect: true,
+      skills: [
+        { id: 'marque', name: 'Marquage', desc: 'Les ennemis dans sa zone subissent plus de dégâts.', costs: [150, 150, 150], values: [0.08, 0.15, 0.22] },
+        { id: 'longuevue', name: 'Longue-vue', desc: 'Portée des tours voisines encore augmentée.', costs: [125, 125, 125], values: [0.05, 0.1, 0.15] },
+      ],
+    }),
+    building('Tente de commandement', 220, 5.5, 'Un général qui crie très fort : cadence de tir très accrue.', {
+      aura: { range: 0.1, rate: 0.28 },
+      skills: [
+        { id: 'tambours', name: 'Tambours de guerre', desc: 'Cadence des tours voisines encore augmentée.', costs: [150, 150, 150], values: [0.08, 0.16, 0.24] },
+        { id: 'banniere', name: 'Bannière royale', desc: 'Dégâts des tours et des soldats voisins augmentés.', costs: [175, 175, 175], values: [0.1, 0.18, 0.26] },
+      ],
+    }),
+  ],
 };
+
+/** Bonus d'un campement (niveau, rangs de compétences) : portée, cadence et dégâts des tours voisines. */
+export function campAura(level: number, sk: readonly [number, number] | readonly number[]): { r: number; range: number; rate: number; dmg: number; mark: number } {
+  const l = TOWERS.camp[level];
+  const a = l.aura ?? { range: 0, rate: 0 };
+  const out = { r: l.range, range: a.range, rate: a.rate, dmg: 0, mark: 0 };
+  if (l.skills) {
+    const v = (i: number) => (sk[i] > 0 ? l.skills![i].values[sk[i] - 1] : 0);
+    if (level === 3) { out.mark = v(0); out.range += v(1); }
+    else { out.rate += v(0); out.dmg = v(1); }
+  }
+  return out;
+}
+
+/** Or versé par une mine au début d'une vague (hors intérêts, grenier et marché). */
+export function mineIncome(level: number, sk: readonly [number, number] | readonly number[]): number {
+  const l = TOWERS.mine[level];
+  let g = l.income ?? 0;
+  if (level === 3 && sk[0] > 0) g += l.skills![0].values[sk[0] - 1];
+  return g;
+}
 
 /** Coût total investi pour atteindre un niveau donné (sans compétences). */
 export function investedCost(fam: Family, level: number): number {

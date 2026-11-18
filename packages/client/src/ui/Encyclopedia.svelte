@@ -1,13 +1,14 @@
 <script lang="ts">
   import Ico from './Ico.svelte';
-  import { ENEMIES, FAMILIES, HERO_IDS, TOWERS } from '@dfend/shared';
+  import { ENEMIES, FAMILIES, HERO_IDS, TOWERS, TRAITS } from '@dfend/shared';
   import { progress, ui } from '../state.svelte';
-  import { FAMILY_COLOR, FAMILY_NAME, ICON } from './icons';
+  import { FAMILY_COLOR, FAMILY_NAME, ICON, TRAIT_COLOR, TRAIT_ICONS } from './icons';
   import { UPGRADE_ICON } from './skillIcons';
   import HeroSheet from './HeroSheet.svelte';
 
   let tab = $state<'towers' | 'enemies' | 'heroes'>('towers');
   const enemies = ENEMIES.filter((e) => !e.spawnOnly || e.boss);
+  const seenCount = $derived(enemies.filter((e) => progress.seen.includes(e.id)).length);
 </script>
 
 <div class="overlay-bg">
@@ -18,7 +19,7 @@
     </div>
     <div class="seg">
       <button class:on={tab === 'towers'} onclick={() => (tab = 'towers')}>Tours</button>
-      <button class:on={tab === 'enemies'} onclick={() => (tab = 'enemies')}>Ennemis ({progress.seen.length})</button>
+      <button class:on={tab === 'enemies'} onclick={() => (tab = 'enemies')}>Ennemis ({seenCount})</button>
       <button class:on={tab === 'heroes'} onclick={() => (tab = 'heroes')}>Héros</button>
     </div>
     <div class="body scroll">
@@ -44,6 +45,18 @@
           </div>
         {/each}
       {:else if tab === 'enemies'}
+        <h3>Propriétés</h3>
+        <p class="small intro">Une vague peut doter n’importe quel ennemi (sauf les boss) d’une propriété. Elle s’affiche dans l’aperçu de la vague.</p>
+        <div class="traits">
+          {#each TRAITS as T, k}
+            {@const known = progress.seen.includes('trait_' + T.id)}
+            <div class="trait" class:unknown={!known} style="--tc:{TRAIT_COLOR[k]}">
+              <span class="ti">{@html TRAIT_ICONS[k]}</span>
+              <div><b>{known ? T.name : '???'}</b><span class="small">{known ? T.desc : 'Pas encore rencontrée.'}</span></div>
+            </div>
+          {/each}
+        </div>
+        <h3>Bestiaire</h3>
         <div class="grid">
           {#each enemies as e}
             {@const known = progress.seen.includes(e.id)}
@@ -92,6 +105,13 @@
   .ic { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); overflow: hidden; }
   .ic :global(.icon) { width: 30px; height: 30px; margin: 0; vertical-align: 0; }
   .ic :global(svg.icon) { width: 18px; height: 18px; color: #fff; }
+  .intro { margin: -4px 0 10px; }
+  .traits { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .trait { display: flex; gap: 10px; align-items: flex-start; padding: 10px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r-sm); box-shadow: 0 3px 0 var(--ink); }
+  .trait div { display: flex; flex-direction: column; gap: 3px; }
+  .ti { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: var(--tc); border: 2.5px solid var(--ink); color: #fff; }
+  .ti :global(.icon) { width: 22px; height: 22px; margin: 0; }
+  .trait.unknown .ti { background: #888; }
   .heroes { display: flex; flex-direction: column; gap: 12px; }
   .hrow { padding: 14px; background: var(--panel-hi); border: 2.5px solid var(--ink); border-radius: var(--r); box-shadow: 0 3px 0 var(--ink); }
 </style>

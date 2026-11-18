@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  EF_BURROWED, EF_DOT, EF_ENRAGED, EF_FIGHTING, EF_SHIELDED, EF_SLOWED, EF_STUNNED, ENEMIES, HERO_IDS, HERO_UNIT,
+  ET_REVEALED, ET_REGROWING, EF_BURROWED, EF_DOT, EF_ENRAGED, EF_FIGHTING, EF_SHIELDED, EF_SLOWED, EF_STUNNED, ENEMIES, HERO_IDS, HERO_UNIT,
   PLAYER_COLORS, UF_BUFF, UF_DEAD, UF_FIGHTING, UF_SHIELD, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { enemyGeometry } from '../art/enemies';
@@ -369,11 +369,21 @@ export class Entities {
       const hit = Math.max(0, 1 - (time - this.hitTime[id]) / 0.22);
       const gest = time - this.fireTime[id] < 0.45 ? (time - this.fireTime[id]) / 0.45 : 0;
       pool.setPose(j, gest, hit, this.eRoll[id], Math.min(1, Math.max(0.001, (time - this.eBorn[id]) / 0.45)));
+      const tr = f.eTraits[i];
+      // camouflé non repéré : tramé (à moitié transparent), teinte de sous-bois
+      const hidden = (tr & 1) !== 0 && !(tr & ET_REVEALED);
       if (stunned) pool.setTint(j, 0.6, 0.85, 1, 0.45);
       else if (flags & EF_SLOWED) pool.setTint(j, 0.45, 0.75, 1, 0.35);
       else if (flags & EF_DOT) pool.setTint(j, 1, 0.55, 0.15, 0.25);
       else if (flags & EF_ENRAGED) pool.setTint(j, 1, 0.15, 0.1, 0.3);
+      else if (tr & ET_REGROWING) pool.setTint(j, 0.35, 1, 0.45, 0.22 + 0.16 * Math.sin(time * 9 + id));
+      else if (tr & 2) pool.setTint(j, 0.52, 0.57, 0.68, 0.7);
+      else if (tr & 1) pool.setTint(j, 0.45, 0.58, 0.36, 0.4);
       else if (flags & EF_SHIELDED) pool.setTint(j, 1, 0.9, 0.5, 0.18);
+      if (hidden) {
+        const o = j * 4;
+        pool.setTint(j, 0.45, 0.58, 0.36, -Math.max(0.01, Math.abs(pool.tintAlpha(o))));
+      }
       if (!burrowed && (f.eHp[i] < 0.999 || def.boss)) this.hpBar(f.eX[i], y + def.size * 1.45 + 0.35, f.eZ[i], f.eHp[i], def.boss ? 2.2 : 0.9);
     }
 

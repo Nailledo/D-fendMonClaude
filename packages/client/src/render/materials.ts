@@ -259,7 +259,9 @@ vec3 transformed = vec3(position);
 const COLOR_PATCH = /* glsl */ `
 #include <color_vertex>
 if (aAnim.x > 6.5 && aAnim.x < 7.5) vColor.rgb = iTeam;
-vColor.rgb = mix(vColor.rgb, iTint.rgb, iTint.a);
+vColor.rgb = mix(vColor.rgb, iTint.rgb, abs(iTint.a));
+// teinte d'opacité négative : modèle tramé (à moitié transparent : ennemi camouflé)
+vDither = iTint.a < 0.0 ? 1.0 : 0.0;
 vColor.rgb = mix(vColor.rgb, vec3(1.6, 1.5, 1.4), iAnim.z);
 // mort : la couleur s'assombrit ; sort : lueur
 if (iPose.w < 0.0) vColor.rgb *= 1.0 - (-iPose.w) * 0.55;
@@ -275,7 +277,11 @@ export function animMaterial(map: THREE.Texture | null = null): THREE.MeshToonMa
   const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), ...(map ? { map } : {}) });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
-    shader.vertexShader = ANIM_HEAD + shader.vertexShader.replace('#include <begin_vertex>', ANIM_BEGIN).replace('#include <color_vertex>', COLOR_PATCH);
+    shader.vertexShader = 'varying float vDither;\n' + ANIM_HEAD + shader.vertexShader.replace('#include <begin_vertex>', ANIM_BEGIN).replace('#include <color_vertex>', COLOR_PATCH);
+    shader.fragmentShader = 'varying float vDither;\n' + shader.fragmentShader.replace(
+      '#include <clipping_planes_fragment>',
+      '#include <clipping_planes_fragment>\nif (vDither > 0.5 && mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 1.0) discard;',
+    );
   };
   // feuillages et herbes importés : plans texturés découpés au seuil alpha, visibles des deux côtés
   const cutout = !!map?.userData.cutout;

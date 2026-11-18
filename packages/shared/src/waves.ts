@@ -1,4 +1,4 @@
-import { ENEMIES, ENEMY_INDEX, type EnemyDef } from './data/enemies';
+import { ENEMIES, ENEMY_INDEX, TRAIT_BITS, type EnemyDef } from './data/enemies';
 import type { LevelDef, RosterEntry } from './data/levels';
 import { Rng, ipow } from './rng';
 import type { Biome } from './types';
@@ -12,6 +12,8 @@ export interface WaveGroup {
   /** secondes avant le début du groupe */
   delay: number;
   hpMul?: number;
+  /** propriétés ajoutées aux ennemis du groupe (voir Trait) */
+  traits?: number;
 }
 
 export interface Wave {
@@ -59,6 +61,35 @@ function buildGroups(budget: number, roster: RosterEntry[], waveNo: number, acti
   return groups;
 }
 
+/**
+ * Ajoute des propriétés (camouflé, plomb, régénérant) aux groupes d'une vague.
+ * `from` : première vague de chaque propriété ; `chance` : probabilité par groupe et par propriété.
+ * Tirage séparé : les vagues elles-mêmes ne changent pas.
+ */
+function addTraits(groups: WaveGroup[], wave: number, from: [number, number, number], chance: number, rng: Rng) {
+  const cands = groups.filter((g) => !ENEMIES[g.type].boss);
+  if (!cands.length) return;
+  TRAIT_BITS.forEach((bit, i) => {
+    const f = from[i];
+    if (!f || wave < f) return;
+    let any = false;
+    // le plomb est plus rare, et réservé aux ennemis de taille moyenne (pas de golem en plomb)
+    const lead = bit === 2;
+    const pool = lead ? cands.filter((g) => ENEMIES[g.type].threat < 12) : cands;
+    if (!pool.length) return;
+    const ch = lead ? chance * 0.45 : chance;
+    for (const g of pool) {
+      const roll = rng.next();
+      if (roll < ch) { g.traits = (g.traits ?? 0) | bit; any = true; }
+    }
+    // la vague où elle apparaît, la propriété est toujours présentée
+    if (wave === f && !any) {
+      const g = pool[Math.floor(rng.next() * pool.length)];
+      g.traits = (g.traits ?? 0) | bit;
+    }
+  });
+}
+
 export function genStoryWaves(level: LevelDef, nPaths: number): Wave[] {
   const rng = new Rng(1000 + level.index * 7919);
   const paths = Array.from({ length: nPaths }, (_, i) => i);
@@ -77,6 +108,10 @@ export function genStoryWaves(level: LevelDef, nPaths: number): Wave[] {
       const last = groups.reduce((m, g) => Math.max(m, g.delay), 0);
       groups.push({ type: ENEMY_INDEX[level.boss.type], count: 1, interval: 1, path: 0, delay: last + 8 });
       for (const e of escorts) { e.delay += last + 12; e.hpMul = hpMul; groups.push(e); }
+    }
+    if (level.traits) {
+      const t = level.traits;
+      addTraits(groups, w, [t.camo ?? 0, t.lead ?? 0, t.regrow ?? 0], t.chance ?? 0.3, new Rng(77 + level.index * 1009 + w * 31));
     }
     waves.push({ groups, boss });
   }
@@ -167,5 +202,7 @@ export function genSurvivalWave(biome: Biome, seed: number, wave: number, active
     groups.push({ type: ENEMY_INDEX[id], count: 1, interval: 1, path: activePaths[0], delay: last + 6, hpMul: 0.45 * ipow(1.4, cycle) });
   }
   budget = 0;
+  // propriétés : camouflés dès la vague 8, régénérants dès la 12, plomb dès la 16, de plus en plus fréquents
+  addTraits(groups, wave, [8, 16, 12], Math.min(0.5, 0.2 + wave * 0.006), new Rng((seed ^ Math.imul(wave, 0x85ebca6b)) + 0x7f4a7c15));
   return { groups, boss, mutation: muts[muts.length - 1] };
 }

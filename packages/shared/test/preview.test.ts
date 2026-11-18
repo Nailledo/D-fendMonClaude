@@ -16,7 +16,7 @@ function check(cfg: GameConfig, waves: number) {
       for (const s of fresh) counts[s.type] = (counts[s.type] ?? 0) + 1;
       const p = previewWave(cfg, sim.waveIdx, cfg.players.length)!;
       const expected: Record<number, number> = {};
-      for (const e of p.entries) expected[e.type] = e.count;
+      for (const e of p.entries) expected[e.type] = (expected[e.type] ?? 0) + e.count;
       expect(counts).toEqual(expected);
       checked++;
     }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, HEROES, HERO_IDS, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
-  buildRuntimeMap, type Command, type GameConfig, type RuntimeMap,
+  ET_REVEALED, PRIO_NAMES, SHOOTERS, TRAITS, Trait, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
@@ -26,7 +26,7 @@ export const dom: { radial: HTMLElement | null; waves: (HTMLElement | null)[]; d
 
 type Targeting = null | { kind: 'spell'; s: 0 | 1 } | { kind: 'item'; i: number } | { kind: 'hskill'; i: 0 | 1 | 2 } | { kind: 'rally'; tower: number } | { kind: 'hmove' };
 
-const FAM_ACTIONS: Action[] = ['buildArcher', 'buildBarracks', 'buildMage', 'buildArtillery'];
+const FAM_ACTIONS: Action[] = ['buildArcher', 'buildBarracks', 'buildMage', 'buildArtillery', 'buildMine', 'buildCamp'];
 const DEATH_COLORS: Record<string, number> = { vallee: 0x7cb342, marais: 0x6f9a8a, cendre: 0xd84315 };
 
 /**
@@ -41,6 +41,13 @@ function bowPos(hx: number, hz: number, tx: number, tz: number, out: { x: number
   out.y = 0.88;
   return out;
 }
+
+/** Conseil affiché la première fois qu'une propriété d'ennemi apparaît. */
+const TRAIT_ADVICE = [
+  'Invisible aux tours tant qu’une tour de mages, une tour de guet (campement spécialisé) ou votre héros ne le repère pas.',
+  'Flèches et lames ricochent : misez sur les mages, l’artillerie et les sorts.',
+  'Il se soigne s’il n’est pas blessé un moment : gardez-le sous le feu, le poison et la brûlure l’en empêchent.',
+];
 
 export class GameClient {
   readonly map: RuntimeMap;
@@ -227,6 +234,17 @@ export class GameClient {
     if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined) return;
     this.send({ k: 'sell', tower: s.tower });
     ui.sel = null;
+  }
+
+  /** Priorité de ciblage de la tour sélectionnée (sans argument : la suivante). */
+  setPrio(p?: number) {
+    const s = ui.sel;
+    if (!s || s.kind !== 'tower' || !s.mine || s.tower === undefined || !SHOOTERS.includes(s.fam ?? -1)) return;
+    const next = p ?? ((s.prio ?? 0) + 1) % PRIO_NAMES.length;
+    this.send({ k: 'prio', tower: s.tower, p: next });
+    // affichage immédiat (le prochain instantané confirme)
+    s.prio = next;
+    audio.play('click');
   }
 
   startRally() {
@@ -540,7 +558,7 @@ export class GameClient {
       case 'ult': this.heroSkill(2); break;
       case 'spell1': this.castSpell(0); break;
       case 'spell2': this.castSpell(1); break;
-      case 'buildArcher': case 'buildBarracks': case 'buildMage': case 'buildArtillery': {
+      case 'buildArcher': case 'buildBarracks': case 'buildMage': case 'buildArtillery': case 'buildMine': case 'buildCamp': {
         const fam = FAM_ACTIONS.indexOf(a);
         if (this.hoverSlot >= 0 && !this.towerAtSlot(this.hoverSlot)) ui.sel = { kind: 'build', slot: this.hoverSlot };
         this.build(fam);
@@ -554,6 +572,7 @@ export class GameClient {
       }
       case 'sell': this.selectHoveredTower(); this.sell(); break;
       case 'rally': this.selectHoveredTower(); this.startRally(); break;
+      case 'prio': this.selectHoveredTower(); this.setPrio(); break;
       case 'wave': this.callWave(); break;
       case 'speed': this.toggleSpeed(); break;
       case 'chat': if (!this.host.local) ui.chatOpen = true; break;
@@ -579,7 +598,7 @@ export class GameClient {
     const s = this.interp.latest!;
     ui.sel = {
       kind: 'tower', slot: s.tSlot[i], tower: s.tId[i], fam: s.tFam[i], level: s.tLevel[i],
-      sk: [s.tSk[i] & 15, s.tSk[i] >> 4], owner: s.tOwner[i], mine: s.tOwner[i] === this.you,
+      sk: [s.tSk[i] & 15, s.tSk[i] >> 4], owner: s.tOwner[i], mine: s.tOwner[i] === this.you, prio: s.tPrio[i],
     };
   }
 
@@ -617,7 +636,7 @@ export class GameClient {
       if (t.kind === 'rally') { this.send({ k: 'rally', tower: t.tower, x: p.x, z: p.z }); ui.sel = null; this.fx.ring(p.x, p.z, 1, 0xfff59d, 0.5); return true; }
       if (t.kind === 'hmove') {
         // héros sélectionné puis appui sur un ennemi (tactile surtout) : il l'attaque
-        const ei = this.slotAt(p.x, p.z, slotRad) < 0 ? this.enemyAt(p.x, p.z) : -1;
+        const ei = this.slotAt(p.x, p.z, slotRad) < 0 ? this.enemyAt(p.x, p.z, true) : -1;
         if (ei >= 0) { this.attackEnemy(ei); ui.sel = null; return true; }
         // un clic sur un emplacement reste prioritaire
         if (this.slotAt(p.x, p.z, slotRad) < 0) {
@@ -646,7 +665,7 @@ export class GameClient {
     const f = this.interp.frame;
     const best = this.enemyAt(p.x, p.z);
     if (best >= 0) {
-      ui.sel = { kind: 'enemy', enemyType: f.eType[best], hp: f.eHp[best] };
+      ui.sel = { kind: 'enemy', enemyType: f.eType[best], hp: f.eHp[best], traits: f.eTraits[best] };
       return true;
     }
     ui.sel = null;
@@ -654,11 +673,13 @@ export class GameClient {
   }
 
   /** Ennemi sous le point visé (indice dans l'image interpolée), ou -1. */
-  private enemyAt(x: number, z: number): number {
+  /** Ennemi sous le point ; `attack` : seulement ceux que le héros peut prendre pour cible (camouflé repéré). */
+  private enemyAt(x: number, z: number, attack = false): number {
     const f = this.interp.frame;
     const er = this.tapRadius(1.26);
     let best = -1, bd = er * er;
     for (let i = 0; i < f.eN; i++) {
+      if (attack && f.eTraits[i] & Trait.Camo && !(f.eTraits[i] & ET_REVEALED)) continue;
       const d = (f.eX[i] - x) ** 2 + (f.eZ[i] - z) ** 2;
       if (d < bd) { bd = d; best = i; }
     }
@@ -685,7 +706,7 @@ export class GameClient {
     if (!p) return;
     if (this.targeting && this.targeting.kind !== 'hmove') { this.cancel(); return; }
     const hp = this.heroPos();
-    const ei = hp ? this.enemyAt(p.x, p.z) : -1;
+    const ei = hp ? this.enemyAt(p.x, p.z, true) : -1;
     if (ei >= 0) { this.attackEnemy(ei); return; }
     this.targeting = null;
     ui.hud.targeting = '';
@@ -780,6 +801,16 @@ export class GameClient {
         saveProgress();
         toast(`Nouvel ennemi : ${d.name}. ${d.desc}`, 'enemy', 6000);
       }
+      const tr = f.eTraits[i] & 7;
+      if (tr) for (let k = 0; k < 3; k++) {
+        const key = 'trait_' + TRAITS[k].id;
+        if (tr & (1 << k) && !this.seenTypes.has(key)) {
+          this.seenTypes.add(key);
+          progress.seen.push(key);
+          saveProgress();
+          toast(`Nouvelle menace : ${TRAITS[k].name}. ${TRAIT_ADVICE[k]}`, 'enemy', 8000);
+        }
+      }
     }
 
     // HUD
@@ -829,6 +860,23 @@ export class GameClient {
     if (this.aimRing.visible) drape(this.aimRing, this.world.heightAt, 0.08);
   }
 
+  /** Bonus du meilleur campement couvrant la tour `ti` (même règle que la simulation). */
+  auraAt(snap: Snapshot, ti: number) {
+    const out = { range: 0, rate: 0, dmg: 0 };
+    if (snap.tFam[ti] >= 4) return out;
+    const a = this.map.slots[snap.tSlot[ti]];
+    for (let j = 0; j < snap.tCount; j++) {
+      if (snap.tFam[j] !== 5) continue;
+      const c = this.map.slots[snap.tSlot[j]];
+      const au = campAura(snap.tLevel[j], [snap.tSk[j] & 15, snap.tSk[j] >> 4]);
+      if ((a.x - c.x) ** 2 + (a.z - c.z) ** 2 > au.r * au.r) continue;
+      out.range = Math.max(out.range, au.range);
+      out.rate = Math.max(out.rate, au.rate);
+      out.dmg = Math.max(out.dmg, au.dmg);
+    }
+    return out;
+  }
+
   private updateSelectionVisuals(snap: NonNullable<Interp['latest']>) {
     const s = ui.sel;
     this.rangeRing.visible = false;
@@ -844,15 +892,19 @@ export class GameClient {
       for (let i = 0; i < snap.tCount; i++) if (snap.tId[i] === s.tower) ti = i;
       if (ti < 0) { ui.sel = null; return; }
       // garder la sélection à jour (amélioration effectuée)
-      if (snap.tLevel[ti] !== s.level || (snap.tSk[ti] & 15) !== s.sk?.[0] || snap.tSk[ti] >> 4 !== s.sk?.[1] || snap.tOwner[ti] !== s.owner) this.selectTowerIndex(ti);
+      if (snap.tLevel[ti] !== s.level || (snap.tSk[ti] & 15) !== s.sk?.[0] || snap.tSk[ti] >> 4 !== s.sk?.[1] || snap.tOwner[ti] !== s.owner || snap.tPrio[ti] !== s.prio) this.selectTowerIndex(ti);
       const fam = FAMILIES[snap.tFam[ti]];
       const lvl = TOWERS[fam][snap.tLevel[ti]];
       // bonus de portée de l'arbre de compétences du propriétaire de la tour
-      let range = lvl.range * (1 + this.perksFor(snap.tOwner[ti]).range[snap.tFam[ti]]);
+      // (+ bonus du meilleur campement voisin ; un campement montre sa zone d'influence)
+      const aura = fam === 'camp' ? 0 : this.auraAt(snap, ti).range;
+      const rangeOf = (l: number) => TOWERS[fam][l].range * (fam === 'camp' ? 1 : 1 + this.perksFor(snap.tOwner[ti]).range[snap.tFam[ti]] + aura);
+      let range = rangeOf(snap.tLevel[ti]);
       if (fam === 'archer' && snap.tLevel[ti] === LEVEL_SPEC_A && snap.tSk[ti] >> 4) range += lvl.skills![1].values[(snap.tSk[ti] >> 4) - 1];
-      if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = TOWERS[fam][this.hoverLevel].range * (1 + this.perksFor(snap.tOwner[ti]).range[snap.tFam[ti]]);
+      if (fam === 'camp' && snap.tLevel[ti] === 3) range = campAura(3, [snap.tSk[ti] & 15, snap.tSk[ti] >> 4]).r;
+      if (this.hoverLevel > snap.tLevel[ti] && TOWERS[fam][this.hoverLevel]) range = rangeOf(this.hoverLevel);
       const sl = this.map.slots[snap.tSlot[ti]];
-      this.rangeRing.visible = true;
+      this.rangeRing.visible = range > 0;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
       this.rangeRing.scale.setScalar(range);
       if (fam === 'barracks') {
@@ -871,7 +923,8 @@ export class GameClient {
       const sl = this.map.slots[s.slot];
       this.rangeRing.visible = true;
       this.rangeRing.position.set(sl.x, 0.09, sl.z);
-      this.rangeRing.scale.setScalar(TOWERS[FAMILIES[this.hoverFam]][0].range * (1 + this.perksFor(this.you).range[this.hoverFam]));
+      this.rangeRing.scale.setScalar(Math.max(0.01, TOWERS[FAMILIES[this.hoverFam]][0].range * (1 + this.perksFor(this.you).range[this.hoverFam])));
+      if (FAMILIES[this.hoverFam] === 'mine') this.rangeRing.visible = false;
     }
     // cible imposée à votre héros : anneau rouge sous l'ennemi (il pulse à l'ordre)
     this.focusRing.visible = false;
@@ -1037,14 +1090,15 @@ export class GameClient {
     return false;
   }
 
-  private damageNumber(x: number, y: number, z: number, amount: number, crit: boolean) {
+  private leadNumT = 0;
+  private damageNumber(x: number, y: number, z: number, amount: number, kind: '' | 'crit' | 'lead' | 'gold') {
     const layer = dom.dmg;
     if (!layer || !settings.damageNumbers) return;
     const el = layer.children[this.dmgIdx++ % layer.children.length] as HTMLElement;
     if (!el) return;
     this.r.project(x, y, z, this.proj);
-    el.textContent = String(amount);
-    el.className = crit ? 'dn crit' : 'dn';
+    el.textContent = kind === 'gold' ? `+${amount}` : kind === 'lead' && amount < 1 ? '0' : String(amount);
+    el.className = kind ? 'dn ' + kind : 'dn';
     el.style.left = `${this.proj.x | 0}px`;
     el.style.top = `${this.proj.y | 0}px`;
     void el.offsetWidth;
@@ -1403,8 +1457,30 @@ export class GameClient {
       case Ev.Dmg: {
         const i = f.enemyIdx(ev[1]);
         this.ents.hitTime[ev[1]] = this.time;
-        if (i >= 0 && (ev[2] >= 25 || ev[3])) this.damageNumber(f.eX[i], f.eY[i] + 1.6, f.eZ[i], ev[2], ev[3] !== 0);
-        if (ev[3] === 2 && i >= 0) fx.burst(f.eX[i], 0.8, f.eZ[i], 14, 0xea80fc, 3, 0.12, 0.5, true, 0);
+        const fl = ev[3];
+        if (fl & 4) {
+          // plomb : le coup ricoche (étincelles grises, petit nombre gris de temps en temps)
+          if (i >= 0) {
+            for (let k = 0; k < 3; k++) fx.sparks.spawn(f.eX[i], f.eY[i] + 0.9, f.eZ[i], (Math.random() - 0.5) * 4, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 4, 0.3, 0.06, 0xe0e0e0);
+            if (this.time - this.leadNumT > 0.35) { this.leadNumT = this.time; this.damageNumber(f.eX[i], f.eY[i] + 1.6, f.eZ[i], ev[2], 'lead'); }
+          }
+          break;
+        }
+        if (i >= 0 && (ev[2] >= 25 || fl)) this.damageNumber(f.eX[i], f.eY[i] + 1.6, f.eZ[i], ev[2], fl ? 'crit' : '');
+        if (fl === 2 && i >= 0) fx.burst(f.eX[i], 0.8, f.eZ[i], 14, 0xea80fc, 3, 0.12, 0.5, true, 0);
+        break;
+      }
+      case Ev.Income: {
+        const [, tid, gold, lives] = ev;
+        const t = this.ents.towerMuzzle.get(tid);
+        if (t) {
+          for (let k = 0; k < 10; k++) fx.sparks.spawn(t.x, t.y, t.z, (Math.random() - 0.5) * 2.5, 3 + Math.random() * 2, (Math.random() - 0.5) * 2.5, 0.8, 0.1, 0xffd54f);
+          if (t.owner === this.you) this.damageNumber(t.x, t.y + 1, t.z, gold, 'gold');
+        }
+        if (lives) {
+          const c = this.world.castle;
+          fx.burst(c.x, 2.5, c.z, 16, 0xff6b81, 2.5, 0.12, 0.8, true, 1.5);
+        }
         break;
       }
       case Ev.WaveStart: {
