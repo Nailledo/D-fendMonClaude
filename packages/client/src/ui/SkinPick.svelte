@@ -15,7 +15,7 @@
 <div class="overlay-bg">
   <div class="panel box">
     <h2>Choisissez votre apparence</h2>
-    <p class="sub">Ce n’est qu’un skin : tous les héros débutent en Aventurier, avec les mêmes statistiques et les mêmes compétences. En finissant des niveaux, vous gagnerez des points pour le développer dans l’arbre du héros et l’orienter vers une classe (épéiste, gardien, archer, mage, nécromancien, artificier). Vous pourrez changer d’apparence à tout moment.</p>
+    <p class="sub">Ce n’est qu’un skin : tous les héros débutent en Aventurier, avec les mêmes statistiques et les mêmes compétences. En finissant des niveaux, vous gagnerez des points pour le développer dans l’arbre du héros et le spécialiser dans une classe (épéiste, gardien, archer, mage, nécromancien, artificier) et l’une de ses trois routes. Vous pourrez changer d’apparence à tout moment.</p>
     <div class="list">
       {#each HERO_IDS as h}
         <button class="hero" class:on={pick === h} onclick={() => (pick = h)} ondblclick={() => { pick = h; done(); }}>

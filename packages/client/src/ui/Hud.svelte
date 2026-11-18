@@ -181,7 +181,7 @@
           {@const locked = !s || h.hero.level < unlock}
           {@const cd = h.hero.cds[i]}
           <button class="skill" class:ult={i === 2} class:locked disabled={locked || h.hero.dead} onclick={() => g()?.heroSkill(i as 0 | 1 | 2)}
-            title={s ? `${s.name} — ${s.desc} (recharge ${s.cd} s)${locked ? ` — niveau ${unlock} requis` : ''}` : 'Ultime : à apprendre dans l’arbre du héros (au bout d’une branche de classe)'}>
+            title={s ? `${s.name} — ${s.desc} (recharge ${s.cd} s)${locked ? ` — niveau ${unlock} requis` : ''}` : 'Ultime : à apprendre dans l’arbre du héros (au bout d’une route)'}>
             {#if !s}
               <Ico k="lock" fb={LINE.lock} /><span class="sn">Arbre</span>
             {:else if locked}

@@ -1,4 +1,4 @@
-import { CLASSES, CORE_COST, CORE_RANKS, EMPTY_BUILD, ITEMS, ITEM_MAX, RANK_COST, classNodes, nodeOpen, TREE, TREE_RANKS, buildCost, heroPoints, sanitizeBuild, treeCost, type HeroBuild } from '@dfend/shared';
+import { CLASSES, CORE_COST, EMPTY_BUILD, coreOpen, ITEMS, ITEM_MAX, RANK_COST, classNodes, nodeOpen, TREE, TREE_RANKS, buildCost, heroPoints, sanitizeBuild, treeCost, type HeroBuild } from '@dfend/shared';
 import { progress, saveProgress } from './state.svelte';
 
 /**
@@ -95,9 +95,9 @@ export function buyNode(cls: number, i: number): boolean {
   saveProgress();
   return true;
 }
-/** Un rang de plus sur le nœud `k` du cœur. */
+/** Un rang de plus sur le fondamental `k` (une fois la classe choisie). */
 export function canBuyCore(k: number): boolean {
-  return heroBuild().core[k] < CORE_RANKS && heroPointsLeft() >= CORE_COST;
+  return coreOpen(heroBuild(), k) && heroPointsLeft() >= CORE_COST;
 }
 export function buyCore(k: number): boolean {
   if (!canBuyCore(k)) return false;

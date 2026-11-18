@@ -48,7 +48,10 @@ function hudSkills() {
   return kitSkills(h.cls, h.kit);
 }
 /** Rayon de l'anneau de visée des compétences de zone. */
-const SKILL_RADIUS: Record<string, number> = { pluie: 2.3, boule: 1.9, flammes: 2.4, meteore: 3, acide: 2, transmutation: 2.8, bombe: 2.2, visee: 2.2, golem: 1.2 };
+const SKILL_RADIUS: Record<string, number> = {
+  pluie: 2.3, boule: 1.9, flammes: 2.4, meteore: 3, acide: 2, transmutation: 2.8, bombe: 2.2, visee: 2.2, golem: 1.2,
+  cyclone: 2.6, piege: 1.4, filet: 3, blizzard: 3, eclair: 2.5, prison: 2.8, peste: 2.4, malediction: 3, usine: 2, grenades: 1.6, barrage: 2.6,
+};
 
 /** Conseil affiché la première fois qu'une propriété d'ennemi apparaît. */
 const TRAIT_ADVICE = [
@@ -71,6 +74,8 @@ export class GameClient {
   private keysDown = new Set<string>();
   private hoverSlot = -1;
   private time = 0;
+  /** zones durables des compétences (cyclone, blizzard, peste…) : particules émises tant qu'elles durent */
+  private zoneFx: { kind: number; x: number; z: number; r: number; end: number; acc: number }[] = [];
   private hudT = 0;
   private rangeRing: THREE.Mesh;
   private hoverRing: THREE.Mesh;
@@ -723,6 +728,39 @@ export class GameClient {
 
   // ------------------------------------------------------------ boucle
 
+  private stepZoneFx(dt: number) {
+    const fx = this.fx;
+    for (let i = this.zoneFx.length - 1; i >= 0; i--) {
+      const z = this.zoneFx[i];
+      if (this.time >= z.end) { this.zoneFx.splice(i, 1); continue; }
+      z.acc += dt * 60;
+      for (; z.acc >= 1; z.acc--) {
+        const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * z.r;
+        const px = z.x + Math.cos(a) * d, pz = z.z + Math.sin(a) * d;
+        switch (z.kind) {
+          case Impact.Cyclone:
+            // lames d'air qui tournoient en montant
+            fx.glow.spawn(px, 0.2 + Math.random() * 0.5, pz, -Math.sin(a) * 6, 1.5 + Math.random() * 2, Math.cos(a) * 6, 0.45, 0.1, Math.random() < 0.3 ? 0xffffff : 0x9fd3ff, 0);
+            if (Math.random() < 0.15) fx.sparks.spawn(px, 0.2, pz, -Math.sin(a) * 4, 2, Math.cos(a) * 4, 0.6, 0.12, 0x9e8a70, -6);
+            break;
+          case Impact.Blizzard:
+            fx.sparks.spawn(px - 1.2, 5 + Math.random() * 2, pz - 0.6, 1.4, -3.5, 0.6, 1.6, 0.07 + Math.random() * 0.06, 0xffffff, 0);
+            if (Math.random() < 0.3) fx.glow.spawn(px, 0.2, pz, (Math.random() - 0.5), 0.3, (Math.random() - 0.5), 1, 0.25, 0x9be7ff, 0);
+            break;
+          case Impact.Plague:
+            if (Math.random() < 0.6) fx.glow.spawn(px, 0.15, pz, (Math.random() - 0.5) * 0.4, 0.6 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 1.4, 0.22 + Math.random() * 0.15, Math.random() < 0.5 ? 0x9ccc65 : 0x7cb342, 0.1);
+            break;
+          case Impact.Curse:
+            if (Math.random() < 0.5) fx.glow.spawn(px, 0.1, pz, 0, 1 + Math.random() * 1.5, 0, 0.9, 0.09, Math.random() < 0.5 ? 0xce93d8 : 0x6a1b9a, 0.3);
+            break;
+          case Impact.Trap:
+            if (Math.random() < 0.08) fx.sparks.spawn(px, 0.2, pz, 0, 1.5, 0, 0.4, 0.06, 0xffe0b2, -6);
+            break;
+        }
+      }
+    }
+  }
+
   update(dt: number) {
     this.time += dt;
     const r = this.r;
@@ -774,6 +812,7 @@ export class GameClient {
       this.prologue.update(dt, this.time, d ? Math.min(d.i, PROLOGUE.length - 1) : 0, d && d.i < PROLOGUE.length ? d.lines[d.i].who : '');
       if (this.prologue.done) this.endPrologue();
     }
+    this.stepZoneFx(dt);
     this.fx.update(dt, this.interp.renderTick, (id, out) => {
       const i = f.enemyIdx(id);
       if (i < 0) return false;
@@ -1191,8 +1230,95 @@ export class GameClient {
       }
       case Ev.Impact: {
         const [, kind, x, z, r10] = ev;
-        const rad = r10 / 10;
+        // zones durables des compétences de route : rayon ×10 + durée (s) ×1000
+        const long = kind >= Impact.Cyclone;
+        const rad = (long ? r10 % 1000 : r10) / 10;
+        const dur = long ? Math.floor(r10 / 1000) : 0;
+        if (dur > 0 && kind !== Impact.Net) this.zoneFx.push({ kind, x, z, r: rad, end: this.time + dur, acc: 0 });
         switch (kind) {
+          case Impact.Bolt:
+            // éclair : trait en zigzag tombé du ciel, étincelles bleues
+            fx.beams.add(x, 9, z, x, 0.3, z, 0.3, 0.32, 0x81d4fa, 1.4);
+            fx.beams.add(x, 9, z, x, 0.3, z, 0.22, 0.12, 0xffffff, 1);
+            fx.ring(x, z, 1.2, 0xb3e5fc, 0.3);
+            fx.burst(x, 0.6, z, 12, 0x81d4fa, 4, 0.08, 0.35, true, 0);
+            fx.flashes.flash(x, 1.5, z, 0x9be7ff, 6, 0.25, 8);
+            audio.play('arcane', 0.6);
+            break;
+          case Impact.Cyclone:
+            fx.runes.add(x, z, rad, Decal.Rune, dur, 0xb3d4ff, 5);
+            fx.decals.add(x, z, rad, Decal.Cracks, dur + 1, 0x9e8a70);
+            fx.ring(x, z, rad, 0xcfe8ff, 0.5);
+            fx.shockwave(x, z, rad, 0xcfe8ff, 0x9e8a70, 0.5);
+            audio.play('spell', 0.8);
+            break;
+          case Impact.Blizzard:
+            fx.decals.add(x, z, rad, Decal.Pool, dur + 1.5, 0xe3f7ff);
+            fx.runes.add(x, z, rad, Decal.Rune, dur, 0x9be7ff, 0.4);
+            fx.shards.burst(x, z, rad * 0.8, 10, 0xbfefff, 1.2, 1);
+            fx.flashes.flash(x, 1.5, z, 0x9be7ff, 6, 0.4, rad * 4);
+            audio.play('frost', 1.1);
+            break;
+          case Impact.Plague:
+            fx.decals.add(x, z, rad, Decal.Pool, dur + 1, 0x6f8a2a);
+            fx.runes.add(x, z, rad, Decal.Rune, dur, 0x9ccc65, -0.5);
+            fx.smoke(x, 0.3, z, 8, 0x556b2f, rad);
+            audio.play('arcane', 0.6);
+            break;
+          case Impact.Trap:
+            fx.decals.add(x, z, rad, Decal.Cracks, dur, 0x8d6e63);
+            fx.runes.add(x, z, rad, Decal.Rune, dur, 0xffb74d, 0);
+            fx.shards.burst(x, z, rad * 0.8, 8, 0x9e9e9e, 0.6, 0.5);
+            audio.play('build');
+            break;
+          case Impact.Net:
+            // filet : un quadrillage de cordes posé au sol pendant l'immobilisation
+            fx.runes.add(x, z, rad, Decal.Rune, dur, 0xe0c58a, 0);
+            for (let k = -2; k <= 2; k++) {
+              const o = (k / 2.5) * rad, h = Math.sqrt(Math.max(0, rad * rad - o * o));
+              fx.beams.add(x + o, 0.25, z - h, x + o, 0.25, z + h, dur, 0.05, 0xd7b98a);
+              fx.beams.add(x - h, 0.25, z + o, x + h, 0.25, z + o, dur, 0.05, 0xd7b98a);
+            }
+            fx.burst(x, 1.5, z, 18, 0xd7b98a, 3, 0.1, 0.6);
+            audio.play('arrow', 0.8);
+            break;
+          case Impact.Curse:
+            fx.decals.add(x, z, rad, Decal.Pool, dur + 0.5, 0x4a148c);
+            fx.runes.add(x, z, rad, Decal.Rune, dur, 0x7b1fa2, -1.2);
+            fx.ring(x, z, rad, 0xce93d8, 0.6);
+            fx.spiral(x, z, rad, 24, 0xce93d8);
+            fx.flashes.flash(x, 1.5, z, 0x9c27b0, 8, 0.4, rad * 4);
+            audio.play('arcane', 1);
+            break;
+          case Impact.Quake:
+            fx.decals.add(x, z, rad * 1.1, Decal.Cracks, 4, 0xff9a3c);
+            fx.shockwave(x, z, rad, 0xffcc80, 0x8d6e63, 0.6);
+            fx.debris(x, z, 12, 0x6d5a48, 6);
+            fx.smoke(x, 0.3, z, 6, 0x8d7b68, rad);
+            this.r.shake(0.35);
+            audio.play('shell', 1.2);
+            break;
+          case Impact.Wave:
+            fx.burst(x, 0.6, z, 16, 0xcfe8ff, 4, 0.1, 0.4, true, 0);
+            fx.ring(x, z, 1.5, 0xcfe8ff, 0.4);
+            break;
+          case Impact.Sanctuary:
+            fx.pillar(x, z, 2, 10, 0xb9f6ca, 1.3);
+            fx.runes.add(x, z, rad, Decal.Rune, 1.6, 0xfff59d, 1);
+            fx.spiral(x, z, rad, 34, 0x69f0ae, 1.4);
+            fx.shockwave(x, z, rad, 0xfff3c0, 0xfff3c0, 0.6);
+            fx.flashes.flash(x, 3, z, 0xd8ffd8, 14, 0.6, rad * 5);
+            audio.play('heal');
+            break;
+          case Impact.Blades:
+            // lames croisées
+            for (let k = 0; k < 2; k++) {
+              const a = Math.random() * Math.PI, c = Math.cos(a) * Math.max(0.9, rad * 0.4), sn = Math.sin(a) * Math.max(0.9, rad * 0.4);
+              fx.beams.add(x - c, 0.9, z - sn, x + c, 1.1, z + sn, 0.22, 0.06, 0xe3f2fd);
+            }
+            fx.burst(x, 0.9, z, 8, 0xe3f2fd, 3, 0.07, 0.3, true, 0);
+            audio.play('hit', 1.6);
+            break;
           case Impact.Shell: case Impact.Frag:
             fx.burst(x, 0.3, z, kind === Impact.Frag ? 6 : 14, 0x6d4c41, 4, 0.2, 0.7);
             fx.burst(x, 0.4, z, 8, 0xffb74d, 3, 0.18, 0.3, true, 0);
@@ -1452,6 +1578,16 @@ export class GameClient {
             const t = Math.random();
             fx.sparks.spawn(hx + (x - hx) * t, 0.15, hz + (z - hz) * t, (Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2, 0.6, 0.18, 0x9e8a70, -3);
           }
+        } else if (sk?.id === 'onde') {
+          // onde tranchante : une lame d'air qui file sur 8 m
+          const dx = x - hx, dz = z - hz, l = Math.hypot(dx, dz) || 1;
+          const ex = hx + (dx / l) * 8, ez = hz + (dz / l) * 8;
+          fx.beams.add(hx, 0.8, hz, ex, 0.8, ez, 0.3, 0.25, 0xcfe8ff);
+          for (let k = 0; k < 24; k++) {
+            const t = k / 24;
+            fx.glow.spawn(hx + (ex - hx) * t, 0.5 + Math.random() * 0.6, hz + (ez - hz) * t, (dx / l) * 5, 0.5, (dz / l) * 5, 0.25 + t * 0.25, 0.12, 0xe3f2fd, 0);
+          }
+          audio.play('hit', 1.3);
         } else if (sk?.id === 'ralliement') {
           // cri de ralliement : cercle doré, étincelles qui montent
           fx.ring(hx, hz, 4.5, 0xffcc80, 0.8);

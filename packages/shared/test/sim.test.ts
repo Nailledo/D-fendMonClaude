@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { CLASSES, DmgType, ENEMY_INDEX, LEAD_PHYS, buildCost, buildKit, heroStatBonus, nodeOpen, heroPassives, heroPoints, heroSkills, sanitizeBuild, LEVELS, Prio, TOWERS, Trait, campAura, genStoryWaves, genSurvivalWave, ITEMS, Item, TREE, GameState, MAPS, Sim, sanitizeMeta, treeCost, Snapshot, buildRuntimeMap, encodeSnapshot, replay, type GameConfig, type LoggedCmd } from '../src';
 
 /** arbre : vocation, la voie gauche (0) ou droite (1) jusqu'au rang `upto`, l'ultime si demandé */
-const PATH_L = [1, 1, 3, 1, 3, 1, 0, 0, 0, 0, 0, 0];
-const PATH_R = [1, 0, 0, 0, 0, 0, 1, 3, 1, 3, 1, 0];
-const B = (cls: number, r: number[] = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], core = [0, 0, 0, 0, 0, 0]) => ({ cls, r: [...r], core });
+/** rangs : la racine et les `n` premiers nœuds de la route `j` (au maximum) */
+const ROUTE_RANKS = [1, 3, 1, 3, 1, 1];
+const R = (j: number, n = 6) => { const r = Array(19).fill(0); r[0] = 1; for (let k = 0; k < n; k++) r[1 + 6 * j + k] = ROUTE_RANKS[k]; return r; };
+const B = (cls: number, r: number[] = R(0, 0), core = [0, 0, 0, 0, 0, 0]) => ({ cls, r: [...r], core });
 
 const cfg = (over: Partial<GameConfig> = {}): GameConfig => ({
   mode: 'story', mapId: 'pont', difficulty: 1, seed: 42,
@@ -440,33 +441,44 @@ describe('classes du héros', () => {
     expect(h.u.range).toBe(0);
   });
 
-  it('l’arbre : prérequis, voies exclusives, ultime, coût', () => {
+  it('l’arbre : prérequis, une seule route, ultime, coût', () => {
     const mage = CLASSES.findIndex((c) => c.id === 'mage');
     expect(heroSkills(B(mage)).map((s) => s?.id ?? null)).toEqual(['boule', 'souffle', 'elan']);
-    const full = B(mage, [...PATH_L.slice(0, 11), 1]);
+    const full = B(mage, R(0));
     expect(heroSkills(full).map((s) => s?.id ?? null)).toEqual(['boule', 'flammes', 'meteore']);
-    expect(heroSkills(B(mage, [...PATH_R.slice(0, 11), 1])).map((s) => s?.id ?? null)).toEqual(['boule', 'nova', 'meteore']);
-    expect(heroPassives(full)).toEqual(['brulure', 'clairvoyance']);
+    expect(heroSkills(B(mage, R(1))).map((s) => s?.id ?? null)).toEqual(['boule', 'nova', 'blizzard']);
+    expect(heroSkills(B(mage, R(2))).map((s) => s?.id ?? null)).toEqual(['boule', 'eclair', 'prison']);
+    // la compétence de route seule : l'ultime reste celui de l'Aventurier
+    expect(heroSkills(B(mage, R(2, 1))).map((s) => s?.id ?? null)).toEqual(['boule', 'eclair', 'elan']);
+    expect(heroPassives(full)).toEqual(['brulure', 'combustion']);
     expect(buildKit(full)).toBe(1 | 2 | 8);
-    // racine 1 + voie 3+2+2+3+2 + ultime 3 + cœur 2
-    expect(buildCost({ ...full, core: [2, 0, 0, 0, 0, 0] })).toBe(1 + 12 + 3 + 2);
-    // la compétence de l'autre voie est fermée, et la voie avec
-    expect(nodeOpen(full, mage, 6)).toBe(false);
+    expect(buildKit(B(mage, R(2)))).toBe(1 | 6 | 8);
+    // racine 1 + route 2+3+2+3+2+3 + fondamentaux 2
+    expect(buildCost({ ...full, core: [2, 0, 0, 0, 0, 0] })).toBe(1 + 15 + 2);
+    // l'ultime et le dernier passif s'ouvrent depuis la 2e statistique
+    expect(nodeOpen(B(mage, R(0, 3)), mage, 6)).toBe(false);
+    expect(nodeOpen(B(mage, R(0, 4)), mage, 6)).toBe(true);
+    expect(nodeOpen(B(mage, R(0, 4)), mage, 5)).toBe(true);
+    // les autres routes sont fermées
     expect(nodeOpen(full, mage, 7)).toBe(false);
-    // une autre branche est verrouillée
+    expect(nodeOpen(full, mage, 13)).toBe(false);
+    expect(nodeOpen(B(mage), mage, 7)).toBe(true);
+    // une autre classe est verrouillée
     expect(nodeOpen(full, 0, 0)).toBe(false);
-    // les deux compétences de voie demandées : la seconde est coupée, et tout ce qui en dépend
-    const both = sanitizeBuild({ cls: mage, r: [1, 1, 3, 1, 3, 1, 1, 3, 1, 3, 1, 1], core: [9, -1, 'x'] });
-    expect(both.r).toEqual([1, 1, 3, 1, 3, 1, 0, 0, 0, 0, 0, 1]);
+    // deux routes demandées : la seconde est coupée
+    const both = sanitizeBuild({ cls: mage, r: R(0).map((v, i) => v || R(1)[i]), core: [9, -1, 'x'] });
+    expect(both.r).toEqual(R(0));
     expect(both.core).toEqual([3, 0, 0, 0, 0, 0]);
-    // sans racine, rien
-    expect(sanitizeBuild({ cls: mage, r: [0, 1, 3] }).cls).toBe(-1);
-    expect(sanitizeBuild({ cls: 99, r: [1] }).cls).toBe(-1);
-    expect(heroStatBonus(B(0, [1, 1, 2], [0, 3])).dmg).toBeCloseTo(0.27);
+    // ancien format ou sans racine : rien
+    expect(sanitizeBuild({ cls: mage, r: [1, 1, 3, 1, 3, 1, 0, 0, 0, 0, 0, 1] }).cls).toBe(-1);
+    expect(sanitizeBuild({ cls: mage, r: R(0).map((v, i) => (i ? v : 0)) }).cls).toBe(-1);
+    expect(sanitizeBuild({ cls: 99, r: R(0) }).cls).toBe(-1);
+    // Fil de la lame (route 0, nœud 2 : +6 %/rang) ×2 et Force ×3
+    expect(heroStatBonus(B(0, [1, 1, 2, ...Array(16).fill(0)], [0, 3])).dmg).toBeCloseTo(0.27);
     expect(heroPoints([[3, 0, 0], [1, 2, 0], undefined as unknown as number[], [0, 0, 0]])).toBe(4);
   });
 
-  it('un mage repère les camouflés de plus loin avec Clairvoyance', () => {
+  it('un mage arcaniste repère les camouflés de plus loin avec Clairvoyance', () => {
     const mage = CLASSES.findIndex((c) => c.id === 'mage');
     const mk = (r: number[]) => {
       const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'nox', build: B(mage, r) }] }));
@@ -476,29 +488,62 @@ describe('classes du héros', () => {
       sim.step();
       return e.revealed;
     };
-    expect(mk([1, 1, 3, 1, 3, 0])).toBe(false);
-    expect(mk([1, 1, 3, 1, 3, 1])).toBe(true);
+    expect(mk(R(2, 2))).toBe(false);
+    expect(mk(R(2, 3))).toBe(true);
   });
 
   it('les nœuds de statistiques renforcent le héros', () => {
     const a = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: B(0) }] })).heroes[0];
-    const b = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: B(0, [1, 0, 0, 0, 0, 0, 1, 3], [3, 3]) }] })).heroes[0];
+    // Chevalier : Cotte de mailles ×3 (+24 % PV) et Vigueur, Force ×3
+    const b = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: B(0, R(1, 2), [3, 3]) }] })).heroes[0];
     expect(b.u.maxHp).toBeGreaterThan(a.u.maxHp * 1.4);
     expect(b.u.dmgMax).toBeGreaterThan(a.u.dmgMax * 1.1);
   });
 
-  it('les compétences de chaque classe et de chaque voie se lancent sans erreur', () => {
+  it('Malédiction : les ennemis maudits subissent plus de dégâts', () => {
+    const necro = CLASSES.findIndex((c) => c.id === 'necro');
+    const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'nox', build: B(necro, R(2)) }] }));
+    const h = sim.heroes[0];
+    h.level = 6;
+    const e = spawn(sim, 'brute', 6);
+    const e2 = spawn(sim, 'brute', 30);
+    sim.step();
+    h.u.x = h.u.hx = e.x + 3; h.u.z = h.u.hz = e.z;
+    sim.apply(0, { k: 'hskill', i: 2, x: e.x, z: e.z });
+    sim.step();
+    expect(e.curseT).toBeGreaterThan(0);
+    expect(e2.curseT).toBe(0);
+    const h0 = e.hp, h1 = e2.hp;
+    sim.damage(e, 30, DmgType.True, 0, null);
+    sim.damage(e2, 30, DmgType.True, 0, null);
+    expect(h0 - e.hp).toBeCloseTo(1.4 * (h1 - e2.hp), 3);
+  });
+
+  it('les compétences de chaque classe et de chaque route se lancent sans erreur', () => {
     for (let c = 0; c < CLASSES.length; c++) {
-      for (const path of [PATH_L, PATH_R]) {
-        const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: B(c, [...path.slice(0, 11), 1], [3, 3, 3, 3, 3, 3]) }] }));
+      for (let j = 0; j < 3; j++) {
+        const sim = new Sim(cfg({ players: [{ id: 0, name: 'A', hero: 'samuel', build: B(c, R(j), [3, 3, 3, 3, 3, 3]) }] }));
         const h = sim.heroes[0];
+        expect(h.skills.map((s) => s.id), `${CLASSES[c].id}/${j}`).toEqual([CLASSES[c].a.id, (CLASSES[c].routes[j].nodes[0] as { skill: { id: string } }).skill.id, (CLASSES[c].routes[j].nodes[5] as { skill: { id: string } }).skill.id]);
         h.level = 10;
         sim.apply(0, { k: 'wave' });
         for (let i = 0; i < 20 * 15; i++) sim.step();
+        const hp0 = sim.enemies.reduce((t, e) => t + e.hp, 0);
         for (const i of [0, 1, 2] as const) sim.apply(0, { k: 'hskill', i, x: h.u.x + 2, z: h.u.z });
         for (let i = 0; i < 20 * 3; i++) sim.step();
-        expect(h.cds.filter((v) => v > 0).length, CLASSES[c].id).toBeGreaterThanOrEqual(2);
+        expect(h.cds.filter((v) => v > 0).length, `${CLASSES[c].id}/${j}`).toBeGreaterThanOrEqual(2);
+        expect(Number.isFinite(hp0)).toBe(true);
       }
     }
+  });
+
+  it('les identifiants des compétences et des passifs sont uniques', () => {
+    const ids = new Set<string>();
+    let n = 0;
+    for (const c of CLASSES) for (const r of c.routes) for (const nd of r.nodes) {
+      const id = nd.kind === 'skill' || nd.kind === 'ult' ? nd.skill.id : nd.kind === 'passive' ? nd.id : null;
+      if (id) { ids.add(id); n++; }
+    }
+    expect(ids.size).toBe(n);
   });
 });

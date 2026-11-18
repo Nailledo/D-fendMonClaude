@@ -1,23 +1,23 @@
 /** Bots d'équilibrage partagés par balance.ts et tune.ts. */
 import {
-  CORE, CORE_COST, CORE_RANKS, ENEMIES, FAMILIES, GameState, LEVELS, SKILL_UNLOCK, Sim, TOWERS, ULT_NODE, classNodes, CLASSES, nodeOpen,
+  CORE, CORE_COST, CORE_RANKS, ENEMIES, FAMILIES, GameState, LEVELS, NODE_COUNT, ROUTE_LEN, SKILL_UNLOCK, Sim, TOWERS, classNodes, CLASSES, nodeOpen, routeNode,
   type Difficulty, type GameConfig, type HeroBuild, type HeroId,
 } from '../packages/shared/src/index';
 
 /** glouton : archers partout sans améliorer ; diversifie : rotation des familles ; mono0..3 : une seule famille, améliorée comme diversifie */
 export type Strategy = 'glouton' | 'diversifie' | 'mono0' | 'mono1' | 'mono2' | 'mono3';
 const HEROES: HeroId[] = ['samuel', 'lyra', 'brom', 'nox'];
-/** classes et voies des bots : épéiste duelliste, archer pisteur, artificier ingénieur, nécromancien maître des os */
-const BOT_CLASSES: [number, 0 | 1][] = [[0, 0], [2, 1], [5, 1], [4, 1]];
+/** classes et routes des bots : épéiste duelliste, archer pisteur, artificier ingénieur, nécromancien maître des os */
+export const BOT_CLASSES: [number, number][] = [[0, 0], [2, 1], [5, 1], [4, 1]];
 
 /**
- * Arbre d'un bot qui a dépensé `points` comme un joueur appliqué : la vocation, une voie entière, l'ultime, puis le cœur.
+ * Arbre d'un bot qui a dépensé `points` comme un joueur appliqué : la classe, une route entière (ultime compris), puis les fondamentaux.
  * On suppose 2 points par niveau terminé avant celui qu'on joue (victoire + Vétéran), plus la victoire en Normal du niveau joué.
  */
-export function botBuild(cls: number, path: 0 | 1, points: number): HeroBuild {
-  const b: HeroBuild = { cls, r: Array(12).fill(0), core: CORE.map(() => 0) };
+export function botBuild(cls: number, route: number, points: number): HeroBuild {
+  const b: HeroBuild = { cls, r: Array(NODE_COUNT).fill(0), core: CORE.map(() => 0) };
   const nodes = classNodes(CLASSES[cls]);
-  const order = [0, ...[1, 2, 3, 4, 5].map((k) => k + path * 5), ULT_NODE];
+  const order = [0, ...Array.from({ length: ROUTE_LEN }, (_, k) => routeNode(route, k))];
   for (const i of order) {
     while (nodeOpen(b, cls, i) && points >= nodes[i].cost) { b.r[i]++; points -= nodes[i].cost; }
   }
@@ -83,10 +83,10 @@ export function runBot(sim: Sim, strat: Strategy, n: number) {
   }
 }
 
-export function play(level: number, n: number, diff: Difficulty, strat: Strategy, seed: number) {
+export function play(level: number, n: number, diff: Difficulty, strat: Strategy, seed: number, classes: [number, number][] = BOT_CLASSES) {
   const cfg: GameConfig = {
     mode: 'story', mapId: LEVELS[level].mapId, difficulty: diff, seed,
-    players: Array.from({ length: n }, (_, i) => ({ id: i, name: 'Bot' + i, hero: HEROES[i], build: botBuild(BOT_CLASSES[i][0], BOT_CLASSES[i][1], 2 * level + 1) })),
+    players: Array.from({ length: n }, (_, i) => ({ id: i, name: 'Bot' + i, hero: HEROES[i], build: botBuild(classes[i % classes.length][0], classes[i % classes.length][1], 2 * level + 1) })),
   };
   const sim = new Sim(cfg);
   sim.apply(0, { k: 'wave' });

@@ -18,10 +18,10 @@ export function skillIcon(s: ClassSkill): { k: string; fb: string } {
   return { k: 'cs_' + s.id, fb: LINE_SKILL[s.icon] ?? '' };
 }
 
-export function passiveIcon(p: { id: string }): { k: string; fb: string } {
+export function passiveIcon(p: { id: string; icon?: string }): { k: string; fb: string } {
   const h = LEGACY_PASSIVE[p.id];
   if (h) return { k: 'pa_' + h, fb: PASSIVE_ICON[h] ?? LINE_SKILL.passive };
-  return { k: 'cp_' + p.id, fb: LINE_SKILL.passive };
+  return { k: 'cp_' + p.id, fb: p.icon ? nodeIcon(p.icon) : LINE_SKILL.passive };
 }
 
 export const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
