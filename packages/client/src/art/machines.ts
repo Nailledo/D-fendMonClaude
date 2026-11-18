@@ -27,6 +27,9 @@ export interface Machine {
   arm: CatapultArm | null;
 }
 
+/** 12 à 15 seulement : les mécanismes des bâtiments (roue, chariot, flamme) sont numérotés à partir de 16. */
+const isMachinePart = (p: number) => p >= PART_HEAD && p <= PART_ARM;
+
 const cache = new WeakMap<THREE.BufferGeometry, Machine | null>();
 
 /** Sépare un modèle cuit en socle + tête, ou null s'il n'a pas de tête orientable. */
@@ -37,7 +40,7 @@ export function machineOf(geo: THREE.BufferGeometry): Machine | null {
   if (anim && geo.index) {
     const idx = geo.index.array;
     const base: number[] = [], head: number[] = [];
-    for (let t = 0; t < idx.length; t += 3) (Math.round(anim.getX(idx[t])) >= PART_HEAD ? head : base).push(idx[t], idx[t + 1], idx[t + 2]);
+    for (let t = 0; t < idx.length; t += 3) (isMachinePart(Math.round(anim.getX(idx[t]))) ? head : base).push(idx[t], idx[t + 1], idx[t + 2]);
     if (head.length && base.length) {
       const make = (list: number[]) => {
         const g = new THREE.BufferGeometry();

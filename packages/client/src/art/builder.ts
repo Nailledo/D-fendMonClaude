@@ -17,13 +17,13 @@ export const enum Part {
   Team = 7,
   Sway = 8,
   Spin = 9,
-  /** 10, 11 : armes tenues (héros) */
+  /** 10, 11 : armes tenues (héros) ; 12 à 15 : machines de guerre importées (voir art/machines.ts) */
   /** roue, ailes de moulin (rotation autour de z) */
-  Wheel = 12,
+  Wheel = 16,
   /** wagonnet qui entre et sort (le long de z) */
-  Cart = 13,
+  Cart = 17,
   /** flamme qui vacille */
-  Flame = 14,
+  Flame = 18,
 }
 
 const _m = new THREE.Matrix4();

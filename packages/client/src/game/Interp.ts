@@ -141,8 +141,12 @@ export class Interp {
     for (let i = 0; i < B.eCount; i++) {
       const id = B.eId[i];
       let dist = B.eDist[i], lane = B.eLane[i];
+      // les PV ne s'interpolent pas : ceux du snapshot suivant montreraient les dégâts avant que le coup
+      // n'arrive (rocher de catapulte encore en l'air) ; on garde ceux du snapshot courant jusqu'à l'atteindre
+      let hp = B.eHp[i];
       if (this.aStampE[id] === this.aStamp) {
         const j = this.aMapE[id];
+        if (t < 1) hp = A.eHp[j];
         if (A.ePath[j] === B.ePath[i] && Math.abs(A.eDist[j] - dist) < 3) {
           dist = A.eDist[j] + (dist - A.eDist[j]) * t;
           lane = A.eLane[j] + (lane - A.eLane[j]) * t;
@@ -161,7 +165,7 @@ export class Interp {
       const back = B.eTraits[i] & ET_FLEEING ? -1 : 1;
       f.eDx[k] = dir.x * back;
       f.eDz[k] = dir.z * back;
-      f.eHp[k] = B.eHp[i];
+      f.eHp[k] = hp;
       f.eFlags[k] = B.eFlags[i];
       f.eTraits[k] = B.eTraits[i];
       f.markE(id, k);
@@ -170,9 +174,10 @@ export class Interp {
     for (let i = 0; i < B.uCount; i++) {
       const id = B.uId[i];
       let x = B.uX[i], z = B.uZ[i];
-      let dx = 0, dz = 0;
+      let dx = 0, dz = 0, hp = B.uHp[i];
       if (this.aStampU[id] === this.aStamp) {
         const j = this.aMapU[id];
+        if (t < 1) hp = A.uHp[j];
         dx = x - A.uX[j];
         dz = z - A.uZ[j];
         // un saut (réapparition) n'est pas interpolé ; la charge du héros (7 m d'un coup) l'est, pour qu'on la voie foncer
@@ -187,7 +192,7 @@ export class Interp {
       f.uZ[k] = z;
       f.uDx[k] = dx;
       f.uDz[k] = dz;
-      f.uHp[k] = B.uHp[i];
+      f.uHp[k] = hp;
       f.uFlags[k] = B.uFlags[i];
       f.uTarget[k] = B.uTarget[i];
       f.markU(id, k);

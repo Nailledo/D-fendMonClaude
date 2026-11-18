@@ -205,7 +205,7 @@ vec3 transformed = vec3(position);
     armL.x = l.x; wristL = l.y;
   }
   vec3 moved = transformed;
-  // parties 10 et 11 : armes tenues ; 12 et plus : mécanismes des bâtiments
+  // parties 10 et 11 : armes tenues ; 12 à 15 : machines de guerre (plus bas) ; 16 à 18 : mécanismes des bâtiments
   bool weapon = part > 9.5 && part < 11.5;
   if (style > 0.5 && (part > 2.5 && part < 4.5 || weapon)) {
     // bras et armes des héros (parties 10 et 11 : arme en main droite / gauche, pivot = la main, épaule au-dessus)
@@ -222,10 +222,10 @@ vec3 transformed = vec3(position);
   } else if (weapon) {
     // arme hors style (repli) : suit simplement le corps
     moved = transformed;
-  } else if (part > 11.5 && part < 12.5) {
+  } else if (part > 15.5 && part < 16.5) {
     // roue, ailes de moulin : tournent autour de l'axe z du modèle
     moved = rotZ(transformed - pivot, -uTime * 1.6 - iAnim.x) + pivot;
-  } else if (part > 12.5 && part < 13.5) {
+  } else if (part > 16.5 && part < 17.5) {
     // wagonnet : sort de la galerie, attend chargé, y rentre (cycle de 7 s, décalé par bâtiment)
     float c = fract(uTime / 7.0 + iAnim.x * 0.13) * 7.0;
     float ex = smoothstep(0.0, 1.4, c) * (1.0 - smoothstep(4.2, 5.6, c));
@@ -233,7 +233,7 @@ vec3 transformed = vec3(position);
     moved.y += abs(sin(c * 9.0)) * 0.015 * step(0.05, ex) * step(ex, 0.95);
     // caché au fond de la galerie : réduit à rien
     moved = mix(pivot, moved, smoothstep(0.0, 0.25, ex));
-  } else if (part > 13.5 && part < 14.5) {
+  } else if (part > 17.5 && part < 18.5) {
     // flamme : vacille autour de sa base
     float f = 1.0 + 0.22 * sin(uTime * 13.0 + iAnim.x * 5.0) + 0.12 * sin(uTime * 23.0 + iAnim.x);
     vec3 d = transformed - pivot;
