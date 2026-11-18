@@ -19,7 +19,7 @@ import type { HeroSkillDef } from './heroes';
  */
 
 /** Style d'animation : 1 épée, 2 arc, 3 marteau, 4 bâton. */
-export type WeaponStyle = 1 | 2 | 3 | 4;
+export type WeaponStyle = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface ClassSkill extends HeroSkillDef {
   id: string;
@@ -232,7 +232,7 @@ export const CLASSES: ClassDef[] = [
     ],
   },
   {
-    id: 'necro', name: 'Nécromancien', role: 'Invocations, vol de vie', style: 4, weapon: 5, color: 0x7c3aed,
+    id: 'necro', name: 'Nécromancien', role: 'Invocations, vol de vie', style: 5, weapon: 5, color: 0x7c3aed,
     desc: 'A promis d’arrêter de réveiller les morts. Sauf pour les bonnes causes.',
     hp: 170, hpPerLevel: 14, dmg: [13, 21], dmgPerLevel: 2.2, dmgType: DmgType.Magic, cooldown: 1.2, armor: 0, speed: 3, regen: 4, range: 5.5,
     a: sk('os', 'Os ranimés', 'Squelettes', 'bones', 'Invoque 2 squelettes près du curseur.', 14, true),
@@ -264,7 +264,7 @@ export const CLASSES: ClassDef[] = [
     ],
   },
   {
-    id: 'artificier', name: 'Artificier', role: 'Explosifs, tourelles', style: 4, weapon: 6, color: 0x0d9488,
+    id: 'artificier', name: 'Artificier', role: 'Explosifs, tourelles', style: 6, weapon: 6, color: 0x0d9488,
     desc: 'Mi-alchimiste, mi-ingénieur. Lance des fioles, pose des tourelles, et recule toujours d’un pas avant.',
     hp: 200, hpPerLevel: 17, dmg: [10, 16], dmgPerLevel: 2, dmgType: DmgType.Phys, cooldown: 1.1, armor: 0.2, speed: 2.9, regen: 5, range: 5,
     a: sk('bombe', 'Bombe', 'Bombe', 'bomb', 'Lance une bombe : dégâts explosifs en zone et ennemis sonnés.', 12, true, 7),

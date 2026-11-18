@@ -608,7 +608,7 @@ export class Entities {
       let cast: number;
       if (style) {
         // héros armés : 0..1 = tir (l'arc reste en joue plus longtemps), 1..2 = sort
-        const castDur = style === 3 ? 0.7 : 0.6, fireDur = style === 2 ? 1.2 : style === 4 ? 0.55 : 0.35;
+        const castDur = style === 3 ? 0.7 : 0.6, fireDur = style === 2 ? 1.2 : style === 4 || style === 5 ? 0.55 : style === 6 ? 0.5 : 0.35;
         const ct = time - this.castTime[id], ft = time - this.uFireTime[id];
         cast = ct < castDur ? 1 + Math.max(0.001, ct / castDur) : ft < fireDur ? Math.max(0.001, ft / fireDur) : 0;
       } else cast = time - this.castTime[id] < 0.6 ? (time - this.castTime[id]) / 0.6 : time - this.uFireTime[id] < 0.35 ? (time - this.uFireTime[id]) / 0.35 : 0;

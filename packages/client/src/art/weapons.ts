@@ -18,7 +18,7 @@ export const WEAPON_L = 11;
  */
 export const WEAPON_KINDS = 7;
 /** style d'animation de chaque arme (voir le vertex shader) : 1 épée, 2 arc, 3 marteau, 4 bâton */
-export const WEAPON_STYLE = [0, 1, 2, 3, 4, 4, 4, 1];
+export const WEAPON_STYLE = [0, 1, 2, 3, 4, 5, 6, 1];
 /** arme par défaut (Aventurier) */
 export const DEFAULT_WEAPON = 7;
 

@@ -69,7 +69,7 @@ vec3 transformed = vec3(position);
   // phase d'attaque propre à chaque instance
   float atk = fract(uTime * 1.25 + iAnim.x * 0.37);
   float strike = strikeCurve(atk);
-  // style d'animation (0 générique, 1 épée, 2 arc, 3 marteau, 4 bâton) codé avec le mode : w = combat + 2 × style
+  // style d'animation (0 générique, 1 épée, 2 arc, 3 marteau, 4 bâton, 5 bâton à crâne, 6 lance-fioles) codé avec le mode : w = combat + 2 × style
   float style = floor(iAnim.w * 0.5 + 0.01);
   mode -= style * 2.0;
   if (mode > 0.5 && mode < 1.5) walk = 0.25;
@@ -82,7 +82,7 @@ vec3 transformed = vec3(position);
   float wristR = 0.0, wristL = 0.0, twist = 0.0, lean = 0.0;
   if (style > 0.5 && alive > 0.5) {
     float fight = mode > 0.5 && mode < 1.5 ? 1.0 : 0.0;
-    float rate = style < 1.5 ? 1.0 : style < 2.5 ? 1.3 : style < 3.5 ? 0.85 : 0.9;
+    float rate = style < 1.5 ? 1.0 : style < 2.5 ? 1.3 : style < 3.5 ? 0.85 : style < 5.5 ? 0.9 : 1.05;
     float ph = fract(uTime * rate + iAnim.x * 0.37);
     float sc = strikeCurve(ph);
     float wind = max(-sc, 0.0) * fight, hit = max(sc, 0.0) * fight;
@@ -145,7 +145,7 @@ vec3 transformed = vec3(position);
       armR.z = 0.25 * act;
       lean = -0.15 * wind2 + 0.3 * hit2;
       twist = 0.0;
-    } else {
+    } else if (style < 4.5) {
       // bâton : appui à la marche, pointé vers la cible au tir, levé au ciel pour les sorts
       r = grip(-0.25 - sw * 0.5, 0.15);
       vec2 guard = grip(-0.8, 0.6), back = grip(-0.3, -0.6), jab = grip(-1.4, 1.6);
@@ -160,6 +160,46 @@ vec3 transformed = vec3(position);
       r = mix(r, grip(-2.6, -0.1), spell);
       l = mix(l, vec2(-2.4, 0.0), spell);
       armL.y = 0.3 * spell;
+    } else if (style < 5.5) {
+      // nécromancien : bâton à crâne tenu bas, fauche de côté au contact ; au tir, la main gauche
+      // se tend vers la cible (drain) ; invocation : les deux bras écartés, levés vers le ciel
+      r = grip(-0.15 - sw * 0.4, 0.05);
+      vec2 guard = grip(-0.9, 0.2), back = grip(-1.9, -1.0), sweep = grip(-0.8, 1.9);
+      r = mix(r, guard, fight);
+      r += (back - guard) * wind + (sweep - guard) * hit;
+      armR.z = 0.45 * wind - 0.55 * hit;
+      twist = -0.55 * wind + 0.55 * hit;
+      l = vec2(sw * 0.6 - 0.3, 0.0);
+      float reach = fireP > 0.0 ? sin(3.14159 * min(fireP * 1.3, 1.0)) : 0.0;
+      l = mix(l, vec2(-1.55, 0.0), reach);
+      armL.z = -0.15 * reach;
+      r = mix(r, grip(-0.5, 0.3), reach);
+      lean = 0.12 * reach + 0.12 * hit;
+      r = mix(r, grip(-2.4, 0.3), spell);
+      l = mix(l, vec2(-2.4, 0.0), spell);
+      armR.y = mix(armR.y, -0.6, spell);
+      armL.y = mix(armL.y, -0.6, spell);
+      lean = mix(lean, -0.18, spell);
+    } else {
+      // artificier : lance-fioles porté à deux mains devant le ventre ; au tir, armé derrière l'épaule
+      // puis lancé par-dessus ; au contact, coup de crosse ; sort : brandi au-dessus de la tête
+      r = grip(-0.75 - sw * 0.2, 0.75);
+      l = vec2(-0.55 + sw * 0.3, 0.0);
+      armL.y = 0.35;
+      vec2 guard = grip(-0.9, 0.7), back = grip(-0.4, -0.4), jab = grip(-1.5, 1.4);
+      r = mix(r, guard, fight);
+      r += (back - guard) * wind + (jab - guard) * hit;
+      float cock = fireP > 0.0 ? smoothstep(0.0, 0.3, fireP) * (1.0 - smoothstep(0.3, 0.5, fireP)) : 0.0;
+      float rel = fireP > 0.0 ? smoothstep(0.3, 0.5, fireP) * (1.0 - smoothstep(0.75, 1.0, fireP)) : 0.0;
+      r = mix(r, grip(-2.7, -1.3), cock);
+      r = mix(r, grip(-1.25, 1.35), rel);
+      l = mix(l, vec2(-1.35, 0.0), cock + rel * 0.6);
+      armL.y = mix(armL.y, 0.0, min(1.0, cock + rel));
+      twist = -0.45 * cock + 0.4 * rel - 0.2 * wind + 0.25 * hit;
+      lean = -0.12 * cock + 0.2 * rel + 0.15 * hit;
+      r = mix(r, grip(-2.7, 0.2), spell);
+      l = mix(l, vec2(-2.3, 0.0), spell);
+      armL.y = mix(armL.y, 0.25, spell);
     }
     armR.x = r.x; wristR = r.y;
     armL.x = l.x; wristL = l.y;
