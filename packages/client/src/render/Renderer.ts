@@ -2,10 +2,23 @@ import * as THREE from 'three';
 import { settings, tuning } from '../settings';
 import type { BiomeTheme } from '../art/decor';
 import { uniforms } from './materials';
+import { FirstPersonSky } from './Sky';
 
 /** Inclinaison de la caméra : plus plongeante dézoomée, plus rasante zoomée. */
 const PITCH_FAR = 1.02; // ~58°
 const PITCH_NEAR = 0.8; // ~46°
+/** Champ vertical de la vue d'ensemble (les calculs de cadrage s'y rapportent, même pendant la vue du héros). */
+const BASE_FOV = 38;
+
+/** Vue du héros : champ plus large, plans proche et lointain resserrés, brouillard qui fond les collines au loin. */
+const FP = { fov: 66, near: 0.12, far: 170, fogNear: 22, fogFar: 85, pitch: -0.1, blendTime: 0.7, turn: 3.5 };
+
+const lerpAngle = (a: number, b: number, t: number) => {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+};
 
 /**
  * Caméra de jeu : cible au sol (x, z), distance, cap (yaw).
@@ -45,7 +58,7 @@ export class Renderer {
     this.gl.shadowMap.enabled = settings.shadows;
     this.gl.shadowMap.type = settings.quality === 'ultra' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.gl.info.autoReset = false;
-    this.camera = new THREE.PerspectiveCamera(38, 1, 1, 260);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 1, 260);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.4);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffffff, 2.4);
@@ -93,11 +106,13 @@ export class Renderer {
 
   /** Pixels (réels) par unité de monde au centre de la vue : sert au choix des niveaux de détail. */
   pixelsPerUnit() {
+    // vue du héros : tout se joue de près, les modèles gardent leur meilleur niveau de détail
+    if (this.fp.blend > 0.5) return (this.height * this.gl.getPixelRatio()) / (2 * 6 * Math.tan((FP.fov * Math.PI) / 360));
     this.ndc.set(0, 0);
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const hit = this.raycaster.ray.intersectPlane(this.ground, this.v);
     const d = hit ? Math.max(4, Math.min(200, hit.distanceTo(this.camera.position))) : 60;
-    const vfov = (this.camera.fov * Math.PI) / 180;
+    const vfov = (BASE_FOV * Math.PI) / 180;
     return (this.height * this.gl.getPixelRatio()) / (2 * d * Math.tan(vfov / 2));
   }
 
@@ -173,7 +188,7 @@ export class Renderer {
 
   /** Distance qui affiche toute la carte. */
   fitMap() {
-    const vfov = (this.camera.fov * Math.PI) / 180;
+    const vfov = (BASE_FOV * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
     const e = this.extents();
     const needW = (e.u * 2 + 2) / (2 * Math.tan(hfov / 2));
@@ -288,7 +303,7 @@ export class Renderer {
   /** Garde la cible dans la carte (en coordonnées d'écran, la carte doit rester visible). */
   private clamp(cur = false) {
     const c = this.cam;
-    const vfov = (this.camera.fov * Math.PI) / 180;
+    const vfov = (BASE_FOV * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
     const d = cur ? c.dist : c.tdist;
     const visU = d * Math.tan(hfov / 2);
@@ -377,6 +392,78 @@ export class Renderer {
       w.night += Math.max(-s, Math.min(s, wt.night - w.night));
       this.applyWeather();
     }
+  }
+
+  /** Vue du héros : 0 = vue d'ensemble, 1 = dans les yeux du héros (transition lissée entre les deux). */
+  readonly fp = { blend: 0, x: 0, y: 0, z: 0, yaw: 0 };
+  /** ciel, nuages et montagnes (vue du héros seulement : de haut, on ne voit jamais l'horizon) */
+  private sky: FirstPersonSky | null = null;
+  private skyTop = new THREE.Color();
+  private skyLow = new THREE.Color();
+  private qa = new THREE.Quaternion();
+  private qb = new THREE.Quaternion();
+  private pa = new THREE.Vector3();
+  private eyeV = new THREE.Vector3();
+  private lookV = new THREE.Vector3();
+  private m4 = new THREE.Matrix4();
+
+  /**
+   * Vue du héros, appelée après `update` (qui a posé la caméra de la vue d'ensemble) : `eye` = yeux et cap
+   * du héros, ou null pour revenir à la vue d'ensemble. La caméra glisse de l'une à l'autre ; le cap suit
+   * celui du héros avec retard, pour que ses volte-face en combat ne secouent pas l'image.
+   */
+  firstPerson(dt: number, eye: { x: number; y: number; z: number; yaw: number } | null) {
+    const f = this.fp, cam = this.camera;
+    if (!eye && f.blend === 0) return;
+    if (eye) {
+      if (f.blend === 0) f.yaw = eye.yaw;
+      else f.yaw = lerpAngle(f.yaw, eye.yaw, 1 - Math.exp(-dt * FP.turn));
+      f.x = eye.x; f.y = eye.y; f.z = eye.z;
+    }
+    f.blend = Math.max(0, Math.min(1, f.blend + (eye ? dt : -dt) / FP.blendTime));
+    const e = f.blend * f.blend * (3 - 2 * f.blend);
+    // pose de la vue d'ensemble (posée par update) → yeux du héros
+    this.pa.copy(cam.position);
+    this.qa.copy(cam.quaternion);
+    this.eyeV.set(f.x, f.y, f.z);
+    const cp = Math.cos(FP.pitch);
+    this.lookV.set(f.x + Math.sin(f.yaw) * cp, f.y + Math.sin(FP.pitch), f.z + Math.cos(f.yaw) * cp);
+    this.m4.lookAt(this.eyeV, this.lookV, cam.up);
+    this.qb.setFromRotationMatrix(this.m4);
+    cam.position.lerpVectors(this.pa, this.eyeV, e);
+    cam.quaternion.slerpQuaternions(this.qa, this.qb, e);
+    cam.fov = BASE_FOV + (FP.fov - BASE_FOV) * e;
+    cam.near = 1 + (FP.near - 1) * e;
+    cam.far = 260 + (FP.far - 260) * e;
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    // brouillard plus proche : les collines du bord se fondent dans l'horizon du ciel
+    const fog = this.scene.fog as THREE.Fog | null;
+    if (fog) {
+      fog.near += (FP.fogNear - fog.near) * e;
+      fog.far += (FP.fogFar - fog.far) * e;
+    }
+    if (fog) this.skyLow.copy(fog.color);
+    if (this.scene.background instanceof THREE.Color) this.skyTop.copy(this.scene.background);
+    this.skyView().update(e, cam.position, this.skyTop, this.skyLow, this.hemi.groundColor, this.sun, this.wx.night, this.wx.rain);
+  }
+
+  /** Fin de partie pendant la vue du héros : caméra rendue telle quelle à la vue d'ensemble. */
+  resetFirstPerson() {
+    this.fp.blend = 0;
+    if (this.sky) this.sky.group.visible = false;
+    const cam = this.camera;
+    cam.fov = BASE_FOV;
+    cam.near = 1;
+    cam.far = 260;
+    cam.updateProjectionMatrix();
+  }
+
+  private skyView() {
+    this.sky ??= new FirstPersonSky();
+    // créé à la première utilisation ; remis dans la scène au besoin
+    if (this.sky.group.parent !== this.scene) this.scene.add(this.sky.group);
+    return this.sky;
   }
 
   render() {

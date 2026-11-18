@@ -128,6 +128,8 @@ export class Entities {
   you = -1;
   /** pendant une cinématique, les héros de la partie sont masqués (les acteurs prennent leur place) */
   hideHeroes = false;
+  /** vue du héros : son propre corps n'est pas dessiné (la caméra est dans sa tête) */
+  hideUnit = -1;
   /** hauteur du terrain (pour poser les marques au sol sur le relief) */
   heightAt: ((x: number, z: number) => number) | null = null;
   /** bouches des galeries d'entrée : un ennemi encore dans la galerie (sous la colline) n'est pas dessiné */
@@ -352,6 +354,24 @@ export class Entities {
     return p;
   }
 
+  /** Cap affiché d'une unité (lissé, tourné vers sa cible en combat). */
+  unitYaw(id: number) {
+    return this.uYaw[id] ?? 0;
+  }
+
+  private eyeH: number[] = [];
+  /** Hauteur des yeux d'un héros (d'après son modèle, à l'échelle où il est dessiné). */
+  heroEye(ht: number) {
+    let h = this.eyeH[ht];
+    if (h === undefined) {
+      const g = this.heroPools[ht]?.mesh.geometry;
+      if (g && !g.boundingBox) g.computeBoundingBox();
+      const top = g?.boundingBox ? g.boundingBox.max.y : 1.5;
+      h = this.eyeH[ht] = Math.max(1, Math.min(3.5, top * 1.25 * 0.88));
+    }
+    return h;
+  }
+
   private placeGlow(x: number, z: number, team: number, time: number) {
     const col = new THREE.Color(team).lerp(new THREE.Color(0xffffff), 0.2);
     this.glowHalo.color.copy(col);
@@ -566,6 +586,7 @@ export class Entities {
       if (dyw > Math.PI) dyw -= Math.PI * 2; else if (dyw < -Math.PI) dyw += Math.PI * 2;
       const rollT = Math.max(-0.18, Math.min(0.18, (-dyw / Math.max(dt, 1e-3)) * 0.08));
       this.uRoll[id] += (rollT - this.uRoll[id]) * Math.min(1, dt * 6);
+      if (id === this.hideUnit) continue;
       const moving = walking;
       const uv = this.uGround.measure(id, f.uX[i], f.uZ[i], dt, this.frameNo, 12);
       const fighting = (flags & UF_FIGHTING) !== 0;

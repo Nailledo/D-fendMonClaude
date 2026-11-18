@@ -87,7 +87,7 @@ export function autoDetect(gl: WebGLRenderingContext | WebGL2RenderingContext) {
 export type Action =
   | 'hero' | 'skill1' | 'skill2' | 'ult' | 'spell1' | 'spell2'
   | 'buildArcher' | 'buildBarracks' | 'buildMage' | 'buildArtillery' | 'buildMine' | 'buildCamp' | 'prio'
-  | 'upgrade' | 'sell' | 'rally' | 'wave' | 'speed' | 'chat' | 'menu' | 'debug'
+  | 'upgrade' | 'sell' | 'rally' | 'wave' | 'speed' | 'chat' | 'menu' | 'debug' | 'fpv'
   | 'camUp' | 'camDown' | 'camLeft' | 'camRight';
 
 export const ACTION_LABELS: Record<Action, string> = {
@@ -112,6 +112,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   chat: 'Discussion',
   menu: 'Pause / menu',
   debug: 'Affichage debug',
+  fpv: 'Vue du héros (première personne)',
   camUp: 'Caméra : haut',
   camDown: 'Caméra : bas',
   camLeft: 'Caméra : gauche',
@@ -122,7 +123,7 @@ export const ACTION_LABELS: Record<Action, string> = {
 export const DEFAULT_KEYS: Record<Action, string> = {
   hero: 'KeyH', skill1: 'KeyQ', skill2: 'KeyW', ult: 'KeyR', spell1: 'Digit1', spell2: 'Digit2',
   buildArcher: 'KeyZ', buildBarracks: 'KeyX', buildMage: 'KeyC', buildArtillery: 'KeyV', buildMine: 'KeyB', buildCamp: 'KeyN', prio: 'KeyT',
-  upgrade: 'KeyU', sell: 'KeyS', rally: 'KeyD', wave: 'Space', speed: 'KeyF', chat: 'Enter', menu: 'Escape', debug: 'F3',
+  upgrade: 'KeyU', sell: 'KeyS', rally: 'KeyD', wave: 'Space', speed: 'KeyF', chat: 'Enter', menu: 'Escape', debug: 'F3', fpv: 'KeyG',
   camUp: 'ArrowUp', camDown: 'ArrowDown', camLeft: 'ArrowLeft', camRight: 'ArrowRight',
 };
 

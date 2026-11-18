@@ -63,6 +63,8 @@ export const ui = $state({
   room: null as null | { code: string; you: number; players: LobbyPlayer[]; settings: RoomSettings; inGame: boolean },
   game: null as null | { mode: Mode; mapId: string; difficulty: Difficulty; you: number; multi: boolean; level: number },
   paused: false,
+  /** vue à la première personne de son héros (ordinateur seulement, simple visualisation) */
+  fpv: false,
   /** écran de chargement : actif, avancement (0..1), étape en cours */
   loading: { active: true, progress: 0, label: 'Démarrage…', title: '' },
   hud: {

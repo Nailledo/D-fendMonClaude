@@ -83,7 +83,7 @@
   }
 </script>
 
-<div class="hud" class:touch={ui.touch} class:bossOn={h.boss.on}>
+<div class="hud" class:touch={ui.touch} class:bossOn={h.boss.on} class:fpv={ui.fpv}>
   <!-- barre du haut -->
   <div class="top ui">
     <span class="stat life" class:low={h.lives <= 5} title="Vies"><Ico k="heart" fb={ICON.heart} /><b>{h.lives}</b></span>
@@ -160,6 +160,9 @@
     <button class="btn small sysbtn" class:gold={me?.speed2} title="Vitesse ×2 ({keyLabel(keys.speed)}){multi ? ' — tous les joueurs doivent voter' : ''}" onclick={() => g()?.toggleSpeed()}>
       {@html ICON.fast}<span class="x2">×2</span>{#if multi}<span class="votes">{h.players.filter((p) => p.speed2 && p.active).length}/{h.players.filter((p) => p.active).length}</span>{/if}
     </button>
+    {#if !ui.touch}
+      <button class="btn small sysbtn" aria-label="Vue du héros" title="Vue du héros, à la première personne ({keyLabel(keys.fpv)})" onclick={() => g()?.toggleFirstPerson()}>{@html ICON.eye}</button>
+    {/if}
     <button class="btn small sysbtn" aria-label="Menu" title="Menu ({keyLabel(keys.menu)})" onclick={() => (app.game?.host.local ? app.game.setPaused(true) : (ui.paused = true))}>{@html ICON.pause}</button>
     {#if ui.touch && canFull && !portrait}
       <button class="btn small sysbtn" aria-label={isFull ? 'Quitter le plein écran' : 'Plein écran'} title="Plein écran" onclick={toggleFull}>{@html isFull ? ICON.close : ICON.full}</button>
@@ -336,6 +339,10 @@
     {:else}
       <div class="info panel ui hint">Choisissez une tour : {#each FAMILY_NAME as n, i}<span class="nowrap"><span class="kbd">{keyLabel([keys.buildArcher, keys.buildBarracks, keys.buildMage, keys.buildArtillery, keys.buildMine, keys.buildCamp][i])}</span> {n} </span>{/each}</div>
     {/if}
+  {/if}
+
+  {#if ui.fpv}
+    <div class="fpvhint">Vue du héros&nbsp;<span>· {keyLabel(keys.fpv)}, {keyLabel(keys.menu)} ou clic pour revenir</span></div>
   {/if}
 
   <div class="dmg" bind:this={dmgLayer}>{#each Array(24) as _}<span class="dn"></span>{/each}</div>
@@ -564,6 +571,12 @@
   .stats { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; font-weight: 900; font-size: 0.82em; font-variant-numeric: tabular-nums; }
   .stats span { padding: 0 8px; border: 2px solid var(--ink); border-radius: 99px; background: var(--panel-hi); }
   .dmg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  /* vue du héros : l'interface s'efface (la discussion reste en coopération) */
+  .hud.fpv > :not(.fpvhint):not(.chatwrap):not(.dmg):not(.debug) { display: none !important; }
+  .fpvhint { position: absolute; left: 50%; bottom: calc(18px + var(--sab)); transform: translateX(-50%); background: rgba(43, 26, 18, 0.72); color: var(--on-dark); padding: 6px 16px; border-radius: 99px; font-size: 14px; white-space: nowrap; pointer-events: none; animation: fpvIn 0.4s ease-out, fpvDim 0.6s ease-in 4s forwards; }
+  .fpvhint span { opacity: 0.75; }
+  @keyframes fpvIn { from { opacity: 0; transform: translate(-50%, 8px); } }
+  @keyframes fpvDim { to { opacity: 0.35; } }
   .debug { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); background: rgba(43, 26, 18, 0.85); color: var(--on-dark); padding: 3px 10px; border-radius: 99px; font-family: monospace; font-size: 12px; }
   @media (max-width: 1100px) {
     .call { display: none; }

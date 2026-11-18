@@ -380,6 +380,53 @@ export class GameClient {
     ui.sel = null;
   }
 
+  // ------------------------------------------------------------ vue du héros
+
+  /** vue à la première personne de son héros : simple visualisation, à l'ordinateur seulement */
+  private fpv = false;
+  /** unité du héros vu de l'intérieur (masquée tant que la caméra est près de sa tête) */
+  private fpvUnit = -1;
+
+  /** Bascule la vue du héros (raccourci, bouton du HUD). */
+  toggleFirstPerson() {
+    if (this.fpv) { this.exitFirstPerson(); return; }
+    if (ui.touch) return;
+    const why = this.fpvBlocked() || (this.heroEye() ? '' : 'Votre héros doit être en vie pour voir par ses yeux');
+    if (why) { toast(why, 'info', 2500); return; }
+    this.cancel();
+    this.fpv = ui.fpv = true;
+  }
+
+  /** Retour à la vue d'ensemble, centrée sur le héros. */
+  exitFirstPerson() {
+    if (!this.fpv) return;
+    this.fpv = ui.fpv = false;
+    const hp = this.heroPos();
+    if (hp) this.r.focus(hp.x, hp.z);
+  }
+
+  /** Moments où la vue du héros n'a pas sa place (cinématique, dialogue, fin de partie) : la raison, sinon ''. */
+  private fpvBlocked(): string {
+    if (ui.dialog || this.prologue || this.ents.hideHeroes) return 'Pas pendant une scène';
+    if (ui.end) return 'La partie est terminée';
+    return '';
+  }
+
+  /** Yeux du héros du joueur local (chacun le sien en coopération), ou null s'il n'est pas en jeu. */
+  private heroEye(): { x: number; y: number; z: number; yaw: number; id: number } | null {
+    const s = this.interp.latest;
+    if (!s) return null;
+    const hi = s.heroIndex(this.you);
+    if (hi < 0) return null;
+    const f = this.interp.frame;
+    const id = s.hUnit[hi];
+    const i = f.unitIdx(id);
+    if (i < 0 || f.uFlags[i] & UF_DEAD) return null;
+    const x = f.uX[i], z = f.uZ[i];
+    const y = Math.max(this.ents.heroEye(s.hType[hi]), this.world.heightAt(x, z) + 0.6);
+    return { x, y, z, yaw: this.ents.unitYaw(id), id };
+  }
+
   private heroPos(): { x: number; z: number } | null {
     const s = this.interp.latest;
     if (!s) return null;
@@ -464,6 +511,8 @@ export class GameClient {
 
     on(c, 'pointerdown', (e) => {
       audio.unlock();
+      // vue du héros : un clic sur la vue ramène à la vue d'ensemble, sans rien faire d'autre
+      if (this.fpv || r.fp.blend > 0) { this.exitFirstPerson(); return; }
       try { c.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
       this.mouse.x = e.clientX;
@@ -561,6 +610,8 @@ export class GameClient {
     on(window, 'pointercancel', up);
     on(c, 'wheel', (e) => {
       e.preventDefault();
+      // vue du héros : reculer la molette en sort, le reste est ignoré
+      if (this.fpv || r.fp.blend > 0) { if (e.deltaY > 0) this.exitFirstPerson(); return; }
       // pavé tactile (ctrl + molette = pincement) : pas plus fin ; souris : pas fixe
       const step = e.ctrlKey ? Math.max(-0.25, Math.min(0.25, e.deltaY * 0.01)) : Math.sign(e.deltaY) * 0.14;
       r.zoom(step, e.clientX, e.clientY);
@@ -605,7 +656,10 @@ export class GameClient {
     }
     e.preventDefault();
     audio.unlock();
+    // vue du héros : Échap en sort d'abord (le menu viendra à l'appui suivant)
+    if (a === 'menu' && this.fpv) { this.exitFirstPerson(); return; }
     switch (a) {
+      case 'fpv': this.toggleFirstPerson(); break;
       case 'menu':
         if (this.targeting || ui.sel) this.cancel();
         else if (ui.overlay) ui.overlay = null;
@@ -849,12 +903,12 @@ export class GameClient {
     this.time += dt;
     const r = this.r;
     // caméra clavier / bords
-    const pan = 22 * dt;
+    const pan = this.fpv ? 0 : 22 * dt;
     if (this.keysDown.has(keys.camLeft)) r.pan(-pan, 0);
     if (this.keysDown.has(keys.camRight)) r.pan(pan, 0);
     if (this.keysDown.has(keys.camUp)) r.pan(0, -pan);
     if (this.keysDown.has(keys.camDown)) r.pan(0, pan);
-    if (settings.edgeScroll && this.mouse.inside && !this.mouse.down) {
+    if (settings.edgeScroll && !this.fpv && this.mouse.inside && !this.mouse.down) {
       const m = 12;
       if (this.mouse.x < m) r.pan(-pan, 0);
       if (this.mouse.x > r.width - m) r.pan(pan, 0);
@@ -866,7 +920,21 @@ export class GameClient {
     const paused = ui.paused && this.host.local;
     const f = this.interp.update(dt, paused || this.dialogPaused);
     const snap = this.interp.latest;
-    if (!f || !snap) return;
+    if (!f || !snap) {
+      if (this.fpv) this.exitFirstPerson();
+      r.firstPerson(dt, null);
+      return;
+    }
+
+    // vue du héros : elle se coupe d'elle-même dès qu'il faut regarder la carte (mort, visée, sélection, scène)
+    let eye: ReturnType<GameClient['heroEye']> = null;
+    if (this.fpv) {
+      eye = this.heroEye();
+      if (!eye || this.fpvBlocked() || this.targeting || ui.sel || ui.touch) { this.exitFirstPerson(); eye = null; }
+    }
+    if (eye) this.fpvUnit = eye.id;
+    r.firstPerson(dt, eye);
+    this.ents.hideUnit = r.fp.blend > 0.75 ? this.fpvUnit : -1;
 
     // héros : type par unité
     for (let i = 0; i < snap.hCount; i++) {
@@ -891,11 +959,13 @@ export class GameClient {
     const selTower = ui.sel?.kind === 'tower' ? ui.sel.tower ?? -1 : -1;
     // culling des entités : seulement quand on est zoomé (vue d'ensemble : tout est à l'écran)
     const cam = r.camera;
-    this.ents.cullOn = r.cam.dist < r.cam.fit * 0.85;
+    this.ents.cullOn = r.fp.blend > 0 || r.cam.dist < r.cam.fit * 0.85;
     if (this.ents.cullOn) this.ents.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
     this.ents.update(f, snap, dt, this.time, this.hoverSlot, selTower);
     r.setWeather(snap.rain, snap.night);
-    this.weather.update(dt, this.time, r.wx.rain, r.wx.night, r.cam.x, r.cam.z);
+    // la pluie tombe autour de ce que l'on regarde : le centre de la vue, ou le héros vu de l'intérieur
+    const inFp = r.fp.blend > 0.5;
+    this.weather.update(dt, this.time, r.wx.rain, r.wx.night, inFp ? r.fp.x : r.cam.x, inFp ? r.fp.z : r.cam.z);
     this.props.update(dt, this.time, snap, this.hoverProp);
     this.ambientTowers(dt);
     // un secret pas encore trouvé scintille de temps en temps : de quoi intriguer l'œil attentif
@@ -997,7 +1067,8 @@ export class GameClient {
 
   private updateHover() {
     // au tactile, il n'y a de survol que pendant qu'un doigt est posé
-    const p = ui.touch && !this.mouse.down ? null : this.r.pick(this.mouse.x, this.mouse.y);
+    // vue du héros : pas de survol de la carte (le regard porte vers l'horizon)
+    const p = (ui.touch && !this.mouse.down) || this.r.fp.blend > 0 ? null : this.r.pick(this.mouse.x, this.mouse.y);
     this.hoverSlot = p ? this.slotAt(p.x, p.z) : -1;
     this.hoverProp = p && !this.targeting && this.hoverSlot < 0 ? this.props.at(p.x, p.z, 0, this.interp.latest) : -1;
     const t = this.targeting;
@@ -1220,6 +1291,8 @@ export class GameClient {
 
   /** Entrée en scène d'un boss : caméra sur lui, secousse, bannière et éclair rouge. */
   private bossEntrance(title: string, sub: string, x: number, z: number) {
+    // un boss arrive : retour à la vue d'ensemble pour le voir entrer
+    this.exitFirstPerson();
     banner(title, sub, 3400);
     this.r.focus(x, z);
     this.r.shake(0.6);
@@ -1399,7 +1472,8 @@ export class GameClient {
     if (!layer) return;
     const el = layer.children[this.dmgIdx++ % layer.children.length] as HTMLElement;
     if (!el) return;
-    this.r.project(x, y, z, this.proj);
+    // vue du héros : un point derrière la caméra n'a pas de place à l'écran
+    if (!this.r.project(x, y, z, this.proj).visible) return;
     el.textContent = text;
     el.className = 'dn ' + kind;
     el.style.left = `${this.proj.x | 0}px`;
@@ -1413,7 +1487,7 @@ export class GameClient {
     if (!layer || !settings.damageNumbers) return;
     const el = layer.children[this.dmgIdx++ % layer.children.length] as HTMLElement;
     if (!el) return;
-    this.r.project(x, y, z, this.proj);
+    if (!this.r.project(x, y, z, this.proj).visible) return;
     el.textContent = kind === 'gold' ? (amount < 0 ? `−${-amount}` : `+${amount}`) : kind === 'lead' && amount < 1 ? '0' : String(amount);
     el.className = kind ? 'dn ' + kind : 'dn';
     el.style.left = `${this.proj.x | 0}px`;
@@ -2228,5 +2302,7 @@ export class GameClient {
     disposeTree(this.world.group);
     ui.sel = null;
     ui.dialog = null;
+    this.fpv = ui.fpv = false;
+    this.r.resetFirstPerson();
   }
 }
