@@ -21,6 +21,16 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const STATIC_DIR = resolve(env.STATIC_DIR ?? join(here, '../../client/dist'));
 const DB_PATH = resolve(env.DB_PATH ?? join(here, '../../../data/scores.db'));
 const LOG = env.LOG_LEVEL ?? 'info';
+/**
+ * Service de comptes sayk.fr (connexion Discord) que la page peut joindre : ouvert dans la CSP.
+ * Par défaut https://api.sayk.fr quand le jeu est servi sous sayk.fr ; « off » pour le fermer.
+ */
+const SAYK_API_ORIGIN = env.SAYK_API_ORIGIN ?? '';
+const apiOriginFor = (host: string): string => {
+  if (SAYK_API_ORIGIN === 'off') return '';
+  if (/^https?:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(SAYK_API_ORIGIN)) return SAYK_API_ORIGIN;
+  return /(^|\.)sayk\.fr(:\d+)?$/i.test(host) ? 'https://api.sayk.fr' : '';
+};
 /** Vitesse de jeu maximale (×2) : sert à vérifier qu'une partie n'a pas duré moins longtemps que son journal. */
 const MAX_SPEED = 2;
 const TIME_SLACK_TICKS = 30 * TICK_RATE;
@@ -53,6 +63,7 @@ const MIME: Record<string, string> = {
 function securityHeaders(req: IncomingMessage): Record<string, string> {
   const host = String(req.headers.host ?? '').replace(/[^a-zA-Z0-9.:\-[\]]/g, '');
   const ws = host ? ` ws://${host} wss://${host}` : '';
+  const api = apiOriginFor(host);
   return {
     'content-security-policy': [
       "default-src 'self'",
@@ -63,7 +74,8 @@ function securityHeaders(req: IncomingMessage): Record<string, string> {
       "font-src 'self'",
       "img-src 'self' data: blob:",
       // blob: : le chargeur GLTF lit les textures des modèles importés par une URL blob locale
-      `connect-src 'self' blob:${ws}`,
+      // + le service de comptes sayk.fr (sauvegarde de la progression du joueur connecté)
+      `connect-src 'self' blob:${ws}${api ? ' ' + api : ''}`,
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",

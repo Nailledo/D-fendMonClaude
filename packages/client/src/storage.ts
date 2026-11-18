@@ -18,7 +18,16 @@ export function loadRaw<T>(key: string, fallback: T): T {
   }
 }
 
+type SaveListener = (key: string, value: unknown) => void;
+const listeners: SaveListener[] = [];
+
+/** Prévenu à chaque enregistrement local (synchronisation du compte). */
+export function onSave(fn: SaveListener) {
+  listeners.push(fn);
+}
+
 export function save(key: string, value: unknown) {
+  for (const fn of listeners) fn(key, value);
   try {
     localStorage.setItem('dfend.' + key, JSON.stringify(value));
   } catch {

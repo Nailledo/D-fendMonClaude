@@ -1,4 +1,4 @@
-import type { Difficulty, EndInfo, HeroId, LobbyPlayer, Mode, RoomSettings } from '@dfend/shared';
+import { emptyProgress, type Difficulty, type EndInfo, type HeroId, type LobbyPlayer, type Mode, type Progress, type RoomSettings } from '@dfend/shared';
 import type { Line } from './story/dialogs';
 import { load, loadRaw, save } from './storage';
 
@@ -33,25 +33,9 @@ export interface HudPlayer {
   ping: number;
 }
 
-export interface Progress {
-  unlocked: number;
-  stars: number[][]; // [niveau][difficulté]
-  seenPrologue: boolean;
-  seen: string[]; // ennemis rencontrés
-  finished: boolean;
-  /** arbre de compétences : rangs achetés par branche */
-  tree: number[];
-  /** objets de boutique en réserve (stock par objet) */
-  items: number[];
-  /** étoiles dépensées en boutique (non remboursables) */
-  shopSpent: number;
-  /** étoiles gagnées en plus des records (survie, victoires sur un niveau déjà parfait) */
-  bonusStars: number;
-}
+export type { Progress } from '@dfend/shared';
 
-export const progress: Progress = $state(load<Progress>('progress', {
-  unlocked: 0, stars: [], seenPrologue: false, seen: [], finished: false, tree: [], items: [], shopSpent: 0, bonusStars: 0,
-}));
+export const progress: Progress = $state(load<Progress>('progress', emptyProgress()));
 export function saveProgress() {
   save('progress', $state.snapshot(progress));
 }

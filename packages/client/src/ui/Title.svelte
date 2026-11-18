@@ -6,6 +6,7 @@
   import { progress, setName, ui } from '../state.svelte';
   import { ICON } from './icons';
   import { availableStars } from '../meta';
+  import { account, loginUrl, logout } from '../account.svelte';
 
   let editing = $state(false);
   let name = $state(ui.name);
@@ -82,6 +83,19 @@
       </button>
     {/if}
   </div>
+
+  {#if account.status !== 'off'}
+    <div class="acct" aria-live="polite">
+      {#if account.user}
+        <span class="dot {account.status}" aria-hidden="true"></span>
+        <span class="st">{account.status === 'loading' ? 'Chargement…' : account.status === 'saving' ? 'Sauvegarde…' : account.status === 'error' ? 'Hors ligne' : 'Sauvegardé'}</span>
+        <span class="as" title="Compte Discord">{account.user.name}</span>
+        <button class="out" onclick={() => void logout()}>Déconnexion</button>
+      {:else}
+        <a class="discord" href={loginUrl()} title="Sauvegarder votre progression sur votre compte">Se connecter avec Discord</a>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -143,11 +157,23 @@
   .who small :global(.icon) { width: 20px; height: 20px; }
   .who > :global(.icon) { width: 20px; height: 20px; stroke-width: 2.6; }
   .profile input { width: 170px; }
+  /* compte sayk.fr : sous le profil */
+  .acct { position: absolute; top: calc(92px + var(--sat)); right: calc(20px + var(--sar)); display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 40px);
+    padding: 5px 12px; background: var(--toon-cream); border: 2.5px solid var(--ink); border-radius: 99px; box-shadow: 0 3px 0 var(--ink); color: var(--ink); font-weight: 900; font-size: 0.85em; }
+  .acct:has(.discord) { padding: 0; border: 0; background: none; box-shadow: none; }
+  .discord { display: inline-block; padding: 7px 14px; border: 2.5px solid var(--ink); border-radius: 99px; background: #5865f2; color: #fff; text-decoration: none; box-shadow: 0 3px 0 var(--ink); white-space: nowrap; }
+  .discord:hover { filter: brightness(1.08); }
+  .discord:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--ink); background: #5bbf4a; }
+  .dot.saving, .dot.loading { background: var(--gold-fill); }
+  .dot.error { background: var(--toon-red); }
+  .as { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; opacity: 0.75; }
+  .out { border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink); font: inherit; text-decoration: underline; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
   /* ================= téléphone en portrait : logo en haut, scène 3D visible, menu compact en bas ================= */
   @media (max-width: 640px) {
-    .titlescreen { justify-content: space-between; gap: 12px; padding: calc(78px + var(--sat)) 16px calc(14px + var(--sab)); }
+    .titlescreen { justify-content: space-between; gap: 12px; padding: calc(102px + var(--sat)) 16px calc(14px + var(--sab)); }
     .logo { align-self: center; text-align: center; transform: rotate(-3deg); transform-origin: center; }
     h1 { font-size: clamp(60px, 19vw, 86px); -webkit-text-stroke-width: 9px; text-shadow: 0 6px 0 var(--ink), 0 11px 0 var(--hue-shadow); }
     .sub { margin: 6px 0 0; font-size: 15px; padding: 3px 12px 5px; }
@@ -173,6 +199,9 @@
     .who b { font-size: 1.15em; }
     .who small { font-size: 0.8em; }
     .profile input { width: 140px; }
+    .acct { top: calc(66px + var(--sat)); right: 12px; font-size: 0.75em; padding: 3px 10px; gap: 6px; }
+    .discord { padding: 4px 10px; }
+    .as { display: none; }
   }
 
   /* ================= téléphone en paysage : logo à gauche, menu en colonne à droite ================= */
@@ -201,5 +230,7 @@
     .profile { top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); height: 44px; padding: 0 12px 0 4px; gap: 8px; }
     .pp { width: 34px; height: 34px; }
     .who b { font-size: 1.1em; }
+    .acct { top: calc(60px + var(--sat)); right: calc(12px + var(--sar)); font-size: 0.75em; padding: 3px 10px; }
+    .discord { padding: 4px 10px; }
   }
 </style>
