@@ -3,7 +3,7 @@ import {
   ET_FLEEING, ET_REVEALED, ET_REGROWING, EF_BURROWED, EF_DOT, EF_ENRAGED, EF_FIGHTING, EF_SHIELDED, EF_SLOWED, EF_STUNNED, ENEMIES, HERO_IDS, HERO_UNIT,
   PLAYER_COLORS, UF_BUFF, UF_DEAD, UF_FIGHTING, UF_SHIELD, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
-import { enemyGeometry, lootSackGeometry } from '../art/enemies';
+import { enemyGeometry, lootSackGeometry, stunStarsGeometry } from '../art/enemies';
 import { ARM_RELEASE, ARM_THROW, armAngle, machineOf, rockLoaded, seatAt, type CatapultArm, type Machine, type Muzzle } from '../art/machines';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
@@ -65,6 +65,9 @@ export class Entities {
   private turretHead: InstPool;
   /** sac d'or sur le dos des chapardeurs en fuite */
   private sacks: InstPool;
+  /** étoiles au-dessus des ennemis étourdis */
+  private stars: InstPool;
+  private eTop: number[] = [];
   /** bouches des canons de la tourelle (repère du modèle, échelle comprise) ; les deux canons tirent à tour de rôle */
   private turretMuzzles: Muzzle[] = [{ x: 0, y: 0.8, z: 0.8 }];
   /** canon qui a tiré en dernier (1 droit, 2 gauche) par unité et par tour */
@@ -192,6 +195,8 @@ export class Entities {
     this.turretBase = new InstPool(tg.base, 8, this.group, settings.shadows, tm?.map ?? null);
     this.turretHead = new InstPool(tg.head, 8, this.group, settings.shadows, tm?.map ?? null);
     this.sacks = new InstPool(lootSackGeometry(), 8, this.group, settings.shadows);
+    this.stars = new InstPool(stunStarsGeometry(), 64, this.group, false);
+    this.eTop = this.enemyPools.map((p) => p.top());
     // bouches des canons (modèle importé découpé), sinon avant de la tête à mi-hauteur
     const tmach = tm ? machineOf(tm.geo) : null;
     if (tmach?.muzzles.length) this.turretMuzzles = tmach.muzzles.map((m) => ({ x: m.x * 1.1, y: m.y * 1.1, z: m.z * 1.1 }));
@@ -410,6 +415,7 @@ export class Entities {
     // ------------------------------------------------ ennemis
     for (const p of this.enemyPools) p.begin();
     this.sacks.begin();
+    this.stars.begin();
     this.castleNear = false;
     for (let i = 0; i < f.eN; i++) {
       const id = f.eId[i];
@@ -483,7 +489,13 @@ export class Entities {
       const tr = f.eTraits[i];
       // camouflé non repéré : tramé (à moitié transparent), teinte de sous-bois
       const hidden = (tr & 1) !== 0 && !(tr & ET_REVEALED);
-      if (stunned) pool.setTint(j, 0.6, 0.85, 1, 0.45);
+      if (stunned) {
+        pool.setTint(j, 0.6, 0.85, 1, 0.45);
+        // des étoiles tournent au-dessus de la tête, comme dans les dessins animés
+        const sk = Math.sqrt(def.size);
+        const st = this.stars.push(f.eX[i], y + this.eTop[f.eType[i]] * def.size + 0.12 * sk, f.eZ[i], 0, sk * 1.3, id * 0.7, 0, 0, 0);
+        this.stars.setPose(st, 0, 0, 0, 1);
+      }
       else if (flags & EF_SLOWED) pool.setTint(j, 0.45, 0.75, 1, 0.35);
       else if (flags & EF_DOT) pool.setTint(j, 1, 0.55, 0.15, 0.25);
       else if (flags & EF_ENRAGED) pool.setTint(j, 1, 0.15, 0.1, 0.3);
@@ -630,6 +642,7 @@ export class Entities {
     this.corpses.length = w;
     for (const p of this.enemyPools) p.end();
     this.sacks.end();
+    this.stars.end();
     for (const p of this.soldierPools) p.end();
     for (const p of this.heroPools) p.end();
     for (const p of this.weaponPools.values()) p?.end();

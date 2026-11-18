@@ -371,6 +371,27 @@ export function lootSackGeometry(): THREE.BufferGeometry {
   return g;
 }
 
+/** Étoiles d'étourdissement : trois étoiles qui tournent au-dessus de la tête (pivot à l'origine). */
+export function stunStarsGeometry(): THREE.BufferGeometry {
+  let g = cache.get('#stun');
+  if (!g) {
+    const b = new GB(11);
+    const pts: [number, number][] = [];
+    for (let k = 0; k < 10; k++) {
+      const a = Math.PI / 2 + (k * Math.PI) / 5, r = k % 2 ? 0.045 : 0.11;
+      pts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    b.setPart(Part.Spin, 0, 0, 0);
+    for (let k = 0; k < 3; k++) {
+      const a = (k * Math.PI * 2) / 3;
+      b.shape(pts, 0.035, k === 1 ? 0xfff176 : 0xffd54f, Math.cos(a) * 0.34, (k - 1) * 0.04, Math.sin(a) * 0.34, 0, -a + Math.PI / 2, 0.3);
+    }
+    g = b.build();
+    cache.set('#stun', g);
+  }
+  return g;
+}
+
 export function enemyGeometry(id: string): THREE.BufferGeometry {
   let g = cache.get(id);
   if (!g) {

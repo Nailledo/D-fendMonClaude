@@ -102,6 +102,12 @@ export class InstPool {
     }
   }
 
+  /** Haut du modèle (unité de taille 1), pour placer ce qui flotte au-dessus. */
+  top(): number {
+    if (!this.src.boundingBox) this.src.computeBoundingBox();
+    return this.src.boundingBox!.max.y;
+  }
+
   /** Niveau de détail : même sommets, index simplifié (aussi utilisé pour les ombres). */
   setLod(l: number) {
     if (!this.lods) return;
