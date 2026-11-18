@@ -27,8 +27,11 @@ export interface LoadedModel {
   meta: ModelMeta;
 }
 
+/** ennemis qui reprennent le modèle d'un autre (le chapardeur est un gobelin, reconnaissable à sa teinte et son sac) */
+const ENEMY_ALIAS: Record<string, string> = { chapardeur: 'gobelin' };
+
 export const K = {
-  enemy: (id: string) => `enemy:${id}`,
+  enemy: (id: string) => `enemy:${ENEMY_ALIAS[id] ?? id}`,
   hero: (id: string) => `hero:${id}`,
   soldier: (kind: number) => `soldier:${kind}`,
   tower: (fam: number, level: number) => `tower:${fam}-${level}`,

@@ -18,6 +18,7 @@ export function enemyTraits(d: EnemyDef): string[] {
   if (a.summon && !d.boss) t.push('invoque');
   if (a.shield) t.push('protège');
   if (a.enrage) t.push('enragé');
+  if (a.thief) t.push('voleur');
   return t;
 }
 
@@ -39,5 +40,6 @@ export const TRAIT_ICON: Record<string, string> = {
   creuse: svg('<path d="M3 17c3-4 15-4 18 0z" fill="currentColor"/><path d="M12 3v8M8 8l4 4 4-4"/>'),
   invoque: svg('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>'),
   protège: svg('<path d="M4 18a8 8 0 0 1 16 0z" fill="currentColor"/>'),
+  voleur: svg('<path d="M8 7h8l-1-3H9z" fill="currentColor"/><path d="M6 9h12l1 9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" fill="currentColor"/><path d="M12 11v7M10 13h3a1.5 1.5 0 0 1 0 3h-3" stroke="#fff" stroke-width="1.6"/>'),
   enragé: svg('<path d="M12 2c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-6 1 2 2 2 3 2-1-3 0-5 0-7z" fill="currentColor"/>'),
 };

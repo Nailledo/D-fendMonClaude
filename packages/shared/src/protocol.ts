@@ -133,6 +133,9 @@ const EV_SCHEMA: Record<number, string> = {
   [Ev.Skill]: 'wb',
   [Ev.Item]: 'bbpp',
   [Ev.Income]: 'wwb',
+  [Ev.Steal]: 'wbw',
+  [Ev.Recover]: 'bwpp',
+  [Ev.Escape]: 'wbw',
 };
 
 // Drapeaux
@@ -143,6 +146,8 @@ export const UF_FOCUS = 32;
 export const PF_ACTIVE = 1, PF_CONNECTED = 2, PF_SPEED2 = 4;
 /** propriétés d'un ennemi (bits 1, 2, 4 = Trait) ; 8 = camouflé repéré ; 16 = se régénère en ce moment ; 32 = marqué */
 export const ET_REVEALED = 8, ET_REGROWING = 16, ET_MARKED = 32;
+/** chapardeur en fuite avec de l'or volé (il remonte le chemin) */
+export const ET_FLEEING = 64;
 
 const writer = new Writer(32768);
 
@@ -204,7 +209,7 @@ export function encodeSnapshot(sim: Sim, events: number[][]): ArrayBuffer {
     if (e.shielded) f |= EF_SHIELDED;
     if (e.def.ab.enrage && e.hp < e.maxHp * e.def.ab.enrage.threshold) f |= EF_ENRAGED;
     w.u8(f);
-    w.u8(e.traits | (e.revealed ? ET_REVEALED : 0) | (e.traits & 4 && e.quietT === 0 && e.hp < e.maxHp ? ET_REGROWING : 0) | (e.marked > 0 ? ET_MARKED : 0));
+    w.u8(e.traits | (e.revealed ? ET_REVEALED : 0) | (e.traits & 4 && e.quietT === 0 && e.hp < e.maxHp ? ET_REGROWING : 0) | (e.marked > 0 ? ET_MARKED : 0) | (e.fleeing ? ET_FLEEING : 0));
   }
   // unités
   let nu = 0;

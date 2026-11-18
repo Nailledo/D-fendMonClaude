@@ -90,6 +90,19 @@ function addTraits(groups: WaveGroup[], wave: number, from: [number, number, num
   });
 }
 
+/**
+ * Chapardeur : de temps en temps, un (puis deux) gobelin voleur se glisse dans la vague.
+ * Tirage séparé : le reste de la vague ne change pas.
+ */
+function addThief(groups: WaveGroup[], wave: number, from: number, chance: number, active: number[], hpMul: number, rng: Rng) {
+  if (wave < from || rng.next() >= chance) return;
+  const last = groups.reduce((m, g) => Math.max(m, g.delay), 0);
+  groups.push({
+    type: ENEMY_INDEX.chapardeur, count: wave >= from + 6 && rng.next() < 0.4 ? 2 : 1, interval: 2.5,
+    path: active[Math.floor(rng.next() * active.length)], delay: 3 + rng.next() * Math.max(2, last), hpMul,
+  });
+}
+
 export function genStoryWaves(level: LevelDef, nPaths: number): Wave[] {
   const rng = new Rng(1000 + level.index * 7919);
   const paths = Array.from({ length: nPaths }, (_, i) => i);
@@ -109,6 +122,7 @@ export function genStoryWaves(level: LevelDef, nPaths: number): Wave[] {
       groups.push({ type: ENEMY_INDEX[level.boss.type], count: 1, interval: 1, path: 0, delay: last + 8 });
       for (const e of escorts) { e.delay += last + 12; e.hpMul = hpMul; groups.push(e); }
     }
+    if (level.index >= 1 && !boss) addThief(groups, w, 3, 0.4, active, hpMul, new Rng(4242 + level.index * 613 + w * 97));
     if (level.traits) {
       const t = level.traits;
       addTraits(groups, w, [t.camo ?? 0, t.lead ?? 0, t.regrow ?? 0], t.chance ?? 0.3, new Rng(77 + level.index * 1009 + w * 31));
@@ -202,6 +216,7 @@ export function genSurvivalWave(biome: Biome, seed: number, wave: number, active
     groups.push({ type: ENEMY_INDEX[id], count: 1, interval: 1, path: activePaths[0], delay: last + 6, hpMul: 0.45 * ipow(1.4, cycle) });
   }
   budget = 0;
+  if (!boss) addThief(groups, wave, 4, 0.3, activePaths, hpMul, new Rng((seed ^ Math.imul(wave, 0x2545f491)) + 0x51ed27));
   // propriétés : camouflés dès la vague 8, régénérants dès la 12, plomb dès la 16, de plus en plus fréquents
   addTraits(groups, wave, [8, 16, 12], Math.min(0.5, 0.2 + wave * 0.006), new Rng((seed ^ Math.imul(wave, 0x85ebca6b)) + 0x7f4a7c15));
   return { groups, boss, mutation: muts[muts.length - 1] };

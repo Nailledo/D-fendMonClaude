@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import {
-  ET_REVEALED, ET_REGROWING, EF_BURROWED, EF_DOT, EF_ENRAGED, EF_FIGHTING, EF_SHIELDED, EF_SLOWED, EF_STUNNED, ENEMIES, HERO_IDS, HERO_UNIT,
+  ET_FLEEING, ET_REVEALED, ET_REGROWING, EF_BURROWED, EF_DOT, EF_ENRAGED, EF_FIGHTING, EF_SHIELDED, EF_SLOWED, EF_STUNNED, ENEMIES, HERO_IDS, HERO_UNIT,
   PLAYER_COLORS, UF_BUFF, UF_DEAD, UF_FIGHTING, UF_SHIELD, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
-import { enemyGeometry } from '../art/enemies';
+import { enemyGeometry, lootSackGeometry } from '../art/enemies';
 import { K, geoFor, model } from '../art/models';
 import { towerModel } from '../art/towers';
 import { heroGeometry, soldierGeometry, turretGeometry } from '../art/units';
@@ -39,6 +39,8 @@ export class Entities {
   /** tourelle de Matéo : socle fixe et tête orientable (pas d'animation de personnage) */
   private turretBase: InstPool;
   private turretHead: InstPool;
+  /** sac d'or sur le dos des chapardeurs en fuite */
+  private sacks: InstPool;
   /** origine des tirs de la tourelle (hauteur, avancée depuis son centre) */
   turretMuzzle = { y: 0.8, fwd: 0.8 };
   private towerBase = new Map<number, InstPool>();
@@ -157,6 +159,7 @@ export class Entities {
     const tg = turretGeometry(tm?.geo);
     this.turretBase = new InstPool(tg.base, 8, this.group, settings.shadows, tm?.map ?? null);
     this.turretHead = new InstPool(tg.head, 8, this.group, settings.shadows, tm?.map ?? null);
+    this.sacks = new InstPool(lootSackGeometry(), 8, this.group, settings.shadows);
     // bouche du canon : avant de la tête, à mi-hauteur
     tg.head.computeBoundingBox();
     const hb = tg.head.boundingBox!;
@@ -318,6 +321,7 @@ export class Entities {
     }
     // ------------------------------------------------ ennemis
     for (const p of this.enemyPools) p.begin();
+    this.sacks.begin();
     this.castleNear = false;
     for (let i = 0; i < f.eN; i++) {
       const id = f.eId[i];
@@ -399,6 +403,13 @@ export class Entities {
       else if (tr & 2) pool.setTint(j, 0.52, 0.57, 0.68, 0.7);
       else if (tr & 1) pool.setTint(j, 0.45, 0.58, 0.36, 0.4);
       else if (flags & EF_SHIELDED) pool.setTint(j, 1, 0.9, 0.5, 0.18);
+      else if (def.ab.thief) pool.setTint(j, 0.5, 0.36, 0.72, 0.38);
+      if (tr & ET_FLEEING) {
+        // butin sur le dos, et un éclat doré qui attire l'œil
+        pool.setTint(j, 1, 0.8, 0.25, 0.25 + 0.15 * Math.sin(time * 10 + id));
+        const sj = this.sacks.push(f.eX[i], y + Math.abs(Math.sin(this.ePhase[id] * Math.PI)) * 0.05, f.eZ[i], this.eYaw[id], def.size, 0, 0, 0, 0);
+        this.sacks.setPose(sj, 0, hit, this.eRoll[id], 1);
+      }
       if (hidden) {
         const o = j * 4;
         pool.setTint(j, 0.45, 0.58, 0.36, -Math.max(0.01, Math.abs(pool.tintAlpha(o))));
@@ -528,6 +539,7 @@ export class Entities {
     }
     this.corpses.length = w;
     for (const p of this.enemyPools) p.end();
+    this.sacks.end();
     for (const p of this.soldierPools) p.end();
     for (const p of this.heroPools) p.end();
     for (const p of this.weaponPools.values()) p?.end();

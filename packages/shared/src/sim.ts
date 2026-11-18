@@ -40,6 +40,9 @@ export const enum Ev {
   Skill = 23, // towerId, skillIndex (déclenchement de compétence de tour)
   Item = 24, // owner, objet, x, z (objet de boutique utilisé)
   Income = 25, // towerId, or, vies (revenu d'une mine au début d'une vague)
+  Steal = 26, // enemyId, victime, or (un chapardeur vole de l'or et s'enfuit)
+  Recover = 27, // victime, or rendu (bonus compris), x, z (chapardeur rattrapé)
+  Escape = 28, // enemyId, victime, or (chapardeur enfui avec son butin)
 }
 
 export const enum Impact {
@@ -108,6 +111,10 @@ export interface Enemy {
   quietT: number;
   /** dégâts subis en plus (Marquage d'une tour de guet) */
   marked: number;
+  /** chapardeur : or volé, joueur volé, en fuite (il remonte le chemin) */
+  loot: number;
+  victim: number;
+  fleeing: boolean;
 }
 
 export interface Unit {
@@ -532,6 +539,8 @@ export class Sim {
   }
 
   private remaining(e: Enemy) {
+    // un chapardeur en fuite « fuit » vers l'entrée : il est d'autant plus urgent qu'il en est proche
+    if (e.fleeing) return e.dist;
     return this.pathOf(e).length - e.dist;
   }
 
@@ -634,6 +643,14 @@ export class Sim {
       const p = this.player(owner);
       if (p) p.kills++;
     }
+    // chapardeur rattrapé : l'or volé revient à sa victime, avec un bonus
+    if (e.fleeing && def.ab.thief) {
+      const v = this.player(e.victim);
+      const back = Math.round(e.loot * (1 + def.ab.thief.bonus));
+      if (v && back > 0) { v.gold += back; v.goldEarned += back - e.loot; }
+      this.ev(Ev.Recover, e.victim < 0 ? 255 : e.victim, back, e.x, e.z);
+      e.loot = 0;
+    }
     if (hero && hero.pas.has('moisson') && !hero.u.dead) hero.u.hp = Math.min(hero.u.maxHp, hero.u.hp + hero.u.maxHp * 0.06);
     // Combustion : l'ennemi tué explose (les voisins tués n'explosent pas à leur tour)
     if (hero && hero.pas.has('combustion') && !this.inCombustion) {
@@ -712,7 +729,7 @@ export class Sim {
       burnDps: 0, burnT: 0, shred: 0, shredT: 0, curse: 0, curseT: 0, blockers: [], fighting: false, atkT: 0,
       abT: sec(2 + this.rng.next() * 2), ab2T: sec(3 + this.rng.next() * 3), ab3T: sec(4), burrowed: false,
       burrowT: def.ab.burrow ? sec(def.ab.burrow.up) : 0, flying: !!def.flying, shielded: false, dead: false, hitBy: -1,
-      traits, revealed: false, quietT: 0, marked: 0,
+      traits, revealed: false, quietT: 0, marked: 0, loot: 0, victim: -1, fleeing: false,
     };
     if (this.mutations.includes(MUTATION_INDEX.blindes)) e.armor = Math.min(0.9, e.armor + 0.25);
     if (this.mutations.includes(MUTATION_INDEX.resistants)) e.mres = Math.min(0.9, e.mres + 0.25);
@@ -1526,14 +1543,15 @@ export class Sim {
   /** Position prévue d'un ennemi dans `ticks` ticks. */
   private predict(e: Enemy, ticks: number, out: { x: number; z: number }) {
     if (e.fighting || e.stunT > 0) { out.x = e.x; out.z = e.z; return out; }
-    const d = e.dist + this.enemySpeed(e) * ticks * DT;
-    return this.pathOf(e).at(d, e.lane, out);
+    const d = e.dist + this.enemySpeed(e) * ticks * DT * (e.fleeing ? -1 : 1);
+    return this.pathOf(e).at(Math.max(0, d), e.lane, out);
   }
 
   private enemySpeed(e: Enemy) {
     let s = e.def.speed * e.slowMul;
     if (e.def.ab.enrage && e.hp < e.maxHp * e.def.ab.enrage.threshold) s *= e.def.ab.enrage.speedMul;
     if (e.burrowed) s *= 1.3;
+    if (e.fleeing) s *= e.def.ab.thief?.flee ?? 1;
     if (this.mutations.includes(MUTATION_INDEX.rapides)) s *= 1.25;
     return s;
   }
@@ -1868,8 +1886,26 @@ export class Sim {
         }
       } else {
         // déplacement
+        if (e.fleeing) {
+          e.dist -= this.enemySpeed(e) * DT;
+          if (e.dist <= 0.6) {
+            // le chapardeur s'échappe par où il est venu : l'or est perdu (aucune vie en moins)
+            e.dead = true;
+            this.ev(Ev.Escape, e.id, e.victim < 0 ? 255 : e.victim, e.loot);
+            for (const u of [...e.blockers]) this.release(u);
+            continue;
+          }
+          this.pathOf(e).at(e.dist, e.lane, tmp);
+          e.x = tmp.x;
+          e.z = tmp.z;
+          continue;
+        }
         e.dist += this.enemySpeed(e) * DT;
         const path = this.pathOf(e);
+        if (ab.thief && e.dist >= path.length * ab.thief.at) {
+          this.steal(e, ab.thief);
+          continue;
+        }
         if (e.dist >= path.length) {
           e.dead = true;
           // en survie, un boss qui passe coûte cher mais ne termine pas la partie d'un coup
@@ -1884,6 +1920,19 @@ export class Sim {
       e.x = tmp.x;
       e.z = tmp.z;
     }
+  }
+
+  /** Le chapardeur vole le joueur actif le plus riche, puis fait demi-tour. */
+  private steal(e: Enemy, th: NonNullable<EnemyDef['ab']['thief']>) {
+    let v: PlayerState | null = null;
+    for (const p of this.players) if (p.active && (!v || p.gold > v.gold)) v = p;
+    const g = v ? Math.min(th.max, Math.floor(v.gold * th.pct), Math.floor(v.gold)) : 0;
+    if (v) v.gold -= g;
+    e.loot = g;
+    e.victim = v ? v.id : -1;
+    e.fleeing = true;
+    for (const u of [...e.blockers]) this.release(u);
+    this.ev(Ev.Steal, e.id, v ? v.id : 255, g);
   }
 
   private hurtUnit(u: Unit, dmg: number, src: Enemy | null = null) {

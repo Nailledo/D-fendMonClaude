@@ -99,6 +99,16 @@
     </div>
   {/if}
 
+  <!-- alertes du haut : chapardeur, … -->
+  <div class="alerts" class:below={h.mutations.length > 0}>
+    {#if h.thief.n}
+      <button class="thief ui" onclick={() => g()?.focusThief()} title="Voir le chapardeur">
+        <Ico k="coin" fb={ICON.coin} />
+        <span><b class="t1">Votre or a été volé !</b> Rattrapez le chapardeur avant qu’il s’enfuie : <b class="loot">{h.thief.gold} or</b></span>
+      </button>
+    {/if}
+  </div>
+
   <div class="topright ui">
     <button class="btn small sysbtn" class:gold={me?.speed2} title="Vitesse ×2 ({keyLabel(keys.speed)}){multi ? ' — tous les joueurs doivent voter' : ''}" onclick={() => g()?.toggleSpeed()}>
       {@html ICON.fast}<span class="x2">×2</span>{#if multi}<span class="votes">{h.players.filter((p) => p.speed2 && p.active).length}/{h.players.filter((p) => p.active).length}</span>{/if}
@@ -310,6 +320,17 @@
   .muts { position: absolute; top: calc(74px + var(--sat)); left: calc(14px + var(--sal)); display: flex; gap: 6px; flex-wrap: wrap; }
   .mut { background: #e4d4ff; color: var(--magic); cursor: help; padding: 3px 10px; box-shadow: 0 2px 0 var(--ink); }
 
+  /* ===== alertes du haut ===== */
+  .alerts { position: absolute; top: calc(74px + var(--sat)); left: calc(12px + var(--sal)); width: min(252px, 70vw); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+  .alerts.below { top: calc(108px + var(--sat)); }
+  .thief { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 16px 5px 6px; border: var(--bw) solid var(--ink); border-radius: 99px; cursor: pointer;
+    background: var(--toon-red); color: #fff; font-weight: 800; font-size: 1em; line-height: 1.15; text-align: left; box-shadow: var(--rim), var(--shadow-sm); animation: thiefIn 0.35s ease-out, thiefPulse 1.1s ease-in-out 0.35s infinite; }
+  .thief :global(.icon) { flex: none; width: 34px; height: 34px; }
+  .thief .loot { color: var(--gold-hi); white-space: nowrap; }
+  .thief .t1 { display: block; font-family: var(--font-display); font-weight: 400; font-size: 1.25em; }
+  @keyframes thiefIn { from { transform: translateY(-14px) scale(0.8); opacity: 0; } }
+  @keyframes thiefPulse { 50% { transform: scale(1.04) rotate(-1deg); } }
+
   /* ===== boutons système : boutons ronds ===== */
   .topright { position: absolute; top: calc(12px + var(--sat)); right: calc(14px + var(--sar)); display: flex; gap: 10px; }
   .sysbtn { min-width: 52px; height: 52px; padding: 0 14px; border-radius: 99px; font-size: 1em; }
@@ -511,6 +532,9 @@
   .touch .targeting { bottom: calc(var(--bb) + 18px + var(--sab)); white-space: normal; text-align: center; max-width: calc(100vw - 24px); padding: 6px 6px 6px 16px; font-size: 0.92em; }
   .touch .chatwrap { bottom: calc(var(--bb) + 14px + var(--sab)); width: min(340px, calc(100vw - 16px)); left: calc(8px + var(--sal)); }
   .touch .banner { top: 18%; }
+  .touch .alerts { top: calc(62px + var(--sat)); }
+  .touch .alerts.below { top: calc(96px + var(--sat)); }
+  .touch .thief { font-size: 0.85em; }
 
   /* tiroir d'informations : au-dessus de la barre du bas */
   .touch .info, .touch :global(.tp) {

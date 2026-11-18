@@ -14,6 +14,11 @@ export interface EnemyAbilities {
   nextPhase?: string;
   /** Attaque de zone sur les soldats. */
   cleave?: number;
+  /**
+   * Voleur : arrivé à la fraction `at` du chemin, vole `pct` de l'or du joueur le plus riche (au plus `max`)
+   * puis repart en arrière, plus vite (`flee`). Tué avant de s'échapper, il rend l'or avec `bonus` en plus.
+   */
+  thief?: { at: number; pct: number; max: number; flee: number; bonus: number };
 }
 
 /**
@@ -73,6 +78,7 @@ export const ENEMIES: EnemyDef[] = [
   { id: 'chaman', name: 'Chaman gobelin', desc: 'Soigne ses compagnons en agitant un os de poulet.', biome: 'vallee', hp: 75, speed: 1.4, armor: 0, mres: 0.3, dmg: [2, 4], atkCd: 1, bounty: 14, lives: 1, threat: 4, size: 0.8, ab: { heal: { pct: 0.15, radius: 3, cd: 4 } } },
   { id: 'corbeau', name: 'Corbeau de guerre', desc: 'Vole au-dessus des soldats. Seuls archers, mages et tesla l’atteignent.', biome: 'vallee', hp: 42, speed: 2.0, armor: 0, mres: 0, dmg: [0, 0], atkCd: 1, bounty: 8, lives: 1, threat: 2.2, flying: true, size: 0.8, ab: {} },
   { id: 'bouclier', name: 'Porte-bouclier', desc: 'Protège ses voisins : ils subissent 30 % de dégâts en moins.', biome: 'vallee', hp: 130, speed: 1.2, armor: 0.3, mres: 0, dmg: [4, 8], atkCd: 1, bounty: 16, lives: 1, threat: 5, size: 1, ab: { shield: { radius: 2.5, reduce: 0.3 } } },
+  { id: 'chapardeur', name: 'Chapardeur', desc: 'Gobelin filou : il court jusqu’à vos coffres, vole de l’or et repart en sens inverse. Rattrapez-le : il rend tout, avec un bonus.', biome: 'vallee', hp: 70, speed: 2.6, armor: 0, mres: 0.1, dmg: [0, 0], atkCd: 1, bounty: 8, lives: 1, threat: 3, size: 0.8, ab: { thief: { at: 0.62, pct: 0.15, max: 150, flee: 1.25, bonus: 0.5 } } },
   // --- Marais de Brumenoire ---
   { id: 'noye', name: 'Noyé', desc: 'Se régénère en permanence. Sent très fort la vase.', biome: 'marais', hp: 95, speed: 1.3, armor: 0, mres: 0, dmg: [4, 7], atkCd: 1, bounty: 9, lives: 1, threat: 3, size: 0.95, ab: { regen: 3 } },
   { id: 'sorciere', name: 'Sorcière des marais', desc: 'Étourdit vos tours. Résiste fortement à la magie.', biome: 'marais', hp: 115, speed: 1.4, armor: 0, mres: 0.8, dmg: [3, 6], atkCd: 1, bounty: 22, lives: 1, threat: 7, size: 0.9, ab: { stunTowers: { range: 6, cd: 8, dur: 3 } } },

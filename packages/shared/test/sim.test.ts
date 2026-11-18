@@ -587,3 +587,45 @@ describe('classes du héros', () => {
     expect(ids.size).toBe(n);
   });
 });
+
+describe('chapardeur', () => {
+  const thief = (sim: Sim) => {
+    const len = sim.map.paths[0].length;
+    const e = (sim as any).spawnEnemy(ENEMY_INDEX.chapardeur, 0, 1, 0, len * 0.6) as Sim['enemies'][number];
+    return e;
+  };
+  it('vole de l’or, repart en arrière et s’échappe sans coûter de vie', () => {
+    const sim = new Sim(cfg());
+    sim.players[0].gold = 500;
+    const lives = sim.lives;
+    const e = thief(sim);
+    for (let i = 0; i < 40 && !e.fleeing; i++) (sim as any).stepEnemies();
+    expect(e.fleeing).toBe(true);
+    expect(e.loot).toBe(75);
+    expect(sim.players[0].gold).toBe(425);
+    const d0 = e.dist;
+    (sim as any).stepEnemies();
+    expect(e.dist).toBeLessThan(d0);
+    for (let i = 0; i < 20 * 120 && !e.dead; i++) (sim as any).stepEnemies();
+    expect(e.dead).toBe(true);
+    expect(sim.players[0].gold).toBe(425);
+    expect(sim.lives).toBe(lives);
+  });
+  it('tué en fuite, il rend l’or avec un bonus', () => {
+    const sim = new Sim(cfg());
+    sim.players[0].gold = 1000;
+    const e = thief(sim);
+    for (let i = 0; i < 40 && !e.fleeing; i++) (sim as any).stepEnemies();
+    expect(sim.players[0].gold).toBe(850);
+    const before = sim.players[0].gold;
+    sim.damage(e, 9999, DmgType.True, 0, null);
+    expect(e.dead).toBe(true);
+    // 150 volés, rendus avec 50 % en plus, et la prime
+    expect(sim.players[0].gold - before).toBeGreaterThanOrEqual(225);
+  });
+  it('apparaît dans certaines vagues de l’histoire', () => {
+    const n = LEVELS.slice(1).reduce((a, l) => a + genStoryWaves(l, 2).reduce((b, w) => b + w.groups.filter((g) => g.type === ENEMY_INDEX.chapardeur).length, 0), 0);
+    expect(n).toBeGreaterThan(5);
+    expect(genStoryWaves(LEVELS[0], 1).some((w) => w.groups.some((g) => g.type === ENEMY_INDEX.chapardeur))).toBe(false);
+  });
+});

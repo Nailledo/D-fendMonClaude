@@ -77,6 +77,8 @@ export const ui = $state({
     /** objets de boutique restants dans la partie */
     items: [] as number[],
     targeting: '' as string,
+    /** chapardeurs en fuite avec votre or */
+    thief: { n: 0, gold: 0 },
   },
   sel: null as Selection | null,
   dialog: null as null | { lines: Line[]; i: number },

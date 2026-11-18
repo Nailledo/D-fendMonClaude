@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   AVENTURIER, CLASSES, ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
-  ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
+  ET_FLEEING, ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
 import { audio } from '../audio/Audio';
 import { Entities } from '../render/Entities';
@@ -91,6 +91,8 @@ export class GameClient {
   /** mise en scène 3D du prologue (première partie de l'histoire) */
   private prologue: Prologue | null = null;
   private lastWave = 0;
+  /** chapardeurs en fuite avec votre or (id → or volé) */
+  private thieves = new Map<number, number>();
   private ended = false;
   private dmgIdx = 0;
   private fpsAcc = 0;
@@ -1078,6 +1080,18 @@ export class GameClient {
     });
   }
 
+  /** Centre la caméra sur le chapardeur en fuite le plus proche de l'entrée (alerte du HUD). */
+  focusThief() {
+    const f = this.interp.frame;
+    let best = -1;
+    for (let i = 0; i < f.eN; i++) {
+      if (!(f.eTraits[i] & ET_FLEEING)) continue;
+      if (best < 0 || this.thieves.has(f.eId[i])) best = i;
+      if (this.thieves.has(f.eId[i])) break;
+    }
+    if (best >= 0) this.r.focus(f.eX[best], f.eZ[best]);
+  }
+
   private syncHud() {
     const s = this.interp.latest;
     if (!s) return;
@@ -1092,6 +1106,17 @@ export class GameClient {
     h.state = s.state;
     h.speed = s.speed;
     if (h.mutations.join() !== s.mutations.join()) h.mutations = [...s.mutations];
+    if (this.thieves.size) {
+      // un chapardeur disparu sans événement (rattrapage de l'état) ne reste pas affiché
+      for (const id of this.thieves.keys()) {
+        let alive = false;
+        for (let i = 0; i < s.eCount; i++) if (s.eId[i] === id) { alive = true; break; }
+        if (!alive) this.thieves.delete(id);
+      }
+    }
+    let tg = 0;
+    for (const g of this.thieves.values()) tg += g;
+    if (h.thief.n !== this.thieves.size || h.thief.gold !== tg) { h.thief.n = this.thieves.size; h.thief.gold = tg; }
     if (pi >= 0) {
       h.spells[0] = Math.ceil(s.pCd0[pi] / TICK_RATE);
       h.spells[1] = Math.ceil(s.pCd1[pi] / TICK_RATE);
@@ -1164,7 +1189,7 @@ export class GameClient {
     const el = layer.children[this.dmgIdx++ % layer.children.length] as HTMLElement;
     if (!el) return;
     this.r.project(x, y, z, this.proj);
-    el.textContent = kind === 'gold' ? `+${amount}` : kind === 'lead' && amount < 1 ? '0' : String(amount);
+    el.textContent = kind === 'gold' ? (amount < 0 ? `−${-amount}` : `+${amount}`) : kind === 'lead' && amount < 1 ? '0' : String(amount);
     el.className = kind ? 'dn ' + kind : 'dn';
     el.style.left = `${this.proj.x | 0}px`;
     el.style.top = `${this.proj.y | 0}px`;
@@ -1484,8 +1509,51 @@ export class GameClient {
         }
         break;
       }
+      case Ev.Steal: {
+        const [, id, victim, gold] = ev;
+        const i = f.enemyIdx(id);
+        if (i >= 0) {
+          fx.burst(f.eX[i], 1, f.eZ[i], 18, 0xffd54f, 3, 0.1, 0.7, true, 1);
+          for (let k = 0; k < 8; k++) fx.sparks.spawn(f.eX[i], 1.2, f.eZ[i], (Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2, 0.7, 0.09, 0xffd54f);
+        }
+        if (victim === this.you) {
+          if (gold > 0) this.thieves.set(id, gold);
+          banner('Au voleur !', gold > 0 ? `Un chapardeur vous a volé ${gold} or : rattrapez-le avant qu’il s’enfuie !` : 'Un chapardeur fouille vos coffres… vides. Il repart bredouille.', 3200);
+          audio.play('leak', 0.8);
+          if (i >= 0 && gold > 0) this.damageNumber(f.eX[i], 1.8, f.eZ[i], -gold, 'gold');
+        } else {
+          const who = ui.hud.players.find((p) => p.id === victim);
+          if (gold > 0) toast(`Un chapardeur a volé ${gold} or à ${who?.name ?? '?'} ! Rattrapez-le !`, 'danger', 3000);
+        }
+        this.syncHud();
+        break;
+      }
+      case Ev.Recover: {
+        const [, victim, gold, x, z] = ev;
+        fx.burst(x, 1, z, 26, 0xffd54f, 4, 0.12, 0.9, true, -3);
+        for (let k = 0; k < 14; k++) fx.sparks.spawn(x, 1, z, (Math.random() - 0.5) * 3, 3 + Math.random() * 3, (Math.random() - 0.5) * 3, 0.9, 0.1, 0xffd54f);
+        if (victim === this.you) {
+          toast(`Chapardeur rattrapé ! Il vous rend ${gold} or, bonus compris.`, 'good', 3200);
+          this.damageNumber(x, 1.8, z, gold, 'gold');
+          audio.play('sell');
+        } else {
+          const who = ui.hud.players.find((p) => p.id === victim);
+          toast(`Chapardeur rattrapé : ${who?.name ?? '?'} récupère ${gold} or.`, 'good', 2400);
+        }
+        break;
+      }
+      case Ev.Escape: {
+        const [, id, victim, gold] = ev;
+        const i = f.enemyIdx(id);
+        if (i >= 0) fx.burst(f.eX[i], 0.5, f.eZ[i], 12, 0x8d6e63, 2.5, 0.14, 0.6);
+        this.thieves.delete(id);
+        if (victim === this.you && gold > 0) { toast(`Le chapardeur s’est enfui avec ${gold} or… La prochaine fois, il faudra courir plus vite !`, 'danger', 3600); audio.play('deny'); }
+        this.syncHud();
+        break;
+      }
       case Ev.Death: {
         const [, id, type, x, z] = ev;
+        this.thieves.delete(id);
         const d = ENEMIES[type];
         if (!d) return;
         const ei = f.enemyIdx(id);

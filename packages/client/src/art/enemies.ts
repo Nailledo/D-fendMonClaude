@@ -356,6 +356,21 @@ const MODELS: Record<string, Build> = {
 
 const cache = new Map<string, THREE.BufferGeometry>();
 
+/** Sac d'or porté sur le dos du chapardeur en fuite (repère de l'ennemi, face +z). */
+export function lootSackGeometry(): THREE.BufferGeometry {
+  let g = cache.get('#sack');
+  if (!g) {
+    const b = new GB(7);
+    b.ball(0.42, 0x8d6e47, 0, 0.82, -0.42);
+    b.ball(0.3, 0x7a5c3a, 0, 1.16, -0.44);
+    b.cyl(0.13, 0.13, 0.1, 8, 0x5d4037, 0, 1.38, -0.44);
+    for (const [x, y, z] of [[0.1, 1.46, -0.38], [-0.09, 1.48, -0.5], [0, 1.54, -0.42]] as const) b.cyl(0.1, 0.1, 0.035, 10, 0xffc928, x, y, z, 0.4, 0, 0.3);
+    g = b.build();
+    cache.set('#sack', g);
+  }
+  return g;
+}
+
 export function enemyGeometry(id: string): THREE.BufferGeometry {
   let g = cache.get(id);
   if (!g) {

@@ -1,4 +1,4 @@
-import { EF_FLYING, ENEMIES, HERO_UNIT, Snapshot, UF_DEAD, type RuntimeMap } from '@dfend/shared';
+import { EF_FLYING, ENEMIES, ET_FLEEING, HERO_UNIT, Snapshot, UF_DEAD, type RuntimeMap } from '@dfend/shared';
 import { FLY_HEIGHT } from '../art/enemies';
 
 const N = 65536;
@@ -157,8 +157,10 @@ export class Interp {
       f.eX[k] = tmp.x;
       f.eZ[k] = tmp.z;
       f.eY[k] = B.eFlags[i] & EF_FLYING ? FLY_HEIGHT + (ENEMIES[B.eType[i]]?.boss ? 1 : 0) : 0;
-      f.eDx[k] = dir.x;
-      f.eDz[k] = dir.z;
+      // chapardeur en fuite : il remonte le chemin, face à l'entrée
+      const back = B.eTraits[i] & ET_FLEEING ? -1 : 1;
+      f.eDx[k] = dir.x * back;
+      f.eDz[k] = dir.z * back;
       f.eHp[k] = B.eHp[i];
       f.eFlags[k] = B.eFlags[i];
       f.eTraits[k] = B.eTraits[i];
