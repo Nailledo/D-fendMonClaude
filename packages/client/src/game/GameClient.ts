@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ENEMIES, Ev, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
+  ENEMIES, Ev, skinIndex, FAMILIES, HERO_RESPAWN_S, ITEMS, Item, perksOf, survivalStars, FIRE_HERO_ARROW, FIRE_HERO_BOLT, FIRE_METEOR, FIRE_TURRET, GameState, Impact,
   LEVEL_SPEC_A, MUTATIONS, PF_ACTIVE, PF_CONNECTED, PF_SPEED2, PLAYER_COLORS, SPELLS, Src, TICK_RATE, TOWERS, UF_DEAD, UF_FOCUS,
   ET_REVEALED, PRIO_NAMES, SHOOTERS, SKILL_UNLOCK, TRAITS, Trait, kitSkills, classLook, heroPoints, buildRuntimeMap, campAura, type Command, type GameConfig, type RuntimeMap, type Snapshot,
 } from '@dfend/shared';
@@ -115,6 +115,7 @@ export class GameClient {
     // objets de boutique emportés dans cette partie
     ui.hud.items = ITEMS.map((_, i) => cfg.players.find((p) => p.id === you)?.items?.[i] ?? 0);
     this.ents = new Entities(r.scene, this.map);
+    for (const p of cfg.players) this.ents.playerSkin[p.id] = skinIndex(p.skin);
     this.ents.tunnels = this.world.entries;
     this.ents.heightAt = this.world.heightAt;
     const cs = this.world.castle;

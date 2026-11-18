@@ -12,7 +12,7 @@
 </style>
 </head>
 <body>
-<!-- Outil de contrôle : affiche les GLB de public/models/ en grille.  ?g=enemy|hero|soldier|tower|decor|gate|spawn  &yaw=degrés  &k=clé,clé  &yaws=0,90,180 -->
+<!-- Outil de contrôle : affiche les GLB de public/models/ en grille.  ?g=enemy|hero|soldier|tower|decor|gate|spawn  &yaw=degrés  &k=clé,clé  &yaws=0,90,180  &skin=5e3a26 (couleur de peau des héros) -->
 <nav id="nav"></nav>
 <script type="module">
 import * as THREE from 'three';
@@ -74,6 +74,15 @@ await Promise.all(keys.map(async (key, i) => {
         o.geometry.setAttribute('color', new THREE.BufferAttribute(c, 3));
         o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
         return;
+      }
+      const sk = o.geometry.attributes._skin;
+      if (q.get('skin') && sk) {
+        // ?skin=5e3a26 : couleur de peau appliquée aux sommets marqués par pnpm models:skins (base #e1b08d)
+        const to = new THREE.Color('#' + q.get('skin')), base = new THREE.Color('#e1b08d');
+        const g = o.geometry, n = g.attributes.position.count;
+        const c = g.attributes.color ? Float32Array.from({ length: n * 3 }, (_, k) => g.attributes.color.getComponent(Math.floor(k / 3), k % 3)) : new Float32Array(n * 3).fill(1);
+        for (let i = 0; i < n; i++) if (sk.getX(i) > 0.5) { c[i * 3] *= to.r / base.r; c[i * 3 + 1] *= to.g / base.g; c[i * 3 + 2] *= to.b / base.b; }
+        g.setAttribute('color', new THREE.BufferAttribute(c, 3));
       }
       o.material = new THREE.MeshLambertMaterial({ vertexColors: !!o.geometry.attributes.color, map, ...(manifest[key].cutout ? { alphaTest: 0.5, side: THREE.DoubleSide } : {}) });
     }

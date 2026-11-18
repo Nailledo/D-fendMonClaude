@@ -1,4 +1,4 @@
-import { TREE_VERSION, emptyProgress, migrateTree, type Difficulty, type EndInfo, type HeroId, type LobbyPlayer, type Mode, type Progress, type RoomSettings } from '@dfend/shared';
+import { TREE_VERSION, skinIndex, emptyProgress, migrateTree, type Difficulty, type EndInfo, type HeroId, type LobbyPlayer, type Mode, type Progress, type RoomSettings } from '@dfend/shared';
 import type { Line } from './story/dialogs';
 import { load, loadRaw, save } from './storage';
 
@@ -52,6 +52,8 @@ export const ui = $state({
   overlay: null as Overlay,
   name: loadRaw<string>('name', ''),
   hero: loadRaw<HeroId>('hero', 'samuel'),
+  /** couleur de peau du héros (index de SKIN_TONES) */
+  skin: skinIndex(loadRaw<number>('skin', 0)),
   /** dernière difficulté choisie ; Normal tant que le joueur n'a terminé aucun niveau */
   difficulty: loadRaw<Difficulty>('difficulty', progress.unlocked === 0 ? 0 : 1),
   netStatus: 'closed' as 'connecting' | 'open' | 'closed',
@@ -154,4 +156,16 @@ export function heroName(name = ui.name): string {
 export function setHero(h: HeroId) {
   ui.hero = h;
   save('hero', h);
+}
+let skinHook: ((k: number) => void) | null = null;
+/** Rappel quand la couleur de peau change (portraits à refaire). */
+export function onSkinChange(f: (k: number) => void) {
+  skinHook = f;
+}
+export function setSkin(k: number) {
+  const v = skinIndex(k);
+  if (v === ui.skin) return;
+  ui.skin = v;
+  save('skin', ui.skin);
+  skinHook?.(v);
 }

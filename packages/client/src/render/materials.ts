@@ -33,6 +33,9 @@ attribute vec4 iTint;
 attribute vec3 iTeam;
 /** pose : x = geste ponctuel (0..1 : tir, sort), y = recul au coup (1 → 0), z = roulis (rad), w = vie (0 statique, 0..1 apparition, -1..0 mort) */
 attribute vec4 iPose;
+/** peau : sommets marqués (aSkin) × couleur de peau de l'instance (iSkin) */
+attribute float aSkin;
+attribute vec3 iSkin;
 uniform float uTime;
 float easeBack(float p) { float q = p - 1.0; return 1.0 + 2.70158 * q * q * q + 1.70158 * q * q; }
 /** cycle d'attaque : élan lent, frappe rapide, retour (0 = repos, < 0 armé, > 0 frappe) */
@@ -269,6 +272,7 @@ vec3 transformed = vec3(position);
 
 const COLOR_PATCH = /* glsl */ `
 #include <color_vertex>
+vColor.rgb *= mix(vec3(1.0), iSkin, aSkin);
 if (aAnim.x > 6.5 && aAnim.x < 7.5) vColor.rgb = iTeam;
 vColor.rgb = mix(vColor.rgb, iTint.rgb, abs(iTint.a));
 // teinte d'opacité négative : modèle tramé (à moitié transparent : ennemi camouflé)

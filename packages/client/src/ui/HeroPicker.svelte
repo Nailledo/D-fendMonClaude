@@ -1,8 +1,10 @@
 <script lang="ts">
   import { HEROES, HERO_IDS, type HeroId } from '@dfend/shared';
   import { ui } from '../state.svelte';
-  
-  let { value, onpick, compact = false }: { value: HeroId; onpick: (h: HeroId) => void; compact?: boolean } = $props();
+  import SkinTones from './SkinTones.svelte';
+
+  /** `onskin` : affiche aussi le choix de la couleur de peau */
+  let { value, onpick, compact = false, skin = 0, onskin }: { value: HeroId; onpick: (h: HeroId) => void; compact?: boolean; skin?: number; onskin?: (k: number) => void } = $props();
 </script>
 
 <div class="picker">
@@ -14,6 +16,7 @@
       </button>
     {/each}
   </div>
+  {#if onskin}<SkinTones value={skin} onpick={onskin} />{/if}
   {#if !compact}<p class="who"><b>{HEROES[value].title}</b> · {HEROES[value].desc}</p>{/if}
 </div>
 

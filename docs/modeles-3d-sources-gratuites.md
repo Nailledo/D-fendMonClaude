@@ -27,6 +27,10 @@ Correspondance entre les 81 entrées de `tools/models/catalog.ts` et des modèle
 > chacun leur tour, bras de catapulte qui bascule. Les trois niveaux de base de l'artillerie sont des catapultes
 > (celle du niveau 1 est reposée à l'échelle sur les tours des niveaux 2 et 3). Contrôle visuel :
 > `http://localhost:5173/preview-machines.html?k=tower:3-0,tower:3-4,soldier:7`.
+>
+> **Couleur de peau** (`pnpm models:skins`, à relancer après `models:bake` ou `models:kitbash`) : marque les sommets
+> de peau des personnages jouables (attribut `_SKIN`), teintés en jeu par la couleur de peau choisie
+> (`SKIN_TONES`, six teintes). Contrôle visuel : `http://localhost:5173/preview-models.html?g=hero&skin=553323`.
 
 ## Ce qui a été vérifié
 

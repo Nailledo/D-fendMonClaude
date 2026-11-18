@@ -10,6 +10,8 @@ export interface LobbyPlayer {
   id: number;
   name: string;
   hero: HeroId;
+  /** couleur de peau (SKIN_TONES) */
+  skin?: number;
   /** classe du héros (CLASSES) */
   cls?: number;
   ready: boolean;
@@ -38,7 +40,7 @@ export type ClientMsg =
   | { t: 'create' }
   | { t: 'join'; code: string }
   | { t: 'leave' }
-  | { t: 'hero'; hero: HeroId }
+  | { t: 'hero'; hero: HeroId; skin?: number }
   /** arbre de compétences et objets emportés (bornés par le serveur) */
   | { t: 'meta'; tree: number[]; items: number[]; build?: HeroBuild }
   | { t: 'ready'; ready: boolean }

@@ -14,7 +14,7 @@ import { settings } from '../settings';
 import { drape } from './drape';
 import { GroundSpeed, stride } from './stride';
 import { GB } from '../art/builder';
-import { InstPool } from './InstPool';
+import { InstPool, skinMul } from './InstPool';
 import { hpBarMaterial } from './materials';
 
 const N = 65536;
@@ -101,7 +101,9 @@ export class Entities {
   private aimZ = new Float32Array(N);
   private aimUntil = new Float32Array(N);
   /** corps qui tombent : rendus avec l'animation de mort après la disparition de l'entité */
-  private corpses: { pool: InstPool; weapon?: InstPool | null; style?: number; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number }[] = [];
+  private corpses: { pool: InstPool; weapon?: InstPool | null; style?: number; x: number; y: number; z: number; yaw: number; s: number; t0: number; team: number; dur: number; skin?: number }[] = [];
+  /** couleur de peau de chaque joueur (index de SKIN_TONES), appliquée à son héros */
+  playerSkin = new Uint8Array(8);
   private frameNo = 0;
   /** phase de marche et vitesse au sol mesurée, par ennemi et par unité */
   private ePhase = new Float32Array(N);
@@ -512,7 +514,7 @@ export class Entities {
           const wk = this.heroWeaponByUnit.get(id) ?? DEFAULT_WEAPON;
           const wp = hero ? this.weaponPool(ht, wk) : null;
           const pool = hero ? this.heroPools[ht] : this.soldierPools[kind] ?? this.soldierPools[0];
-          this.corpses.push({ pool, weapon: wp, style: wp ? WEAPON_STYLE[wk] : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9 });
+          this.corpses.push({ pool, weapon: wp, style: wp ? WEAPON_STYLE[wk] : 0, x: f.uX[i], y: 0, z: f.uZ[i], yaw: this.uYaw[id], s: hero ? 1.25 : kind === 7 ? 1.1 : 1, t0: time, team: PLAYER_COLORS[f.uOwner[i]] ?? 0xffffff, dur: hero ? 1.2 : 0.9, skin: hero ? this.playerSkin[f.uOwner[i]] : 0 });
         }
         continue;
       }
@@ -587,9 +589,11 @@ export class Entities {
       const life = Math.min(1, Math.max(0.001, (time - this.uBorn[id]) / 0.4));
       // pas au rythme de la vitesse mesurée ; en combat, piétinement régulier
       this.uPhase[id] = stride(this.uPhase[id], fighting ? 9 : moving || uv > 0.3 ? Math.max(5, (uv * 3.6) / scale) : 0, dt);
+      const skin = kind === HERO_UNIT ? skinMul(this.playerSkin[f.uOwner[i]] ?? 0) : null;
       for (const p of weapon ? [pool, weapon] : [pool]) {
         const j = p.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, this.uPhase[id], flash, mode);
         p.setTeam(j, team);
+        if (skin) p.setSkin(j, skin);
         p.setPose(j, cast, uhit, this.uRoll[id], life);
         if (flags & UF_SHIELD) p.setTint(j, 1, 0.95, 0.6, 0.3);
         else if (flags & UF_BUFF) p.setTint(j, 1, 0.7, 0.3, 0.2);
@@ -608,6 +612,7 @@ export class Entities {
       for (const pool of c.weapon ? [c.pool, c.weapon] : [c.pool]) {
         const j = pool.push(c.x, y, c.z, c.yaw, c.s, 0, 0, p < 0.08 ? 0.6 : 0, (c.style ?? 0) * 2);
         pool.setTeam(j, c.team);
+        if (c.skin) pool.setSkin(j, skinMul(c.skin));
         pool.setPose(j, 0, 0, 0, -Math.max(0.001, p));
       }
     }

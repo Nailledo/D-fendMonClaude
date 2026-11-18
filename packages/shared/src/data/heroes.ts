@@ -27,6 +27,24 @@ export interface HeroDef {
   color: number;
 }
 
+/**
+ * Couleurs de peau au choix, valables pour tous les personnages (simple apparence, visible des autres joueurs).
+ * La première est celle des modèles ; les autres teintent les sommets de peau (marqués par `pnpm models:skins`).
+ */
+export interface SkinTone { name: string; color: number }
+export const SKIN_TONES: SkinTone[] = [
+  { name: 'Claire', color: 0xe3ac88 },
+  { name: 'Dorée', color: 0xd8a274 },
+  { name: 'Hâlée', color: 0xbb8458 },
+  { name: 'Mate', color: 0x9c6542 },
+  { name: 'Brune', color: 0x744830 },
+  { name: 'Ébène', color: 0x553323 },
+];
+/** couleur de peau moyenne des modèles d'origine (mesurée par `pnpm models:skins`) */
+export const SKIN_BASE = 0xe3ac88;
+/** Index de couleur de peau valide (0 = celle du modèle). */
+export const skinIndex = (v: unknown): number => (Number.isInteger(v) && (v as number) >= 0 && (v as number) < SKIN_TONES.length ? (v as number) : 0);
+
 export const HEROES: Record<HeroId, HeroDef> = {
   samuel: {
     id: 'samuel', title: 'Chevalier au grand cœur', color: 0x3b82f6,

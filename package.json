@@ -20,7 +20,8 @@
     "models:kitbash": "tsx tools/models/kitbash.ts",
     "models:fixparts": "tsx tools/models/fixparts.ts",
     "models:pose": "tsx tools/models/pose.ts",
-    "models:machines": "tsx tools/models/machines.ts"
+    "models:machines": "tsx tools/models/machines.ts",
+    "models:skins": "tsx tools/models/skins.ts"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

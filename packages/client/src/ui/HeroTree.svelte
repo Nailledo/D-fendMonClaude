@@ -4,7 +4,7 @@
     AVENTURIER, CLASSES, CORE, CORE_COST, CORE_RANKS, DmgType, HEROES, ROUTE_COUNT, ROUTE_LEN, SKILL_UNLOCK, STAT_LABEL,
     chosenRoute, classNodes, classOf, coreOpen, heroSkills, nodeOpen, nodeReqs, nodeRoute, nodeStep, routeNode, type ClassSkill, type TreeNode,
   } from '@dfend/shared';
-  import { heroName, setHero, ui } from '../state.svelte';
+  import { heroName, setHero, setSkin, ui } from '../state.svelte';
   import { buyCore, buyNode, canBuyCore, canBuyNode, heroBuild, heroPointsLeft, heroPointsTotal, loadout, resetHero } from '../meta';
   import { net } from '../net/Net';
   import HeroPicker from './HeroPicker.svelte';
@@ -143,7 +143,11 @@
   }
   function pickSkin(h: typeof ui.hero) {
     setHero(h);
-    if (ui.room && !ui.room.inGame) net.send({ t: 'hero', hero: h });
+    if (ui.room && !ui.room.inGame) net.send({ t: 'hero', hero: h, skin: ui.skin });
+  }
+  function pickTone(k: number) {
+    setSkin(k);
+    if (ui.room && !ui.room.inGame) net.send({ t: 'hero', hero: ui.hero, skin: ui.skin });
   }
   /** double-clic : sélection et achat */
   function quick(s: Sel) {
@@ -389,7 +393,7 @@
             </div>
             <button class="btn small" onclick={() => (showSkins = !showSkins)}>Apparence</button>
           </div>
-          {#if showSkins}<HeroPicker value={ui.hero} onpick={pickSkin} compact />{/if}
+          {#if showSkins}<HeroPicker value={ui.hero} onpick={pickSkin} compact skin={ui.skin} onskin={pickTone} />{/if}
           <div class="sks">
             {#each kit as s, k}
               <span class="sk" title="{s.name} : {s.desc}">

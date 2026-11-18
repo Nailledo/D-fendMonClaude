@@ -1,9 +1,9 @@
 import type * as THREE from 'three';
 import { BufferGeometry, Float32BufferAttribute } from 'three';
-import { GB, Part } from './builder';
+import { GB, Part, SKIN_COLOR } from './builder';
 import { machineOf } from './machines';
 
-const SKIN = 0xf2c9a0;
+const SKIN = SKIN_COLOR;
 
 function body(g: GB, o: { legs: number; torso: number; arms: number; head?: number; w?: number; h?: number; scale?: number }) {
   const w = o.w ?? 0.4;

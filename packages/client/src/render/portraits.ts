@@ -5,13 +5,39 @@ import { heroGeometry, soldierGeometry } from '../art/units';
 import { towerModel } from '../art/towers';
 import { K, model } from '../art/models';
 import { toonGradient, worldMaterial } from './materials';
+import { skinMul } from './InstPool';
 
 /**
  * Rend les modèles 3D en petites images (portraits, encyclopédie).
  * Les modèles importés (ceux qu'on voit en jeu) sont utilisés dès qu'ils sont chargés,
  * sinon l'art construit en code : appeler à nouveau une fois les modèles chargés.
  */
-export function renderPortraits(): Record<string, string> {
+/** Héros jouable avec sa couleur de peau : copie de la géométrie, couleurs des sommets de peau multipliées. */
+const tinted = new Map<string, THREE.BufferGeometry>();
+function withSkin(geo: THREE.BufferGeometry, skin: number, key: string) {
+  const sk = geo.getAttribute('aSkin');
+  if (!skin || !sk) return geo;
+  const k = key + ':' + skin;
+  let g = tinted.get(k);
+  if (!g) {
+    g = geo.clone();
+    const m = skinMul(skin), n = g.attributes.position.count;
+    const src = geo.getAttribute('color');
+    const c = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < 3; j++) c[i * 3 + j] = (src ? src.getComponent(i, j) : 1) * (sk.getX(i) > 0.5 ? m[j] : 1);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+    tinted.set(k, g);
+  }
+  return g;
+}
+
+/**
+ * `skin` : couleur de peau des héros jouables (index de SKIN_TONES) ;
+ * `heroesOnly` : seulement leurs portraits (à refaire quand le joueur change de couleur de peau).
+ */
+export function renderPortraits(skin = 0, heroesOnly = false): Record<string, string> {
   const out: Record<string, string> = {};
   const size = 160;
   const canvas = document.createElement('canvas');
@@ -65,10 +91,21 @@ export function renderPortraits(): Record<string, string> {
     out[key] = canvas.toDataURL('image/png');
     scene.remove(mesh);
   };
-  for (const id of [...HERO_IDS, 'ethan', 'roi']) shot(id, pick(K.hero(id), () => heroGeometry(id)), true);
+  const hero = (id: string) => {
+    const p = pick(K.hero(id), () => heroGeometry(id));
+    return (HERO_IDS as string[]).includes(id) ? { geo: withSkin(p.geo, skin, id), map: p.map } : p;
+  };
+  if (heroesOnly) {
+    for (const id of HERO_IDS) { shot(id, hero(id), true); shot('full_' + id, hero(id), false); }
+    for (const m of texMats.values()) m.dispose();
+    gl.setSize(1, 1, false);
+    gl.dispose();
+    return out;
+  }
+  for (const id of [...HERO_IDS, 'ethan', 'roi']) shot(id, hero(id), true);
   // le narrateur n'a pas d'art en code : portrait seulement si son modèle est chargé
   if (model(K.hero('narrateur'))) shot('narrateur', pick(K.hero('narrateur'), () => heroGeometry('nox')), true, 0.66);
-  for (const id of [...HERO_IDS, 'ethan', 'roi']) shot('full_' + id, pick(K.hero(id), () => heroGeometry(id)), false);
+  for (const id of [...HERO_IDS, 'ethan', 'roi']) shot('full_' + id, hero(id), false);
   for (const e of ENEMIES) shot('e_' + e.id, pick(K.enemy(e.id), () => enemyGeometry(e.id)), false);
   shot('kessin', pick(K.enemy('kessin1'), () => enemyGeometry('kessin1')), true);
   shot('grolbak', pick(K.enemy('grolbak'), () => enemyGeometry('grolbak')), true);

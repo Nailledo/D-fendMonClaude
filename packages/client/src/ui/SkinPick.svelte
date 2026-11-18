@@ -1,13 +1,17 @@
 <script lang="ts">
   import { HEROES, HERO_IDS, type HeroId } from '@dfend/shared';
-  import { heroName, setHero, setName, ui } from '../state.svelte';
+  import { heroName, setHero, setName, setSkin, ui } from '../state.svelte';
   import { save } from '../storage';
+  import SkinTones from './SkinTones.svelte';
 
   /** Premier lancement : choix de l'apparence (skin) du héros ; ses pouvoirs viennent ensuite de l'arbre du héros. */
   let pick = $state<HeroId>(ui.hero);
+  // la couleur de peau s'applique tout de suite (portraits et personnage de l'accueil)
+  let tone = $state(ui.skin);
   let name = $state(ui.name);
   function done() {
     setHero(pick);
+    setSkin(tone);
     if (name.trim()) setName(name.trim());
     save('skinChosen2', true);
     ui.overlay = null;
@@ -27,6 +31,7 @@
         </button>
       {/each}
     </div>
+    <SkinTones value={tone} onpick={(k) => { tone = k; setSkin(k); }} />
     <p class="desc"><b>{heroName(name)}</b>, {HEROES[pick].title.toLowerCase()}. {HEROES[pick].desc}</p>
     <button class="btn gold big" onclick={done}>Jouer ce personnage</button>
   </div>

@@ -3,7 +3,7 @@
   import { CLASSES, DIFFICULTY_NAMES, HEROES, LEVELS, MAPS, PLAYER_COLORS, SURVIVAL_MAPS, type Difficulty, type HeroId, type Mode } from '@dfend/shared';
   import { audio } from '../audio/Audio';
   import { net } from '../net/Net';
-  import { progress, setHero, toast, ui } from '../state.svelte';
+  import { progress, setHero, setSkin, toast, ui } from '../state.svelte';
   import Chat from './Chat.svelte';
   import HeroPicker from './HeroPicker.svelte';
   import HeroBadge from './HeroBadge.svelte';
@@ -19,7 +19,11 @@
   }
   function pickHero(h: HeroId) {
     setHero(h);
-    net.send({ t: 'hero', hero: h });
+    net.send({ t: 'hero', hero: h, skin: ui.skin });
+  }
+  function pickSkinTone(k: number) {
+    setSkin(k);
+    net.send({ t: 'hero', hero: ui.hero, skin: ui.skin });
   }
   function copy() {
     if (!room) return;
@@ -30,7 +34,7 @@
   $effect(() => {
     if (room && !sent) {
       sent = true;
-      net.send({ t: 'hero', hero: ui.hero });
+      net.send({ t: 'hero', hero: ui.hero, skin: ui.skin });
       // arbre de compétences et objets emportés dans la partie
       net.send({ t: 'meta', ...loadout() });
     }
@@ -99,7 +103,7 @@
       </div>
     </div>
     <div class="side">
-      <div class="panel"><h3>Votre héros</h3><HeroPicker value={me?.hero ?? ui.hero} onpick={pickHero} compact /><div class="hb"><HeroBadge /></div></div>
+      <div class="panel"><h3>Votre héros</h3><HeroPicker value={me?.hero ?? ui.hero} onpick={pickHero} compact skin={ui.skin} onskin={pickSkinTone} /><div class="hb"><HeroBadge /></div></div>
       <div class="chatbox"><Chat inline /></div>
     </div>
   </div>
