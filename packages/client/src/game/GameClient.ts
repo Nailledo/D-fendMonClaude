@@ -63,6 +63,12 @@ const TRAIT_ADVICE = [
   'Il se soigne s’il n’est pas blessé un moment : gardez-le sous le feu, le poison et la brûlure l’en empêchent.',
 ];
 
+/** Compétences lancées (type de projectile visuel) : l'impact attend l'arrivée de l'objet. */
+const THROW_FX: Record<string, number> = { bombe: 12, grenades: 12, piege: 12, filet: 12, boule: 5, acide: 9, peste: 9, transmutation: 3, prison: 3, malediction: 3 };
+/** Compétences en pirouette, et en bond suivi d'un coup au sol. */
+const SPIN_FX = new Set(['tourbillon', 'lames', 'faux', 'elan']);
+const SLAM_FX = new Set(['marteau', 'colere', 'seisme', 'coup', 'ethan', 'rempart']);
+
 export class GameClient {
   readonly map: RuntimeMap;
   readonly world: WorldInfo;
@@ -103,6 +109,10 @@ export class GameClient {
   private props: PropsView;
   private hoverProp = -1;
   private sparkleT = 3;
+  /** gestes de compétence en cours (`at` en ticks de rendu) : l'impact attend que l'objet lancé arrive (ou que le héros retombe) */
+  private pendingFx: { tick: number; x: number; z: number; delay: number; made: number }[] = [];
+  private deferredFx: { at: number; tick: number; ev: number[] }[] = [];
+  private replayFx = false;
   private ended = false;
   private dmgIdx = 0;
   private fpsAcc = 0;
@@ -842,6 +852,16 @@ export class GameClient {
 
     // événements
     for (const e of this.interp.dueEvents(this.scratch)) this.handleEvent(e.tick, e.ev);
+    if (this.pendingFx.length) this.pendingFx = this.pendingFx.filter((p) => this.time - p.made < 0.5);
+    if (this.deferredFx.length) {
+      this.replayFx = true;
+      this.deferredFx = this.deferredFx.filter((d) => {
+        if (this.interp.renderTick < d.at) return true;
+        this.handleEvent(d.tick, d.ev);
+        return false;
+      });
+      this.replayFx = false;
+    }
 
     const selTower = ui.sel?.kind === 'tower' ? ui.sel.tower ?? -1 : -1;
     // culling des entités : seulement quand on est zoomé (vue d'ensemble : tout est à l'écran)
@@ -1440,6 +1460,11 @@ export class GameClient {
         break;
       }
       case Ev.Impact: {
+        if (!this.replayFx) {
+          // impact d'une compétence lancée : il se joue à l'arrivée de la bombe, de la fiole, du sort…
+          const pd = this.pendingFx.find((q) => q.tick === tick && (q.x - ev[2]) ** 2 + (q.z - ev[3]) ** 2 < 1.2);
+          if (pd) { this.deferredFx.push({ at: tick + pd.delay * TICK_RATE, tick, ev: ev.slice() }); break; }
+        }
         const [, kind, x, z, r10] = ev;
         // zones durables des compétences de route : rayon ×10 + durée (s) ×1000
         const long = kind >= Impact.Cyclone && kind <= Impact.Blades;
@@ -1871,13 +1896,34 @@ export class GameClient {
         const sk = hi >= 0 ? kitSkills(s.hCls[hi], s.hKit[hi])[skill] : null;
         // flèche perçante : un vrai tir à l'arc (bras en joue), pas le geste de sort levé vers le ciel
         const shot = sk?.id === 'perce' || sk?.id === 'visee';
+        const sid = sk?.id ?? '';
+        const throwKind = THROW_FX[sid];
         if (hi >= 0) {
-          if (shot) this.ents.uFireTime[s.hUnit[hi]] = this.time;
-          else this.ents.castTime[s.hUnit[hi]] = this.time;
+          const uid = s.hUnit[hi];
+          if (shot || throwKind !== undefined) this.ents.uFireTime[uid] = this.time;
+          else if (SPIN_FX.has(sid)) { this.ents.spinTime[uid] = this.time; this.ents.uFireTime[uid] = this.time; }
+          else if (SLAM_FX.has(sid)) {
+            // bond puis coup au sol : l'onde de choc part quand il retombe
+            this.ents.slamTime[uid] = this.time;
+            this.pendingFx.push({ tick, x: hx, z: hz, delay: 0.32, made: this.time });
+          } else this.ents.castTime[uid] = this.time;
           // sort ciblé : le héros se tourne vers le point visé
           if ((x - hx) ** 2 + (z - hz) ** 2 > 0.25) this.ents.aim(s.hUnit[hi], 0xffff, x, z, this.time, 0.9);
         }
-        if (sk?.id === 'perce') {
+        if (throwKind !== undefined) {
+          // bombe, grenades, fioles, sorts lancés : l'objet part de la main et retombe sur la cible
+          const pts: [number, number][] = [];
+          if (sid === 'grenades') for (let k = 1; k <= 3; k++) pts.push([hx + ((x - hx) * k) / 3, hz + ((z - hz) * k) / 3]);
+          else pts.push([x, z]);
+          pts.forEach(([tx, tz], k) => {
+            const d = Math.hypot(tx - hx, tz - hz);
+            const fl = 0.3 + Math.min(0.35, d * 0.04);
+            const t0 = tick + k * 2;
+            fx.addShot({ kind: throwKind, sx: hx, sy: 1.5, sz: hz, tx, ty: 0.15, tz, targetId: 0xffff, t0, dur: Math.max(2, Math.round(fl * TICK_RATE)), arc: throwKind === 12 || throwKind === 9 ? 1 + d * 0.18 : 0.4 + d * 0.06, x: hx, y: 1.5, z: hz });
+            this.pendingFx.push({ tick, x: tx, z: tz, delay: fl + (k * 2) / TICK_RATE, made: this.time });
+          });
+          audio.play('arrow', 0.8);
+        } else if (sk?.id === 'perce') {
           // flèche perçante : trait lumineux et sillage de vent, depuis l'arc
           const dx = x - hx, dz = z - hz, l = Math.sqrt(dx * dx + dz * dz) || 1;
           const b = bowPos(hx, hz, x, z, this.tpos);

@@ -91,6 +91,9 @@ export class Entities {
   fireTime = new Float32Array(N);
   uFireTime = new Float32Array(N);
   castTime = new Float32Array(N);
+  /** compétences du héros : tour sur lui-même (tourbillon, lames) et bond suivi d'un coup au sol (marteau, séisme) */
+  spinTime = new Float32Array(N).fill(-99);
+  slamTime = new Float32Array(N).fill(-99);
   towerFire = new Map<number, number>();
   private eBorn = new Float32Array(N);
   private eKnown = new Uint8Array(N);
@@ -613,8 +616,17 @@ export class Entities {
       // pas au rythme de la vitesse mesurée ; en combat, piétinement régulier
       this.uPhase[id] = stride(this.uPhase[id], fighting ? 9 : moving || uv > 0.3 ? Math.max(5, (uv * 3.6) / scale) : 0, dt);
       const skin = kind === HERO_UNIT ? skinMul(this.playerSkin[f.uOwner[i]] ?? 0) : null;
+      // mouvements de compétence : pirouette complète, ou bond puis retombée lourde
+      let yawX = 0, hop = 0;
+      if (kind === HERO_UNIT) {
+        const sp = (time - this.spinTime[id]) / 0.55;
+        if (sp >= 0 && sp < 1) yawX = (1 - (1 - sp) ** 3) * Math.PI * 2;
+        const sl = (time - this.slamTime[id]) / 0.5;
+        if (sl >= 0 && sl < 1) hop = sl < 0.6 ? Math.sin((sl / 0.6) * Math.PI * 0.5) * 0.7 : 0.7 * (1 - ((sl - 0.6) / 0.4) ** 2);
+        if (hop > 0 && style) cast = 1 + Math.min(0.999, Math.max(0.001, sl));
+      }
       for (const p of weapon ? [pool, weapon] : [pool]) {
-        const j = p.push(f.uX[i], 0, f.uZ[i], this.uYaw[id], scale, id * 0.71, this.uPhase[id], flash, mode);
+        const j = p.push(f.uX[i], hop, f.uZ[i], this.uYaw[id] + yawX, scale, id * 0.71, this.uPhase[id], flash, mode);
         p.setTeam(j, team);
         if (skin) p.setSkin(j, skin);
         p.setPose(j, cast, uhit, this.uRoll[id], life);
